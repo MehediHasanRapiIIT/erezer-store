@@ -26,6 +26,7 @@ export class App {
 
   constructor() {
     this.themeService.initializeTheme();
+    this.publishScrollbarWidth();
 
     // Meta Pixel: inject base code once, then fire a PageView per navigation.
     this.pixel.init();
@@ -35,6 +36,36 @@ export class App {
     ).subscribe(() => this.pixel.pageView());
 
     this.restoreSession();
+  }
+
+  /**
+   * Publishes the vertical scrollbar's width as --sbw.
+   *
+   * Full-bleed sections size themselves from 100vw, but 100vw *includes* the
+   * scrollbar while the usable viewport does not - so a naive full-bleed
+   * overflows by the scrollbar width and adds a horizontal scrollbar. Headless
+   * browsers use overlay scrollbars and hide the problem, which is exactly how
+   * it slips through. Measuring it makes the maths exact on every platform.
+   */
+  private publishScrollbarWidth(): void {
+    if (typeof window === 'undefined') return;
+    const apply = () => {
+      // Measured with a throwaway probe rather than
+      // `innerWidth - documentElement.clientWidth`: that difference is 0 until
+      // the page is long enough to scroll, so reading it at startup reports no
+      // scrollbar and the correction silently does nothing. A probe reports the
+      // platform's scrollbar width whatever the page is currently doing, and
+      // returns 0 on overlay-scrollbar platforms, which is also correct.
+      const probe = document.createElement('div');
+      probe.style.cssText =
+        'position:absolute;top:-9999px;width:100px;height:100px;overflow:scroll;visibility:hidden';
+      document.body.appendChild(probe);
+      const width = probe.offsetWidth - probe.clientWidth;
+      probe.remove();
+      document.documentElement.style.setProperty('--sbw', `${Math.max(0, width)}px`);
+    };
+    apply();
+    window.addEventListener('resize', apply, { passive: true });
   }
 
   /**

@@ -45,6 +45,21 @@ export interface MessageResponse {
 
 // ─── Banner ───────────────────────────────────────────────────────────────────
 
+/**
+ * Which band of the landing page a banner fills. Mirrors the backend enum; a
+ * banner with no slot is treated as HERO, where banners appeared before the
+ * editorial bands existed.
+ */
+export type ApiBannerSlot =
+  | 'HERO'
+  | 'SPLIT_LEFT'
+  | 'SPLIT_RIGHT'
+  | 'GRID_1'
+  | 'GRID_2'
+  | 'GRID_3'
+  | 'GRID_4'
+  | 'CUSTOM_PROMO';
+
 export interface ApiBanner {
   id: string;
   imageUrl: string;
@@ -52,6 +67,12 @@ export interface ApiBanner {
   toDate: string;
   promotionTitle: string;
   promotionDetails: string;
+  slot: ApiBannerSlot;
+  /** Button text; null hides the button. */
+  ctaLabel: string | null;
+  /** Button destination; null hides the button. */
+  ctaLink: string | null;
+  sortOrder: number;
 }
 
 // ─── Category ─────────────────────────────────────────────────────────────────
@@ -61,6 +82,10 @@ export interface ApiCategory {
   name: string;
   isActive: boolean;
   imageUrl?: string | null;
+  /** URL for this category's own page, e.g. "erezer-pink" -> /erezer-pink. */
+  slug?: string | null;
+  showOnHome?: boolean;
+  homeSortOrder?: number;
 }
 
 // ─── Product ──────────────────────────────────────────────────────────────────
@@ -122,12 +147,26 @@ export interface ApiStockStatus {
 
 // ─── Home ─────────────────────────────────────────────────────────────────────
 
+/**
+ * One admin-promoted category band on the landing page, e.g. "Erezer Pink".
+ * Products come bundled so the page still loads in a single request.
+ */
+export interface ApiHomeSection {
+  categoryId: number;
+  name: string;
+  slug: string | null;
+  imageUrl: string | null;
+  sortOrder: number;
+  products: ApiProduct[];
+}
+
 export interface ApiHomeData {
   banners: ApiBanner[];
   categories: ApiCategory[];
   popularItems: ApiProduct[];
   featuredItems: ApiProduct[];
   newArrivalItems: ApiProduct[];
+  homeSections?: ApiHomeSection[];
 }
 
 // ─── Cart ─────────────────────────────────────────────────────────────────────

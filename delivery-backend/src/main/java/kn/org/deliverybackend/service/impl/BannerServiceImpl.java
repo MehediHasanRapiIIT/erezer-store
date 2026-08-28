@@ -1,6 +1,8 @@
 package kn.org.deliverybackend.service.impl;
 
 import kn.org.deliverybackend.dto.PromotionalBannerDTO;
+import kn.org.deliverybackend.dto.request.banner.BannerContentDTO;
+import kn.org.deliverybackend.enumeration.BannerSlot;
 import kn.org.deliverybackend.entity.PromotionalBanner;
 import kn.org.deliverybackend.repository.PromotionalBannerRepository;
 import kn.org.deliverybackend.service.BannerService;
@@ -10,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -22,17 +25,40 @@ public class BannerServiceImpl implements BannerService {
     private final BannerStorageService bannerStorageService;
 
     @Override
-    public PromotionalBannerDTO uploadBanner(MultipartFile image, String promotionTitle, String promotionDetails, String fromDate, String toDate) {
+    public PromotionalBannerDTO uploadBanner(MultipartFile image, BannerContentDTO content) {
         String imageUrl = bannerStorageService.uploadBanner(image);
+        BannerContentDTO c = content != null ? content : new BannerContentDTO();
 
         PromotionalBanner banner = new PromotionalBanner();
         banner.setImageUrl(imageUrl);
-        banner.setPromotionTitle(promotionTitle);
-        banner.setPromotionDetails(promotionDetails);
-        banner.setFromDate(fromDate != null ? LocalDate.parse(fromDate) : null);
-        banner.setToDate(toDate != null ? LocalDate.parse(toDate) : null);
+        banner.setPromotionTitle(c.getPromotionTitle());
+        banner.setPromotionDetails(c.getPromotionDetails());
+        banner.setFromDate(c.getFromDate());
+        banner.setToDate(c.getToDate());
+        // Default to HERO so a banner uploaded without choosing a slot behaves
+        // exactly as banners did before slots existed.
+        banner.setSlot(c.getSlot() != null ? c.getSlot() : BannerSlot.HERO);
+        banner.setCtaLabel(c.getCtaLabel());
+        banner.setCtaLink(c.getCtaLink());
+        banner.setSortOrder(c.getSortOrder() != null ? c.getSortOrder() : 0);
 
         return toDTO(bannerRepository.save(banner));
+    }
+
+    @Override
+    public List<PromotionalBannerDTO> getBannersForSlot(BannerSlot slot) {
+        LocalDate today = LocalDate.now();
+        return bannerRepository.findAll().stream()
+                .filter(b -> !Boolean.TRUE.equals(b.getDeleted()))
+                // A null slot is legacy data from before the editorial page, and
+                // HERO is the only band those were ever shown in.
+                .filter(b -> (b.getSlot() != null ? b.getSlot() : BannerSlot.HERO) == slot)
+                .filter(b -> b.getFromDate() == null || !b.getFromDate().isAfter(today))
+                .filter(b -> b.getToDate() == null || !b.getToDate().isBefore(today))
+                .sorted(Comparator.comparing(
+                        b -> b.getSortOrder() != null ? b.getSortOrder() : 0))
+                .map(this::toDTO)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -43,7 +69,7 @@ public class BannerServiceImpl implements BannerService {
     }
 
     @Override
-    public PromotionalBannerDTO updateBanner(UUID id, MultipartFile image, String promotionTitle, String promotionDetails, String fromDate, String toDate) {
+    public PromotionalBannerDTO updateBanner(UUID id, MultipartFile image, BannerContentDTO content) {
         PromotionalBanner banner = bannerRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Banner not found with id: " + id));
 
@@ -56,10 +82,16 @@ public class BannerServiceImpl implements BannerService {
             banner.setImageUrl(bannerStorageService.uploadBanner(image));
         }
 
-        if (promotionTitle != null) banner.setPromotionTitle(promotionTitle);
-        if (promotionDetails != null) banner.setPromotionDetails(promotionDetails);
-        if (fromDate != null) banner.setFromDate(LocalDate.parse(fromDate));
-        if (toDate != null) banner.setToDate(LocalDate.parse(toDate));
+        // Null means "leave as-is", matching how this endpoint already behaved.
+        BannerContentDTO c = content != null ? content : new BannerContentDTO();
+        if (c.getPromotionTitle() != null) banner.setPromotionTitle(c.getPromotionTitle());
+        if (c.getPromotionDetails() != null) banner.setPromotionDetails(c.getPromotionDetails());
+        if (c.getFromDate() != null) banner.setFromDate(c.getFromDate());
+        if (c.getToDate() != null) banner.setToDate(c.getToDate());
+        if (c.getSlot() != null) banner.setSlot(c.getSlot());
+        if (c.getCtaLabel() != null) banner.setCtaLabel(c.getCtaLabel());
+        if (c.getCtaLink() != null) banner.setCtaLink(c.getCtaLink());
+        if (c.getSortOrder() != null) banner.setSortOrder(c.getSortOrder());
 
         return toDTO(bannerRepository.save(banner));
     }
@@ -85,7 +117,11 @@ public class BannerServiceImpl implements BannerService {
                 banner.getFromDate(),
                 banner.getToDate(),
                 banner.getPromotionTitle(),
-                banner.getPromotionDetails()
+                banner.getPromotionDetails(),
+                banner.getSlot() != null ? banner.getSlot() : BannerSlot.HERO,
+                banner.getCtaLabel(),
+                banner.getCtaLink(),
+                banner.getSortOrder() != null ? banner.getSortOrder() : 0
         );
     }
 }

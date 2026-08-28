@@ -115,6 +115,12 @@ export interface CategoryRequest {
   name: string;
   isActive: boolean;
   imageUrl?: string | null;
+  /** URL for the category's own storefront page. Blank derives it from the name. */
+  slug?: string | null;
+  /** Give this category its own product section on the landing page. */
+  showOnHome?: boolean;
+  /** Ordering among home sections, lowest first. */
+  homeSortOrder?: number;
 }
 
 export interface CategoryResponse {
@@ -123,9 +129,28 @@ export interface CategoryResponse {
   isActive: boolean;
   imageUrl?: string | null;
   productCount: number;
+  slug?: string | null;
+  showOnHome?: boolean;
+  homeSortOrder?: number;
 }
 
 // --- Banners ---
+
+/**
+ * Which band of the storefront landing page a banner fills. Mirrors the
+ * backend BannerSlot enum; a banner with no slot is treated as HERO, which is
+ * where banners appeared before the editorial page existed.
+ */
+export type BannerSlot =
+  | 'HERO'
+  | 'SPLIT_LEFT'
+  | 'SPLIT_RIGHT'
+  | 'GRID_1'
+  | 'GRID_2'
+  | 'GRID_3'
+  | 'GRID_4'
+  | 'CUSTOM_PROMO';
+
 export interface BannerResponse {
   id: string;
   imageUrl: string;
@@ -133,6 +158,29 @@ export interface BannerResponse {
   promotionDetails: string;
   fromDate: string;
   toDate: string;
+  slot: BannerSlot;
+  /** Button text; null hides the button on the storefront. */
+  ctaLabel: string | null;
+  /** Button destination; null hides the button. */
+  ctaLink: string | null;
+  /** Order within a slot, lowest first. */
+  sortOrder: number;
+}
+
+/**
+ * Everything about a banner except the image file. Passed as one object rather
+ * than eight positional arguments, which were easy to transpose at call sites.
+ * Every field is optional; on update, omitting one leaves it unchanged.
+ */
+export interface BannerContent {
+  promotionTitle?: string;
+  promotionDetails?: string;
+  fromDate?: string;
+  toDate?: string;
+  slot?: BannerSlot;
+  ctaLabel?: string;
+  ctaLink?: string;
+  sortOrder?: number;
 }
 
 // --- Home / Dashboard ---

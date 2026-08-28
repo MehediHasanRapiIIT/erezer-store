@@ -441,8 +441,11 @@ interface ViewTab { id: CustomDesignView; label: string; }
      */
     @media (min-width: 1280px) {
       .studio-bleed {
-        margin-left: max(calc(50% - 50vw + 10px), -190px);
-        margin-right: max(calc(50% - 50vw + 10px), -190px);
+        /* Scrollbar-aware, same maths as the global .full-bleed: 100vw includes
+           the scrollbar but the usable viewport does not. Capped at -190px so
+           the studio never exceeds 1600px on a very wide monitor. */
+        margin-left: max(calc(50% - 50vw + (var(--sbw, 0px) / 2)), -190px);
+        margin-right: max(calc(50% - 50vw + (var(--sbw, 0px) / 2)), -190px);
       }
     }
   `],
@@ -557,7 +560,9 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
     // that sit above the stage, so the whole garment is visible without
     // scrolling on a typical laptop.
     const byHeight = Math.floor(window.innerHeight - 185);
-    const size = Math.max(360, Math.min(1040, available || 840, byHeight));
+    // Floor low enough that a narrow phone is never forced wider than its own
+    // viewport - a 360px floor overflowed at 420px once padding was counted.
+    const size = Math.max(240, Math.min(1040, available || 840, byHeight));
     this.canvas.init(this.canvasRef.nativeElement, size, size);
     this.canvasReady = true;
     // Fire-and-forget: canvas text does not repaint when a webfont lands, so

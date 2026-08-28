@@ -136,6 +136,48 @@
             </button>
           </div>
 
+
+          <!-- Landing-page section -->
+          <div class="border-t border-gray-100 pt-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm font-medium text-gray-700">Show as a section on the home page</p>
+                <p class="text-xs text-gray-400">Gives this category its own band of 5 products, and its own page.</p>
+              </div>
+              <button
+                type="button"
+                (click)="showOnHome.set(!showOnHome())"
+                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300"
+                [class.bg-blue-600]="showOnHome()"
+                [class.bg-gray-200]="!showOnHome()"
+                [attr.aria-checked]="showOnHome()"
+                role="switch"
+              >
+                <span
+                  class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
+                  [class.translate-x-6]="showOnHome()"
+                  [class.translate-x-1]="!showOnHome()"
+                ></span>
+              </button>
+            </div>
+
+            @if (showOnHome()) {
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">Section order</label>
+                <input
+                  type="number"
+                  min="0"
+                  [ngModel]="homeSortOrder()"
+                  (ngModelChange)="homeSortOrder.set($event)"
+                  class="w-28 px-3.5 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300"
+                />
+                <p class="mt-1.5 text-xs text-gray-400">
+                  Lower numbers appear first. The section is hidden while the category has no products.
+                </p>
+              </div>
+            }
+          </div>
+
           <!-- Any other field errors -->
           @for (entry of $any(fieldErrors()) | keyvalue; track entry.key) {
             @if (entry.key !== 'name') {

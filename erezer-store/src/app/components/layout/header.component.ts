@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { AfterViewInit, Component, computed, effect, ElementRef, inject, OnDestroy, signal, HostListener } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { filter } from 'rxjs';
@@ -16,12 +16,18 @@ interface NavLink {
   authOnly: boolean;
 }
 
+/** Scroll distance before the floating header solidifies. */
+const HERO_FADE_PX = 24;
+
 @Component({
   selector: 'app-header',
   imports: [RouterLink, RouterLinkActive, TranslatePipe, ThemeToggleComponent],
   template: `
     <header
-      class="sticky top-0 z-40 border-b border-neutral-200/80 bg-white/85 backdrop-blur-xl dark:border-neutral-800 dark:bg-neutral-950/85"
+      class="sticky top-0 z-40 transition-colors duration-300"
+      [class]="overHero()
+        ? 'header-over-hero sticky top-0 z-40 border-b border-transparent bg-transparent transition-colors duration-300'
+        : 'sticky top-0 z-40 border-b border-neutral-200/80 bg-white/85 backdrop-blur-xl transition-colors duration-300 dark:border-neutral-800 dark:bg-neutral-950/85'"
     >
       <div class="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-3 sm:gap-4 sm:px-6 lg:px-8">
         <!-- Mobile menu trigger -->
@@ -196,16 +202,99 @@ interface NavLink {
       </div>
     </aside>
     }
-  `
+  `,
+  styles: [`
+    /*
+     * Floating header, used only over the home page's hero photo.
+     *
+     * The hero carries its own dark scrim, so everything in the bar is forced
+     * to white for contrast. Scoped to this one state - the header keeps its
+     * normal light/dark theming everywhere else. Elements that already carry
+     * their own solid background (the Sign in pill, the active language chip)
+     * are left alone, which is why this targets colour and border rather than
+     * blanket-styling every child.
+     */
+    .header-over-hero,
+    .header-over-hero a,
+    .header-over-hero button {
+      color: #fff;
+    }
+    .header-over-hero a:hover,
+    .header-over-hero button:hover {
+      color: #fff;
+    }
+    /* Outlined controls need a visible edge against photography. */
+    .header-over-hero .ring-1,
+    .header-over-hero [class*="border-neutral"] {
+      border-color: rgba(255, 255, 255, 0.45);
+    }
+    /* Hover chips would flash near-white on a bright photo. */
+    .header-over-hero *:hover {
+      --tw-bg-opacity: 0.16;
+    }
+  `],
 })
-export class HeaderComponent {
+export class HeaderComponent implements AfterViewInit, OnDestroy {
   protected readonly store = inject(EcommerceStore);
   protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   protected readonly translate = inject(TranslateService);
   private readonly document = inject(DOCUMENT);
 
+  private readonly hostEl = inject(ElementRef);
+  private resizeObserver?: ResizeObserver;
+
   protected readonly menuOpen = signal(false);
+
+  /**
+   * True while the bar floats over the home page's hero photo: on "/" and
+   * scrolled to the top. Anywhere else, or once the user scrolls, the header
+   * returns to its solid themed state so text stays legible against content.
+   */
+  private readonly atTop = signal(true);
+  private readonly onHome = signal(true);
+  protected readonly overHero = computed(() => this.onHome() && this.atTop());
+
+  /**
+   * Publishes the bar's height as --app-header-h.
+   *
+   * The home hero slides underneath the floating header, and it needs the exact
+   * height to do that. Measuring instead of hardcoding keeps it correct when the
+   * nav wraps to two lines on a narrow window or the links change.
+   */
+  private publishHeight(): void {
+    if (typeof window === 'undefined') return;
+    const el = this.hostEl.nativeElement as HTMLElement;
+    const apply = () => this.document.documentElement.style
+      .setProperty('--app-header-h', `${Math.round(el.getBoundingClientRect().height)}px`);
+    apply();
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(apply);
+      this.resizeObserver.observe(el);
+    }
+  }
+
+  ngAfterViewInit(): void {
+    this.publishHeight();
+  }
+
+  ngOnDestroy(): void {
+    this.resizeObserver?.disconnect();
+  }
+
+  private isHomeUrl(url: string): boolean {
+    return url.split('?')[0].split('#')[0] === '/';
+  }
+
+  private readScrollY(): number {
+    return typeof window === 'undefined' ? 0 : window.scrollY;
+  }
+
+  // Passive by default in Angular's host listeners; cheap enough at this rate.
+  @HostListener('window:scroll')
+  protected onWindowScroll(): void {
+    this.atTop.set(this.readScrollY() <= HERO_FADE_PX);
+  }
 
   protected readonly wishCount = computed(() => this.store.wishlist().length);
 
@@ -225,13 +314,22 @@ export class HeaderComponent {
   );
 
   constructor() {
-    // Close the drawer whenever navigation completes.
+    // The floating-header state depends on the route, so seed it before any
+    // navigation happens - otherwise a deep link renders white-on-white.
+    this.onHome.set(this.isHomeUrl(this.router.url));
+
+    // Close the drawer whenever navigation completes, and re-evaluate whether
+    // the header should be floating over a hero on the newly-entered route.
     this.router.events
       .pipe(
-        filter((e) => e instanceof NavigationEnd),
+        filter((e): e is NavigationEnd => e instanceof NavigationEnd),
         takeUntilDestroyed()
       )
-      .subscribe(() => this.menuOpen.set(false));
+      .subscribe((e) => {
+        this.menuOpen.set(false);
+        this.onHome.set(this.isHomeUrl(e.urlAfterRedirects));
+        this.atTop.set(this.readScrollY() <= HERO_FADE_PX);
+      });
 
     // Lock body scroll while the mobile drawer is open.
     effect(() => {

@@ -25,5 +25,11 @@ public class CategoryDTO {
     private String imageUrl;
 
     @Schema(description = "Creation timestamp")
+    private String slug;
+
+    private Boolean showOnHome;
+
+    private Integer homeSortOrder;
+
     private LocalDateTime createdAt;
 }

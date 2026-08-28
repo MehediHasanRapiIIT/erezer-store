@@ -48,6 +48,15 @@ body {
   box-shadow: var(--shadow-card);
 }
 
+/*
+ * Escape hatch for full-bleed cards. Tailwind's `rounded-none` has the same
+ * specificity as `.app-card`, so which one wins comes down to bundle order -
+ * this makes the intent explicit instead of relying on that.
+ */
+.app-card.rounded-none {
+  border-radius: 0;
+}
+
 .dark .app-card {
   border-color: rgb(64 64 64);
   background: rgb(23 23 23);
@@ -105,6 +114,27 @@ body {
 .reveal.is-visible {
   opacity: 1;
   transform: none;
+}
+
+/*
+ * Full-bleed variant. The default reveal rises 28px, which on an edge-to-edge
+ * band exposes a strip of page background along the bottom edge mid-animation.
+ * These fade only, and lean on the image's own slow settle for the motion.
+ */
+.reveal.reveal-band {
+  transform: none;
+  transition-duration: 0.9s;
+}
+.reveal-band img {
+  transform: scale(1.06);
+  transition: transform 1.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal-band.is-visible img {
+  transform: scale(1);
+}
+/* The hover zoom on tiles must still win once the reveal has settled. */
+.reveal-band.is-visible .group:hover img {
+  transform: scale(1.05);
 }
 
 /* Cinematic hero */
@@ -177,9 +207,66 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+  .reveal-band img, .reveal-band.is-visible img { transform: none !important; transition: none !important; }
   .hero-kenburns, .hero-word, .hero-fade, .scroll-cue, .marquee-track {
     animation: none !important;
   }
   .hero-word, .hero-fade { opacity: 1 !important; transform: none !important; }
   .animate-drawer-in, .animate-overlay-in { animation: none !important; }
+}
+
+/*
+ * Home hero: run the photo to the very top of the viewport, beneath the
+ * floating header.
+ *
+ * Two things are cancelled: <main>'s 2.5rem top padding, and the height of the
+ * sticky header, which sits in normal flow above it. --app-header-h is
+ * published by the header component at runtime, so this stays right when the
+ * nav wraps; the 4rem fallback covers the first paint before it is measured.
+ */
+.hero-full-bleed {
+  margin-top: calc(-2.5rem - var(--app-header-h, 4rem));
+}
+
+/*
+ * Flush product grid: cards butt together into one continuous band, matching
+ * the full-bleed collection tiles.
+ *
+ * Scoped to a modifier rather than changing .app-card, which is used for every
+ * card on the site. Borders are right+bottom only so neighbouring cards share a
+ * single hairline instead of stacking two 1px edges into a 2px seam. The lift
+ * on hover is dropped too - in a gapless grid it tears a hole in the band.
+ */
+.card-grid-flush .app-card {
+  border-radius: 0;
+  box-shadow: none;
+  border-width: 0 1px 1px 0;
+  transition: background-color 0.3s ease;
+}
+.card-grid-flush .app-card:hover {
+  /* Tailwind v4 drives its translate utilities through the `translate`
+     property, not `transform`, so both have to be cleared to stop the card
+     lifting out of the band. */
+  transform: none;
+  translate: none;
+  box-shadow: none;
+  background: rgb(250 250 250);
+}
+.dark .card-grid-flush .app-card:hover {
+  background: rgb(32 32 32);
+}
+
+/*
+ * Full-bleed: break a section out of the app shell's max-width column so it
+ * spans the viewport.
+ *
+ * Margin-based on purpose. The `left:50% / width:100vw / translateX(-50%)`
+ * trick sets `left`, which fights `position: sticky`, and its 100vw includes
+ * the scrollbar - producing a horizontal scrollbar on any platform with
+ * classic (non-overlay) scrollbars. Adding back half the measured scrollbar
+ * width (--sbw, published by AppComponent) makes it exact.
+ */
+.full-bleed {
+  margin-left: calc(50% - 50vw + (var(--sbw, 0px) / 2));
+  margin-right: calc(50% - 50vw + (var(--sbw, 0px) / 2));
 }

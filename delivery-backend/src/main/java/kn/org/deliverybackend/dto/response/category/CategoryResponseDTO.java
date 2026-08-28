@@ -13,4 +13,7 @@ public class CategoryResponseDTO {
     private Boolean isActive;
     private String imageUrl;
     private long productCount;
+    private String slug;
+    private Boolean showOnHome;
+    private Integer homeSortOrder;
 }

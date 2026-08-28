@@ -86,5 +86,18 @@ export const routes: Routes = [
     path: 'unsubscribe',
     loadComponent: () => import('./pages/unsubscribe.page').then((m) => m.UnsubscribePage)
   },
+  {
+    path: 'categories',
+    loadComponent: () => import('./pages/categories.page').then((m) => m.CategoriesPage)
+  },
+  // Catch-all collection page, e.g. /erezer-pink.
+  //
+  // Registered LAST so every real route above wins: a category slugged "shop"
+  // could otherwise shadow the shop page. Any slug that matches no category
+  // redirects home, which is what the wildcard below used to do for these URLs.
+  {
+    path: ':slug',
+    loadComponent: () => import('./pages/collection.page').then((m) => m.CollectionPage)
+  },
   { path: '**', redirectTo: '' }
 ];

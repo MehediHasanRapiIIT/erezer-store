@@ -120,6 +120,11 @@ export class ApiService {
     return this.http.get<ApiCategory[]>(`${BASE}/api/categories`);
   }
 
+  /** Resolves a storefront collection URL, e.g. /erezer-pink, to its category. */
+  getCategoryBySlug(slug: string): Observable<ApiCategory> {
+    return this.http.get<ApiCategory>(`${BASE}/api/categories/slug/${encodeURIComponent(slug)}`);
+  }
+
   getProductsByCategory(categoryId: number): Observable<ApiProduct[]> {
     return this.http.get<ApiProduct[]>(`${BASE}/api/categories/${categoryId}/products`);
   }

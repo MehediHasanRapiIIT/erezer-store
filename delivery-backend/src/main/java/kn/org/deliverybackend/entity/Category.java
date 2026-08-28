@@ -25,4 +25,24 @@ public class Category extends AbstractBaseEntity<Long> {
 
     /** Optional image shown in the storefront "Shop by category" tiles. */
     private String imageUrl;
+
+    /**
+     * URL-safe name for this category's own storefront page, e.g. "erezer-pink"
+     * serving /erezer-pink. Unique across categories; derived from the name when
+     * the admin leaves it blank.
+     */
+    @Column(name = "slug", length = 140, unique = true)
+    private String slug;
+
+    /**
+     * Whether the landing page gives this category its own product section,
+     * below Featured products. Lets the admin promote a collection without a
+     * code change.
+     */
+    @Column(name = "show_on_home")
+    private Boolean showOnHome;
+
+    /** Ordering among home sections, lowest first. */
+    @Column(name = "home_sort_order")
+    private Integer homeSortOrder;
 }

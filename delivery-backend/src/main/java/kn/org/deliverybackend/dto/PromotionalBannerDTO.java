@@ -1,5 +1,6 @@
 package kn.org.deliverybackend.dto;
 
+import kn.org.deliverybackend.enumeration.BannerSlot;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -30,4 +31,17 @@ public class PromotionalBannerDTO {
     
     @Schema(description = "Promotion details", example = "Up to 50% off on all products")
     private String promotionDetails;
+
+    @Schema(description = "Home-page band this banner fills; null behaves as HERO",
+            example = "SPLIT_LEFT")
+    private BannerSlot slot;
+
+    @Schema(description = "Button text; null hides the button", example = "SHOP NOW")
+    private String ctaLabel;
+
+    @Schema(description = "Button destination; null hides the button", example = "/shop?category=2")
+    private String ctaLink;
+
+    @Schema(description = "Ordering within a slot, lowest first", example = "0")
+    private Integer sortOrder;
 }

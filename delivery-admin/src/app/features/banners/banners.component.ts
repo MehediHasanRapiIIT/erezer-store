@@ -2,7 +2,7 @@ import { Component, signal, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import { BannerService } from '../../core/services/banner.service';
-import { BannerResponse } from '../../core/models/api.models';
+import { BannerContent, BannerResponse, BannerSlot } from '../../core/models/api.models';
 import { parseApiError } from '../../core/utils/api-error.util';
 
 @Component({
@@ -29,6 +29,10 @@ export class BannersComponent implements OnInit {
   promotionDetails = signal('');
   fromDate = signal('');
   toDate = signal('');
+  slot = signal<BannerSlot>('HERO');
+  ctaLabel = signal('');
+  ctaLink = signal('');
+  sortOrder = signal(0);
   isSaving = signal(false);
   formError = signal('');
 
@@ -37,6 +41,41 @@ export class BannersComponent implements OnInit {
   isDeleting = signal(false);
 
   get isEditMode(): boolean { return this.editingId() !== null; }
+
+  /**
+   * The landing-page bands a banner can fill, with guidance on what each one
+   * expects. Labels are written for a shop owner rather than mirroring the enum.
+   */
+  readonly slotOptions: { value: BannerSlot; label: string; hint: string }[] = [
+    { value: 'HERO', label: 'Hero (top of page)', hint: 'Full-screen opening image. Several rotate as a carousel.' },
+    { value: 'SPLIT_LEFT', label: 'Split band — left', hint: 'Left half of the two-up category band.' },
+    { value: 'SPLIT_RIGHT', label: 'Split band — right', hint: 'Right half of the two-up category band.' },
+    { value: 'GRID_1', label: 'Grid tile 1', hint: 'Top-left tile of the 2×2 grid.' },
+    { value: 'GRID_2', label: 'Grid tile 2', hint: 'Top-right tile of the 2×2 grid.' },
+    { value: 'GRID_3', label: 'Grid tile 3', hint: 'Bottom-left tile of the 2×2 grid.' },
+    { value: 'GRID_4', label: 'Grid tile 4', hint: 'Bottom-right tile of the 2×2 grid.' },
+    { value: 'CUSTOM_PROMO', label: 'Custom-design promo', hint: 'Photo beside the “design your own” panel.' },
+  ];
+
+  /** Human label for a slot, for the badge on each banner card. */
+  slotLabel(slot: BannerSlot | null | undefined): string {
+    return this.slotOptions.find((o) => o.value === (slot ?? 'HERO'))?.label ?? 'Hero (top of page)';
+  }
+
+  /** Hint shown under the slot picker for the currently-selected band. */
+  get selectedSlotHint(): string {
+    return this.slotOptions.find((o) => o.value === this.slot())?.hint ?? '';
+  }
+
+  /**
+   * Slots with no banner yet. Surfaced in the UI because a band with nothing in
+   * it silently hides on the storefront - without this you cannot tell an empty
+   * band from a broken one.
+   */
+  get emptySlots(): string[] {
+    const filled = new Set(this.banners().map((b) => b.slot ?? 'HERO'));
+    return this.slotOptions.filter((o) => !filled.has(o.value)).map((o) => o.label);
+  }
 
   ngOnInit(): void {
     this.loadBanners();
@@ -64,6 +103,10 @@ export class BannersComponent implements OnInit {
     this.promotionDetails.set(banner.promotionDetails ?? '');
     this.fromDate.set(banner.fromDate ?? '');
     this.toDate.set(banner.toDate ?? '');
+    this.slot.set(banner.slot ?? 'HERO');
+    this.ctaLabel.set(banner.ctaLabel ?? '');
+    this.ctaLink.set(banner.ctaLink ?? '');
+    this.sortOrder.set(banner.sortOrder ?? 0);
     this.existingImageUrl.set(banner.imageUrl ?? '');
     this.showForm.set(true);
   }
@@ -109,14 +152,20 @@ export class BannersComponent implements OnInit {
     this.isSaving.set(true);
     this.formError.set('');
 
-    const title = this.promotionTitle() || undefined;
-    const details = this.promotionDetails() || undefined;
-    const from = this.fromDate() || undefined;
-    const to = this.toDate() || undefined;
+    const content: BannerContent = {
+      promotionTitle: this.promotionTitle() || undefined,
+      promotionDetails: this.promotionDetails() || undefined,
+      fromDate: this.fromDate() || undefined,
+      toDate: this.toDate() || undefined,
+      slot: this.slot(),
+      ctaLabel: this.ctaLabel() || undefined,
+      ctaLink: this.ctaLink() || undefined,
+      sortOrder: this.sortOrder() ?? 0,
+    };
 
     const req$ = editId
-      ? this.bannerService.updateBanner(editId, this.imageFile() ?? undefined, title, details, from, to)
-      : this.bannerService.uploadBanner(this.imageFile()!, title, details, from, to);
+      ? this.bannerService.updateBanner(editId, this.imageFile() ?? undefined, content)
+      : this.bannerService.uploadBanner(this.imageFile()!, content);
 
     req$.subscribe({
       next: (banner) => {
@@ -162,6 +211,10 @@ export class BannersComponent implements OnInit {
     this.promotionDetails.set('');
     this.fromDate.set('');
     this.toDate.set('');
+    this.slot.set('HERO');
+    this.ctaLabel.set('');
+    this.ctaLink.set('');
+    this.sortOrder.set(0);
     this.formError.set('');
   }
 

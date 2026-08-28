@@ -25,6 +25,15 @@ public class CategoryController {
     public ResponseEntity<List<CategoryResponseDTO>> getAllCategories() {
         return ResponseEntity.ok(categoryService.getAllCategories());
     }
+    /**
+     * Resolves a storefront collection URL to its category, e.g. GET
+     * /api/categories/slug/erezer-pink backing the /erezer-pink page.
+     */
+    @GetMapping("/slug/{slug}")
+    public ResponseEntity<CategoryResponseDTO> getCategoryBySlug(@PathVariable String slug) {
+        return ResponseEntity.ok(categoryService.getCategoryBySlug(slug));
+    }
+
 
     @GetMapping("/{id}")
     public ResponseEntity<CategoryResponseDTO> getCategoryById(@PathVariable Long id) {

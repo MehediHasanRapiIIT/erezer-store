@@ -23,6 +23,8 @@ export class EditCategoryComponent implements OnInit {
   categoryName = signal('');
   isActive     = signal(true);
   imageUrl     = signal('');
+  showOnHome   = signal(false);
+  homeSortOrder = signal(0);
   uploading    = signal(false);
   isLoading    = signal(false);
   isFetching   = signal(true);
@@ -57,6 +59,8 @@ export class EditCategoryComponent implements OnInit {
         this.categoryName.set(cat.name);
         this.isActive.set(cat.isActive);
         this.imageUrl.set(cat.imageUrl ?? '');
+        this.showOnHome.set(cat.showOnHome ?? false);
+        this.homeSortOrder.set(cat.homeSortOrder ?? 0);
         this.isFetching.set(false);
       },
       error: (err) => {
@@ -77,6 +81,8 @@ export class EditCategoryComponent implements OnInit {
       name: this.categoryName().trim(),
       isActive: this.isActive(),
       imageUrl: this.imageUrl() || null,
+      showOnHome: this.showOnHome(),
+      homeSortOrder: this.homeSortOrder(),
     }).subscribe({
       next: () => {
         this.isLoading.set(false);

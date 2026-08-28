@@ -15,11 +15,16 @@ import { RevealDirective } from '../core/reveal.directive';
   imports: [FormsModule, ProductCardComponent, RouterLink, RevealDirective],
   template: `
     <!-- ── Editorial header ────────────────────────────────────────────────── -->
-    <section class="mb-8 flex flex-col gap-5 md:flex-row md:items-end md:justify-between" appReveal>
-      <div class="space-y-2">
-        <p class="text-xs font-semibold uppercase tracking-[0.28em] text-neutral-500 dark:text-neutral-400">The collection</p>
-        <h1 class="app-section-title text-3xl md:text-4xl">Shop</h1>
-        <p class="app-muted max-w-md">Discover premium essentials for everyday style.</p>
+    <section class="relative full-bleed mb-8 flex flex-col gap-6 border-b border-neutral-200 px-4 pb-8 sm:px-6 md:flex-row md:items-end md:justify-between lg:px-8 dark:border-neutral-800" appReveal>
+      <div>
+        <p class="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.32em] text-neutral-500 dark:text-neutral-400">
+          <span class="h-px w-10 bg-neutral-400 dark:bg-neutral-600"></span>
+          The collection
+        </p>
+        <!-- Set the size directly: app-section-title hardcodes 1.875rem and ties
+             with Tailwind's text-* utilities on specificity, so it silently wins. -->
+        <h1 class="mt-4 text-4xl font-semibold leading-[1.05] tracking-[-0.02em] md:text-5xl xl:text-6xl">Shop</h1>
+        <p class="app-muted mt-4 max-w-md text-base">Discover premium essentials for everyday style.</p>
       </div>
       <label class="relative w-full md:w-96">
         <svg xmlns="http://www.w3.org/2000/svg" class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400"
@@ -35,39 +40,27 @@ import { RevealDirective } from '../core/reveal.directive';
       </label>
     </section>
 
-    <!-- ── Category strip (image tiles) ────────────────────────────────────── -->
-    <section class="mb-8" appReveal>
-      <div class="no-scrollbar -mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
-        <!-- All -->
+    <!-- ── Category filter ─────────────────────────────────────────────────── -->
+    <!-- Text pills rather than image tiles: categories have no images by
+         default, and the old tiles rendered as empty grey boxes with a caption,
+         which read as broken rather than unstyled. Pills work with any number of
+         categories and need no artwork. -->
+    <section class="relative full-bleed mb-6 px-4 sm:px-6 lg:px-8" appReveal>
+      <div class="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
         <button (click)="selectCategory(null)"
-          class="group relative h-28 w-24 flex-shrink-0 overflow-hidden rounded-2xl border transition"
-          [class.border-transparent]="selectedCategoryId() === null"
-          [class.ring-2]="selectedCategoryId() === null"
-          [class.ring-neutral-900]="selectedCategoryId() === null"
-          [class.dark:ring-white]="selectedCategoryId() === null"
-          [class.border-neutral-200]="selectedCategoryId() !== null"
-          [class.dark:border-neutral-800]="selectedCategoryId() !== null">
-          <div class="absolute inset-0 bg-gradient-to-br from-neutral-800 to-neutral-950"></div>
-          <span class="absolute inset-x-0 bottom-2 px-2 text-center text-xs font-semibold text-white">All</span>
+          class="shrink-0 rounded-full border px-5 py-2.5 text-sm font-medium transition"
+          [class]="selectedCategoryId() === null
+            ? 'shrink-0 rounded-full border border-transparent bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white transition dark:bg-white dark:text-black'
+            : 'shrink-0 rounded-full border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-600 transition hover:border-neutral-900 hover:text-neutral-900 dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-white dark:hover:text-white'">
+          All
         </button>
 
         @for (cat of categories(); track cat.id) {
           <button (click)="selectCategory(cat.id)"
-            class="group relative h-28 w-24 flex-shrink-0 overflow-hidden rounded-2xl border transition"
-            [class.border-transparent]="selectedCategoryId() === cat.id"
-            [class.ring-2]="selectedCategoryId() === cat.id"
-            [class.ring-neutral-900]="selectedCategoryId() === cat.id"
-            [class.dark:ring-white]="selectedCategoryId() === cat.id"
-            [class.border-neutral-200]="selectedCategoryId() !== cat.id"
-            [class.dark:border-neutral-800]="selectedCategoryId() !== cat.id">
-            @if (cat.imageUrl) {
-              <img [src]="cat.imageUrl" [alt]="cat.name"
-                class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
-            } @else {
-              <div class="h-full w-full bg-gradient-to-br from-neutral-200 to-neutral-300 dark:from-neutral-700 dark:to-neutral-800"></div>
-            }
-            <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
-            <span class="absolute inset-x-0 bottom-2 px-2 text-center text-xs font-semibold text-white">{{ cat.name }}</span>
+            [class]="selectedCategoryId() === cat.id
+              ? 'shrink-0 rounded-full border border-transparent bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white transition dark:bg-white dark:text-black'
+              : 'shrink-0 rounded-full border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-600 transition hover:border-neutral-900 hover:text-neutral-900 dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-white dark:hover:text-white'">
+            {{ cat.name }}
           </button>
         }
       </div>
@@ -75,8 +68,8 @@ import { RevealDirective } from '../core/reveal.directive';
 
     <!-- ── Sticky filter toolbar ───────────────────────────────────────────── -->
     <!-- top offset clears the global sticky header (~60px) so it pins just below it -->
-    <section class="sticky top-16 z-20 mb-5">
-      <div class="toolbar-in flex flex-wrap items-center gap-2.5 rounded-2xl border border-neutral-200/70 bg-white/70 px-3 py-2.5 shadow-lg shadow-black/5 backdrop-blur-xl transition-shadow hover:shadow-xl hover:shadow-black/[0.07] dark:border-neutral-800/70 dark:bg-neutral-900/70">
+    <section class="full-bleed sticky top-16 z-20 mb-0">
+      <div class="toolbar-in flex flex-wrap items-center gap-2.5 border-y border-neutral-200/70 bg-white/70 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8 dark:border-neutral-800/70 dark:bg-neutral-900/70">
         <!-- Result count -->
         <div class="mr-auto flex items-baseline gap-1.5 pl-1.5">
           <span class="text-lg font-semibold tabular-nums leading-none text-neutral-900 dark:text-neutral-100">{{ displayCount() }}</span>
@@ -104,16 +97,16 @@ import { RevealDirective } from '../core/reveal.directive';
             </div>
           }
           <div class="relative">
-            <span class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-neutral-400">৳</span>
+            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-neutral-400">৳</span>
             <input type="number" min="0" [ngModel]="maxPrice()" (ngModelChange)="setMaxPrice($event)"
               [placeholder]="'Max ' + (priceCeiling() || 'price')"
-              class="ctrl w-32 !pl-7" />
+              class="ctrl ctrl--input w-36" />
           </div>
         </div>
 
         <!-- Sort -->
         <div class="relative">
-          <select [ngModel]="sortBy()" (ngModelChange)="sortBy.set($event)" class="ctrl peer pl-9">
+          <select [ngModel]="sortBy()" (ngModelChange)="sortBy.set($event)" class="ctrl ctrl--icon peer">
             @for (opt of sortOptions; track opt.value) {
               <option [ngValue]="opt.value">{{ opt.label }}</option>
             }
@@ -162,7 +155,7 @@ import { RevealDirective } from '../core/reveal.directive';
 
     <!-- ── Product grid ────────────────────────────────────────────────────── -->
     @if (loading()) {
-      <section class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <section class="relative card-grid-flush full-bleed grid grid-cols-1 px-4 pt-6 sm:grid-cols-2 sm:px-6 lg:grid-cols-3 lg:px-8 xl:grid-cols-4 2xl:grid-cols-5">
         @for (s of skeletons; track s) {
           <div class="app-card overflow-hidden">
             <div class="h-80 w-full animate-pulse bg-neutral-200 dark:bg-neutral-800"></div>
@@ -175,7 +168,7 @@ import { RevealDirective } from '../core/reveal.directive';
         }
       </section>
     } @else {
-      <section class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <section class="relative card-grid-flush full-bleed grid grid-cols-1 px-4 pt-6 sm:grid-cols-2 sm:px-6 lg:grid-cols-3 lg:px-8 xl:grid-cols-4 2xl:grid-cols-5">
         @for (product of pagedProducts(); track product.id; let i = $index) {
           <app-product-card [product]="store.toStoreProduct(product)" [appReveal]="i % pageSize" />
         } @empty {
@@ -270,10 +263,24 @@ import { RevealDirective } from '../core/reveal.directive';
       border-radius: 9999px;
       border: 1px solid rgb(229 229 229);
       background: rgba(255, 255, 255, 0.55);
-      padding: 0.5rem 2.1rem 0.5rem 0.95rem;
+      padding: 0.55rem 2.1rem 0.55rem 1rem;
       font-size: 0.875rem; font-weight: 500;
+      line-height: 1.25rem;
       color: rgb(38 38 38); cursor: pointer;
       transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+    }
+    /*
+     * Variants re-declare padding instead of layering Tailwind pl-* utilities
+     * on top. Those tie with .ctrl on specificity, so which one applied came
+     * down to bundle order - that is what put the sort icon on top of its label
+     * and clipped "Max 2800" in the price box.
+     */
+    .ctrl--input {            /* text input: no chevron, room for the currency mark */
+      padding: 0.55rem 1rem 0.55rem 1.85rem;
+      cursor: text;
+    }
+    .ctrl--icon {             /* select with a leading icon */
+      padding-left: 2.4rem;
     }
     .ctrl:hover { border-color: rgb(163 163 163); }
     .ctrl:focus {

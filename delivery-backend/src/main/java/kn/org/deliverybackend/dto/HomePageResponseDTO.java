@@ -27,4 +27,7 @@ public class HomePageResponseDTO {
 
     @Schema(description = "List of admin-flagged new-arrival items")
     private List<ProductResponseDTO> newArrivalItems;
+
+    @Schema(description = "Categories the admin promoted to their own landing-page band, each with its products")
+    private List<HomeCategorySectionDTO> homeSections;
 }
