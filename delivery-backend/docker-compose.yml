@@ -1,0 +1,191 @@
+# ============================================================================
+# Erezer delivery-backend — local dev stack
+# ============================================================================
+# The backend image sets SPRING_PROFILES_ACTIVE=local, so the effective config
+# is application.properties + application-local.properties. That overlay uses
+# the service names below (postgres, keycloak) as hostnames, which only resolve
+# because every service here shares the `erezer` network.
+#
+#   docker compose up -d --build      start everything
+#   docker compose logs -f backend    tail the app
+#   docker compose down               stop (keeps volumes)
+#   docker compose down -v            stop and wipe the database
+#
+# ONE-TIME HOST SETUP — add this line to your hosts file:
+#     127.0.0.1 keycloak
+#   (C:\Windows\System32\drivers\etc\hosts, as Administrator)
+# Keycloak stamps an `iss` claim into every token, and the backend rejects a
+# token whose `iss` doesn't match its configured issuer-uri. The browser and the
+# backend container therefore have to reach Keycloak by the *same* name. Mapping
+# `keycloak` to 127.0.0.1 makes http://keycloak:9090 work from both sides.
+# ============================================================================
+
+name: erezer
+
+services:
+  # --- PostgreSQL ------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: erezer-postgres
+    environment:
+      POSTGRES_DB: delivery_app_v1
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+    ports:
+      - "5432:5432"          # exposed so you can attach psql/DBeaver from Windows
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # The backend's Flyway step fails fast, so "container started" isn't
+      # enough — it has to be actually accepting connections.
+      test: ["CMD-SHELL", "pg_isready -U postgres -d delivery_app_v1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks: [erezer]
+
+  # --- Redis -----------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: erezer-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [erezer]
+
+  # --- MinIO (object storage) ------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: erezer-minio
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"          # S3 API — also how the browser loads product images
+      - "9001:9001"          # web console: http://localhost:9001
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [erezer]
+
+  # --- MinIO bucket bootstrap (runs once, then exits) ------------------------
+  minio-init:
+    image: minio/mc:latest
+    container_name: erezer-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    # MinioStorageServiceImpl creates buckets on demand, but they default to
+    # private — an <img src> from the browser would get 403. This grants
+    # anonymous read so uploaded images actually render.
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      for b in product-images banner-images custom-design-images return-photos; do
+        mc mb --ignore-existing local/$$b &&
+        mc anonymous set download local/$$b;
+      done &&
+      echo 'MinIO buckets ready'
+      "
+    networks: [erezer]
+
+  # --- Mailpit (SMTP catcher) ------------------------------------------------
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: erezer-mailpit
+    ports:
+      - "1025:1025"          # SMTP
+      - "8025:8025"          # web UI: http://localhost:8025
+    networks: [erezer]
+
+  # --- Keycloak (admin realm) ------------------------------------------------
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: erezer-keycloak
+    command: ["start-dev", "--http-port=9090", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: http://keycloak:9090
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+    ports:
+      - "9090:9090"
+    volumes:
+      # Drop a realm export here as delivery-admin-realm.json and --import-realm
+      # picks it up on first boot. Without it, create the `delivery-admin` realm
+      # by hand at http://keycloak:9090 (admin/admin).
+      - ./keycloak:/opt/keycloak/data/import:ro
+    networks: [erezer]
+
+  # --- Backend ---------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: erezer-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      # Postgres and Keycloak hosts already come from application-local.properties.
+      # These override the three values that file still points at localhost.
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_MAIL_HOST: mailpit
+      SPRING_MAIL_PORT: "1025"
+
+      # Flyway. V1 is an empty marker, so on a *brand new* database V2's
+      # "ALTER TABLE variant" runs before any table exists and the boot fails.
+      # First boot against an empty volume: FLYWAY_ENABLED=false, so Hibernate
+      # builds the schema. Second boot with it back on (the default): the schema
+      # is now non-empty, baseline-on-migrate marks it at V1, and V2-V6 apply --
+      # adding the partial indexes and seed rows Hibernate cannot create.
+      SPRING_FLYWAY_ENABLED: "${FLYWAY_ENABLED:-true}"
+
+      # V1 is now a real baseline, so Flyway alone can build a fresh database.
+      # Override to `validate` to prove the migrations still match the entity
+      # model: DDL_AUTO=validate docker compose up -d --force-recreate backend
+      SPRING_JPA_HIBERNATE_DDL_AUTO: "${DDL_AUTO:-update}"
+
+      # Container-to-container MinIO endpoint. NOTE: this same property is also
+      # concatenated into the public image URL at MinioStorageServiceImpl.java:53,
+      # so uploads work but the returned URLs are http://minio:9000/... which a
+      # browser can't resolve. Fixing that needs the minio.public-url split.
+      MINIO_URL: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+
+      # These are only pasted into emails/SMS as links, so they must be reachable
+      # from a human's browser — never a container name.
+      EREZER_STORE_URL: http://localhost:4200
+      EREZER_ADMIN_URL: http://localhost:4300
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    networks: [erezer]
+
+networks:
+  erezer:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:

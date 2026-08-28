@@ -1,0 +1,43 @@
+{
+  "realm": "delivery-admin",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "clients": [
+    {
+      "clientId": "delivery-admin-ui",
+      "name": "Delivery Admin UI",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "rootUrl": "http://localhost:4300",
+      "baseUrl": "http://localhost:4300",
+      "redirectUris": [
+        "http://localhost:4300/*",
+        "http://localhost:4200/*"
+      ],
+      "webOrigins": [
+        "http://localhost:4300",
+        "http://localhost:4200"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:4300/*##http://localhost:4200/*"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "admin@erezer.local",
+      "firstName": "Admin",
+      "lastName": "User",
+      "credentials": [
+        { "type": "password", "value": "admin", "temporary": false }
+      ]
+    }
+  ]
+}

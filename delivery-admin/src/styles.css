@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+/* Class-based dark mode (toggled by ThemeService on <html class="dark">). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Reusable list/table action buttons (Edit / Delete / Send / Remove).
+   Bordered pill + icon, colour-on-hover. Keeps row actions consistent across
+   coupons, discounts, newsletter, variants, order notes, settings, etc.
+   ─────────────────────────────────────────────────────────────────────────── */
+@layer components {
+  .act-btn {
+    @apply inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white
+           px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition
+           hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .act-btn svg { @apply h-3.5 w-3.5; }
+
+  .act-btn-edit   { @apply hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700; }
+  .act-btn-delete { @apply text-gray-600 hover:border-red-300 hover:bg-red-50 hover:text-red-600; }
+  .act-btn-send   { @apply hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700; }
+
+  /* Compact icon-only variant for dense form rows (remove a column/row/image). */
+  .act-btn-icon {
+    @apply inline-flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200
+           bg-white text-gray-500 shadow-sm transition
+           hover:border-red-300 hover:bg-red-50 hover:text-red-600
+           disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .act-btn-icon svg { @apply h-3.5 w-3.5; }
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   DARK MODE — the admin was built light-only (hardcoded gray/white utilities).
+   Rather than add dark: variants to every element across ~25 screens, we remap
+   the handful of surface/text/border utilities the admin uses everywhere, under
+   `.dark`. These rules are unlayered so they win over Tailwind's layered
+   utilities; `.dark .foo` also out-specifies `.foo`. Colored accents (blue
+   buttons, status badges) are left as-is — they read fine on dark.
+   ─────────────────────────────────────────────────────────────────────────── */
+:root.dark { color-scheme: dark; }
+
+/* Surfaces */
+.dark .bg-gray-50  { background-color: #0f172a; }   /* page background   */
+.dark .bg-white    { background-color: #1e293b; }   /* cards / panels    */
+.dark .bg-gray-100 { background-color: #334155; }
+.dark .bg-gray-200 { background-color: #475569; }
+
+/* Borders + dividers */
+.dark .border-gray-100 { border-color: #24324a; }
+.dark .border-gray-200 { border-color: #334155; }
+.dark .border-gray-300 { border-color: #475569; }
+.dark .divide-gray-50  > :not([hidden]) ~ :not([hidden]),
+.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: #24324a; }
+
+/* Text */
+.dark .text-gray-900 { color: #f1f5f9; }
+.dark .text-gray-800 { color: #e2e8f0; }
+.dark .text-gray-700 { color: #cbd5e1; }
+.dark .text-gray-600 { color: #a3b2c7; }
+.dark .text-gray-500 { color: #94a3b8; }
+.dark .text-gray-400 { color: #64748b; }
+.dark .text-black    { color: #f1f5f9; }
+
+/* Hover surfaces */
+.dark .hover\:bg-gray-50:hover  { background-color: #334155; }
+.dark .hover\:bg-gray-100:hover { background-color: #475569; }
+
+/* Form controls */
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #1e293b;
+  color: #e2e8f0;
+  border-color: #334155;
+}
+.dark input::placeholder,
+.dark textarea::placeholder { color: #64748b; }
+
+/* Soft tinted callouts (info / error / success / warning) */
+.dark .bg-blue-50    { background-color: rgba(59,130,246,.14); }
+.dark .bg-red-50     { background-color: rgba(239,68,68,.14); }
+.dark .bg-emerald-50 { background-color: rgba(16,185,129,.14); }
+.dark .bg-amber-50   { background-color: rgba(245,158,11,.14); }
+.dark .text-blue-700    { color: #93c5fd; }
+.dark .text-red-700     { color: #fca5a5; }
+.dark .text-emerald-700 { color: #6ee7b7; }
+.dark .text-amber-700   { color: #fcd34d; }
+
+/* Shared action buttons (@apply'd component classes) */
+.dark .act-btn,
+.dark .act-btn-icon { background-color: #1e293b; border-color: #334155; color: #cbd5e1; }
+.dark .act-btn:hover,
+.dark .act-btn-icon:hover { background-color: #334155; }

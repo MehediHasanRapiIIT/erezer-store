@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body style="margin:0;padding:0;background:#f5f5f4;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1c1917;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f5f5f4;padding:32px 0;">
+  <tr><td align="center">
+    <table width="560" cellspacing="0" cellpadding="0" border="0" style="background:#ffffff;border-radius:12px;border:1px solid #e7e5e4;">
+      <tr><td style="padding:24px 32px;background:#0c0a09;color:#fafaf9;">
+        <div style="font-size:22px;font-weight:700;letter-spacing:0.08em;">EREZER</div>
+      </td></tr>
+      <tr><td style="padding:32px;">
+        <h1 style="margin:0 0 8px;font-size:22px;" th:text="${headline}">Your order has been updated</h1>
+        <p style="margin:0 0 24px;color:#78716c;">
+          Order <strong th:text="${orderId}">#000</strong>
+        </p>
+
+        <div style="background:#fafaf9;border:1px solid #e7e5e4;border-radius:8px;padding:16px 20px;margin:0 0 24px;">
+          <div style="color:#78716c;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Status</div>
+          <div style="font-size:18px;font-weight:600;" th:text="${statusLabel}">Processing</div>
+          <p th:if="${statusMessage}" style="margin:12px 0 0;color:#44403c;line-height:1.6;" th:text="${statusMessage}">Details here.</p>
+        </div>
+
+        <div th:if="${trackingNumber}" style="margin:0 0 24px;">
+          <div style="color:#78716c;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Tracking</div>
+          <div th:text="${courier} + ' &middot; ' + ${trackingNumber}">Courier · 000</div>
+        </div>
+
+        <p style="margin:24px 0 0;">
+          <a th:href="${orderUrl}" style="display:inline-block;background:#0c0a09;color:#fafaf9;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View order</a>
+        </p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>

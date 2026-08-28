@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    @page { size: A4; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Helvetica, Arial, sans-serif; color: #1c1917; font-size: 11px; }
+    .page { padding: 30px 34px; }
+
+    /* Header */
+    .top { width: 100%; border-collapse: collapse; }
+    .top td { vertical-align: top; }
+    .brand { font-size: 28px; font-weight: bold; letter-spacing: 5px; color: #0c0a09; }
+    .brand-sub { color: #78716c; font-size: 9px; letter-spacing: 3px; margin-top: 2px; }
+    .inv-title { text-align: right; }
+    .inv-title .t { font-size: 26px; font-weight: bold; letter-spacing: 4px; color: #0c0a09; }
+    .inv-title .n { color: #57534e; font-size: 11px; margin-top: 3px; }
+
+    /* Dark meta band */
+    .band { width: 100%; border-collapse: collapse; background: #0c0a09; color: #ffffff; margin-top: 20px; }
+    .band td { padding: 12px 16px; vertical-align: top; border-right: 1px solid #2a2724; }
+    .band td:last-child { border-right: none; }
+    .band .k { color: #a8a29e; font-size: 8px; text-transform: uppercase; letter-spacing: 1.5px; }
+    .band .v { color: #ffffff; font-size: 12px; font-weight: bold; margin-top: 3px; }
+    .badge { display: inline-block; background: #22c55e; color: #06210f; font-weight: bold;
+      font-size: 10px; padding: 2px 8px; border-radius: 3px; margin-top: 2px; }
+
+    /* Parties */
+    .parties { width: 100%; border-collapse: collapse; margin-top: 22px; }
+    .parties td { vertical-align: top; width: 50%; padding-right: 18px; }
+    .label { color: #78716c; text-transform: uppercase; letter-spacing: 1.5px; font-size: 9px;
+      border-bottom: 1px solid #e7e5e4; padding-bottom: 5px; margin-bottom: 7px; }
+    .who { font-size: 13px; font-weight: bold; color: #0c0a09; }
+    .line { font-size: 11px; color: #44403c; line-height: 1.6; }
+
+    /* Items */
+    table.items { width: 100%; border-collapse: collapse; margin-top: 24px; }
+    table.items th { background: #0c0a09; color: #ffffff; text-align: left; padding: 9px 12px;
+      font-size: 9px; text-transform: uppercase; letter-spacing: 1px; }
+    table.items td { padding: 11px 12px; border-bottom: 1px solid #eeeceb; font-size: 11px; }
+    table.items tbody tr:nth-child(even) td { background: #faf9f8; }
+    .num { text-align: right; }
+    .center { text-align: center; }
+    .pname { font-weight: bold; color: #1c1917; }
+    .psize { color: #78716c; font-size: 10px; }
+
+    /* Totals */
+    .totwrap { width: 100%; border-collapse: collapse; margin-top: 6px; }
+    .totwrap td { vertical-align: top; }
+    .note { font-size: 10px; color: #78716c; line-height: 1.6; padding-top: 18px; width: 52%; }
+    table.totals { width: 46%; border-collapse: collapse; }
+    table.totals td { padding: 6px 12px; font-size: 11px; }
+    table.totals .k { color: #57534e; }
+    table.totals .v { text-align: right; }
+    table.totals .disc .v { color: #16a34a; }
+    table.totals .grand td { border-top: 2px solid #0c0a09; padding-top: 10px; font-size: 15px; font-weight: bold; color: #0c0a09; }
+
+    /* Footer */
+    .thanks { margin-top: 26px; background: #faf9f8; border: 1px solid #eeeceb; border-radius: 6px;
+      padding: 14px 18px; font-size: 11px; color: #44403c; }
+    .foot { margin-top: 16px; text-align: center; color: #a8a29e; font-size: 9px; letter-spacing: 0.5px; }
+    .accent { height: 6px; background: #0c0a09; }
+  </style>
+</head>
+<body>
+  <div class="accent"></div>
+  <div class="page">
+
+    <!-- Header -->
+    <table class="top">
+      <tr>
+        <td>
+          <div class="brand">EREZER</div>
+          <div class="brand-sub">APPAREL &middot; DHAKA</div>
+        </td>
+        <td class="inv-title">
+          <div class="t">INVOICE</div>
+          <div class="n" th:text="${invoiceNumber}">INV-0000</div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Dark meta band -->
+    <table class="band">
+      <tr>
+        <td>
+          <div class="k">Invoice date</div>
+          <div class="v" th:text="${invoiceDate}">01 Jan 2026</div>
+        </td>
+        <td>
+          <div class="k">Order date</div>
+          <div class="v" th:text="${orderDate}">01 Jan 2026</div>
+        </td>
+        <td>
+          <div class="k">Payment</div>
+          <div class="v" th:text="${paymentMethod}">CASH</div>
+        </td>
+        <td>
+          <div class="k">Status</div>
+          <div><span class="badge" th:text="${status}">Placed</span></div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Parties -->
+    <table class="parties">
+      <tr>
+        <td>
+          <div class="label">Billed to</div>
+          <div class="who" th:text="${customerName}">Customer</div>
+          <div class="line" th:if="${customerPhone}" th:text="${customerPhone}">01700000000</div>
+          <div class="line" th:if="${customerEmail}" th:text="${customerEmail}">customer@example.com</div>
+        </td>
+        <td>
+          <div class="label">Ship to</div>
+          <div class="line" th:text="${deliveryAddress}">Address</div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Items -->
+    <table class="items">
+      <thead>
+        <tr>
+          <th style="width:5%;">#</th>
+          <th>Item</th>
+          <th class="center" style="width:12%;">Size</th>
+          <th class="num" style="width:8%;">Qty</th>
+          <th class="num" style="width:18%;">Unit price</th>
+          <th class="num" style="width:18%;">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr th:each="item, s : ${items}">
+          <td th:text="${s.count}">1</td>
+          <td><span class="pname" th:text="${item.name}">Product</span></td>
+          <td class="center psize" th:text="${item.size}">—</td>
+          <td class="num" th:text="${item.quantity}">1</td>
+          <td class="num" th:text="${item.unit}">Tk 0.00</td>
+          <td class="num" th:text="${item.total}">Tk 0.00</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Totals -->
+    <table class="totwrap">
+      <tr>
+        <td class="note">
+          <strong th:text="${itemCount}">0</strong> item(s) in this order.<br />
+          This is a computer-generated invoice and does not require a signature.
+        </td>
+        <td>
+          <table class="totals">
+            <tr>
+              <td class="k">Subtotal</td>
+              <td class="v" th:text="${subtotal}">Tk 0.00</td>
+            </tr>
+            <tr class="disc" th:if="${hasDiscount}">
+              <td class="k">Discount</td>
+              <td class="v" th:text="${discount}">Tk 0.00</td>
+            </tr>
+            <tr>
+              <td class="k">Shipping</td>
+              <td class="v" th:text="${shipping}">Tk 0.00</td>
+            </tr>
+            <tr class="grand">
+              <td>Grand total</td>
+              <td class="num" th:text="${total}">Tk 0.00</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <div class="thanks">
+      <strong>Thank you for shopping with Erezer.</strong>
+      Questions about this invoice? Reply to our support email and quote your invoice number.
+    </div>
+
+    <div class="foot">
+      EREZER APPAREL &nbsp;&middot;&nbsp; support@erezer.com &nbsp;&middot;&nbsp; www.erezer.com
+    </div>
+
+  </div>
+</body>
+</html>

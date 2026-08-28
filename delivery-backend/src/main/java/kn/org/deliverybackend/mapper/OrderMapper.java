@@ -1,0 +1,13 @@
+package kn.org.deliverybackend.mapper;
+
+import kn.org.deliverybackend.dto.OrderDTO;
+import kn.org.deliverybackend.entity.Order;
+import org.mapstruct.Mapper;
+
+@Mapper(componentModel = "spring")
+public interface OrderMapper {
+
+    OrderDTO toDTO(Order order);
+
+    Order toEntity(OrderDTO orderDTO);
+}

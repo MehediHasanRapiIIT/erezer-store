@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Phase 7 logging config.
+
+  * Local / dev profile (default): pretty-printed console output for humans.
+  * `prod` profile: JSON-formatted lines on stdout for log aggregators
+    (Loki, Datadog, ELK). Includes MDC fields (correlationId, principal, ip)
+    set by the CorrelationIdFilter.
+  * Sentry appender routes WARN+ to Sentry as breadcrumbs / events.
+-->
+<configuration scan="true" scanPeriod="30 seconds">
+
+    <springProperty scope="context" name="appName"  source="spring.application.name" defaultValue="erezer-backend"/>
+    <springProperty scope="context" name="profile"  source="spring.profiles.active"  defaultValue="default"/>
+
+    <!-- ── Human-friendly console (dev) ───────────────────────────────────────── -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>
+%d{HH:mm:ss.SSS} %-5level [%X{correlationId:-no-cid}] %logger{36} - %msg%n
+            </pattern>
+        </encoder>
+    </appender>
+
+    <!-- ── JSON (prod) — picked up when SPRING_PROFILES_ACTIVE=prod ─────────── -->
+    <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeMdcKeyName>correlationId</includeMdcKeyName>
+            <includeMdcKeyName>principal</includeMdcKeyName>
+            <includeMdcKeyName>clientIp</includeMdcKeyName>
+            <includeMdcKeyName>requestPath</includeMdcKeyName>
+            <customFields>{"app":"${appName}","env":"${profile}"}</customFields>
+        </encoder>
+    </appender>
+
+    <!-- ── Sentry — WARN and above is captured as an event / breadcrumb ─────── -->
+    <appender name="SENTRY" class="io.sentry.logback.SentryAppender">
+        <minimumEventLevel>WARN</minimumEventLevel>
+        <minimumBreadcrumbLevel>INFO</minimumBreadcrumbLevel>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="SENTRY"/>
+    </root>
+
+    <!-- Switch to JSON whenever the prod profile is active. -->
+    <springProfile name="prod">
+        <root level="INFO">
+            <appender-ref ref="JSON"/>
+            <appender-ref ref="SENTRY"/>
+        </root>
+    </springProfile>
+
+    <!-- Reduce noisy frameworks; keep our own packages chatty. -->
+    <logger name="org.springframework"   level="WARN"/>
+    <logger name="org.hibernate"          level="WARN"/>
+    <logger name="org.apache"             level="WARN"/>
+    <logger name="kn.org.deliverybackend" level="INFO"/>
+</configuration>

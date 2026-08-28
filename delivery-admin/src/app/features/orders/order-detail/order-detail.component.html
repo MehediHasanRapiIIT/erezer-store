@@ -1,0 +1,485 @@
+<div class="flex h-screen bg-gray-50 overflow-hidden">
+  <app-sidebar />
+
+  <div class="flex-1 flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 px-6 h-14 flex items-center gap-4 flex-shrink-0 print:hidden">
+      <button
+        (click)="goBack()"
+        class="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
+      >
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+        </svg>
+        Orders
+      </button>
+      <span class="text-gray-300">/</span>
+      <span class="text-sm font-semibold text-gray-700">Order Details</span>
+    </header>
+
+    @if (!order()) {
+      <div class="flex-1 flex items-center justify-center">
+        <p class="text-gray-400 text-sm">No order data available</p>
+      </div>
+    } @else {
+
+    <main class="flex-1 overflow-y-auto p-6">
+      <div class="max-w-5xl mx-auto">
+
+        <!-- Title row with action buttons -->
+        <div class="flex items-start justify-between mb-6">
+          <div>
+            <div class="flex items-center gap-3">
+              <h1 class="text-2xl font-extrabold text-gray-900">Order {{ shortId(order()!.id) }}</h1>
+              <span
+                class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold"
+                [class]="statusBadgeClass(currentStatus())"
+              >{{ statusLabel(currentStatus()) }}</span>
+            </div>
+            <p class="text-sm text-gray-400 mt-1">Created {{ formatDate(order()!.createdAt) }}</p>
+          </div>
+          <div class="flex items-center gap-3 print:hidden">
+            <button
+              (click)="printInvoice()"
+              class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+              </svg>
+              Print Invoice
+            </button>
+            <button
+              (click)="scrollToStatus()"
+              class="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+            >
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+              </svg>
+              Edit Order
+            </button>
+          </div>
+        </div>
+
+        <!-- Summary cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div class="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1"/>
+              </svg>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400">Total Amount</p>
+              <p class="text-lg font-extrabold text-gray-900 mt-0.5">৳ {{ formatAmount(grandTotal()) }}</p>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+              </svg>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400">Payment Method</p>
+              <p class="text-lg font-extrabold text-gray-900 mt-0.5">{{ order()!.paymentMethod }}</p>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"/>
+              </svg>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400">Delivery Charge</p>
+              <p class="text-lg font-extrabold text-gray-900 mt-0.5">৳ {{ formatAmount(order()!.deliveryCharge) }}</p>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+              </svg>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400">Items</p>
+              <p class="text-lg font-extrabold text-gray-900 mt-0.5">{{ order()!.orderItems.length }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+          <!-- Left: Items + Customer -->
+          <div class="lg:col-span-2 space-y-5">
+
+            <!-- Items ordered -->
+            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div class="px-5 py-4 border-b border-gray-100">
+                <h2 class="font-bold text-gray-900 text-sm">Items Ordered</h2>
+              </div>
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b border-gray-100 bg-gray-50">
+                    <th class="px-5 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Product</th>
+                    <th class="px-5 py-2.5 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Unit Price</th>
+                    <th class="px-5 py-2.5 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Qty</th>
+                    <th class="px-5 py-2.5 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Total</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                  @for (item of order()!.orderItems; track item.id) {
+                    <tr>
+                      <td class="px-5 py-3">
+                        <div class="flex items-center gap-3">
+                          <div class="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                            @if (item.imageUrl) {
+                              <img [src]="item.imageUrl" [alt]="item.productName || ''" class="w-full h-full object-cover"/>
+                            } @else {
+                              <svg class="w-5 h-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                              </svg>
+                            }
+                          </div>
+                          <div>
+                            <p class="font-medium text-gray-800">{{ item.productName || 'Unknown Product' }}</p>
+                            @if (item.variantSize || item.variantName) {
+                              <p class="text-xs text-gray-500">{{ variantLabel(item) }}</p>
+                            }
+                            @if (item.customMeasurements) {
+                              <div class="mt-1 rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
+                                <span class="font-semibold">✂ Custom:</span> {{ customMeasurementText(item) }}
+                                @if (item.customSurcharge) {
+                                  <span class="ml-1 text-amber-600">(+৳{{ formatAmount(item.customSurcharge) }})</span>
+                                }
+                              </div>
+                            }
+                            <p class="text-xs text-gray-400 font-mono">{{ item.productId || '—' }}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="px-5 py-3 text-right text-gray-700">৳ {{ formatAmount(item.priceAtOrder) }}</td>
+                      <td class="px-5 py-3 text-right text-gray-700">{{ item.quantity }}</td>
+                      <td class="px-5 py-3 text-right font-semibold text-gray-800">৳ {{ formatAmount(item.priceAtOrder * item.quantity) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+              <!-- Totals -->
+              <div class="px-5 py-4 border-t border-gray-100 space-y-2">
+                <div class="flex justify-between text-sm text-gray-500">
+                  <span>Subtotal</span>
+                  <span>৳ {{ formatAmount(subtotal()) }}</span>
+                </div>
+                <div class="flex justify-between text-sm text-gray-500">
+                  <span>Delivery Fee</span>
+                  <span>৳ {{ formatAmount(order()!.deliveryCharge) }}</span>
+                </div>
+                <div class="flex justify-between text-base font-bold text-gray-900 pt-2 border-t border-gray-100">
+                  <span>Grand Total</span>
+                  <span class="text-blue-600">৳ {{ formatAmount(grandTotal()) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Customer Information -->
+            <div class="bg-white rounded-xl border border-gray-200 p-5">
+              <h2 class="font-bold text-gray-900 text-sm mb-4">Customer Information</h2>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <p class="text-xs text-gray-400">Customer Name</p>
+                  <p class="text-sm font-semibold text-gray-800 mt-0.5">{{ order()!.customerName || '—' }}</p>
+                </div>
+                <div>
+                  <p class="text-xs text-gray-400">Phone Number</p>
+                  <p class="text-sm font-semibold text-gray-800 mt-0.5">{{ order()!.customerPhone || '—' }}</p>
+                </div>
+                <div class="col-span-2">
+                  <p class="text-xs text-gray-400">Delivery Address</p>
+                  <p class="text-sm text-gray-700 mt-0.5 flex items-start gap-1.5">
+                    <svg class="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    {{ order()!.deliveryAddress }}
+                  </p>
+                </div>
+                @if (order()!.clientId) {
+                  <div class="col-span-2">
+                    <p class="text-xs text-gray-400">Customer ID</p>
+                    <p class="text-xs font-mono text-gray-500 mt-0.5 break-all">{{ order()!.clientId }}</p>
+                  </div>
+                }
+              </div>
+            </div>
+
+            <!-- Phase 5: internal admin notes -->
+            <app-order-notes [orderId]="order()!.id" />
+
+          </div>
+
+          <!-- Right: Timeline + Status Update -->
+          <div class="space-y-4">
+
+            <!-- Order Timeline -->
+            <div class="bg-white rounded-xl border border-gray-200 p-5">
+              <h2 class="font-bold text-gray-900 text-sm mb-4">Order Timeline</h2>
+              <div class="space-y-3">
+                @for (step of timeline(); track step.label; let last = $last) {
+                  <div class="flex items-start gap-3">
+                    <div class="flex flex-col items-center">
+                      <div
+                        class="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
+                        [class.bg-emerald-500]="step.done"
+                        [class.bg-gray-200]="!step.done"
+                      >
+                        @if (step.done) {
+                          <svg class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                          </svg>
+                        }
+                      </div>
+                      @if (!last) {
+                        <div class="w-0.5 h-4 mt-1" [class.bg-emerald-300]="step.done" [class.bg-gray-200]="!step.done"></div>
+                      }
+                    </div>
+                    <div class="pb-1">
+                      <p class="text-sm font-medium" [class.text-gray-800]="step.done" [class.text-gray-400]="!step.done">
+                        {{ step.label }}
+                      </p>
+                      @if (step.time) {
+                        <p class="text-xs text-gray-400">{{ step.time }}</p>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+
+              <!-- Status history audit -->
+              @if (tracking() && tracking()!.history.length > 0) {
+                <details class="mt-4 border-t border-gray-100 pt-3">
+                  <summary class="cursor-pointer select-none text-xs text-gray-500 hover:text-gray-700">
+                    Audit log ({{ tracking()!.history.length }} entries)
+                  </summary>
+                  <ul class="mt-3 space-y-2">
+                    @for (h of tracking()!.history; track h.id) {
+                      <li class="text-xs">
+                        <p>
+                          <span class="font-medium text-gray-800">{{ statusLabel(h.toStatus) }}</span>
+                          <span class="ml-2 text-gray-400">{{ formatDate(h.createdAt) }}</span>
+                        </p>
+                        @if (h.changedBy) {
+                          <p class="text-gray-400">by {{ h.changedBy }}</p>
+                        }
+                        @if (h.note) {
+                          <p class="text-gray-600 italic">"{{ h.note }}"</p>
+                        }
+                      </li>
+                    }
+                  </ul>
+                </details>
+              }
+            </div>
+
+            <!-- Status Update -->
+            <div id="status-update-panel" class="bg-white rounded-xl border border-gray-200 p-5 print:hidden">
+              <h2 class="font-bold text-gray-900 text-sm mb-3">Update Status</h2>
+
+              @if (order()!.trackingNumber) {
+                <div class="mb-3 rounded-lg bg-purple-50 border border-purple-100 px-3 py-2 text-xs text-purple-700">
+                  <p class="font-semibold">Shipping</p>
+                  <p>{{ order()!.courierName }} &middot; {{ order()!.trackingNumber }}</p>
+                </div>
+              }
+
+              <div class="space-y-3">
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1.5">Next status</label>
+                  @if (allowedNext().length === 0) {
+                    <p class="text-xs text-gray-400 italic">
+                      This order is in a terminal state ({{ statusLabel(currentStatus()) }}). No further transitions allowed.
+                    </p>
+                  } @else {
+                    <select
+                      [ngModel]="selectedStatus()"
+                      (ngModelChange)="selectedStatus.set($event)"
+                      class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+                    >
+                      @for (s of allowedNext(); track s) {
+                        <option [value]="s">{{ statusLabel(s) }}</option>
+                      }
+                    </select>
+                  }
+                </div>
+
+                @if (shippingFieldsRequired()) {
+                  <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1.5">Courier *</label>
+                    <input
+                      [ngModel]="courierName()"
+                      (ngModelChange)="courierName.set($event)"
+                      placeholder="e.g. DHL, Pathao"
+                      class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1.5">Tracking number *</label>
+                    <input
+                      [ngModel]="trackingNumber()"
+                      (ngModelChange)="trackingNumber.set($event)"
+                      placeholder="e.g. 1Z999AA10123456784"
+                      class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+                    />
+                  </div>
+                }
+
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1.5">Note to customer (optional)</label>
+                  <textarea
+                    [ngModel]="statusNote()"
+                    (ngModelChange)="statusNote.set($event)"
+                    rows="2"
+                    maxlength="1000"
+                    placeholder="Sent in the status-update email"
+                    class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+                  ></textarea>
+                </div>
+
+                @if (updateError()) {
+                  <div class="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+                    {{ updateError() }}
+                  </div>
+                }
+                @if (updateSuccess()) {
+                  <div class="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700">
+                    Status updated. Customer email queued.
+                  </div>
+                }
+
+                <button
+                  (click)="onUpdateStatus()"
+                  [disabled]="isUpdating() || !statusChanged() || allowedNext().length === 0"
+                  class="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  @if (isUpdating()) {
+                    <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                    </svg>
+                    Updating...
+                  } @else {
+                    Update status
+                  }
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </main>
+
+    }
+
+  </div>
+</div>
+
+<!-- Invoice preview modal -->
+@if (invoiceModalOpen()) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 print:hidden">
+    <!-- backdrop -->
+    <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" (click)="closeInvoiceModal()"></div>
+
+    <!-- dialog -->
+    <div class="relative flex flex-col w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden"
+         style="height: 90vh; max-height: 90vh;">
+      <!-- header -->
+      <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-200 flex-shrink-0">
+        <div>
+          <h3 class="text-sm font-semibold text-gray-800">Invoice preview</h3>
+          <p class="text-xs text-gray-400">
+            {{ order() ? shortId(order()!.id) : '' }} · review before sending
+          </p>
+        </div>
+        <button
+          (click)="closeInvoiceModal()"
+          class="p-1.5 text-gray-400 rounded-lg hover:bg-gray-100 hover:text-gray-600 transition-colors"
+          aria-label="Close"
+        >
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- preview body -->
+      <div class="flex-1 min-h-0 bg-gray-100 overflow-hidden relative">
+        @if (invoiceLoading()) {
+          <div class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-gray-400">
+            <svg class="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/>
+            </svg>
+            <span class="text-sm">Generating invoice…</span>
+          </div>
+        } @else if (invoiceError() && !invoicePreviewUrl()) {
+          <div class="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-red-500">
+            {{ invoiceError() }}
+          </div>
+        } @else if (invoicePreviewUrl()) {
+          <iframe
+            [src]="invoicePreviewUrl()"
+            class="w-full h-full border-0"
+            title="Invoice preview"
+          ></iframe>
+        }
+      </div>
+
+      <!-- footer / actions -->
+      <div class="flex items-center justify-between gap-3 px-5 py-3.5 border-t border-gray-200 flex-shrink-0">
+        <p class="text-xs min-h-[1rem] flex-1"
+           [class.text-gray-500]="!invoiceError()"
+           [class.text-red-500]="invoiceError()">
+          {{ invoiceError() || invoiceMessage() }}
+        </p>
+        <div class="flex items-center gap-2">
+          <button
+            (click)="closeInvoiceModal()"
+            class="px-4 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            Exit
+          </button>
+          <button
+            (click)="downloadInvoice()"
+            [disabled]="invoiceLoading() || !invoicePreviewUrl()"
+            class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            Download
+          </button>
+          <button
+            (click)="sendInvoice()"
+            [disabled]="invoiceBusy() || invoiceLoading() || !invoicePreviewUrl()"
+            class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+            </svg>
+            {{ invoiceBusy() ? 'Sending…' : 'Send' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Print styles -->
+<style>
+  @media print {
+    app-sidebar, .print\:hidden { display: none !important; }
+    body { background: white; }
+  }
+</style>

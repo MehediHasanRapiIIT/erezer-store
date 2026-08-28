@@ -1,0 +1,257 @@
+<div class="flex h-screen bg-gray-50 overflow-hidden">
+  <app-sidebar />
+
+  <div class="flex-1 flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 px-6 h-14 flex items-center justify-between flex-shrink-0">
+      <nav class="flex items-center gap-2 text-sm text-gray-500">
+        <span>Home</span>
+        <span class="text-gray-300">/</span>
+        <span class="text-gray-800 font-medium">Dashboard</span>
+      </nav>
+      <div class="flex items-center gap-3">
+        <button class="relative p-1.5 text-gray-500 hover:text-gray-700">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+          </svg>
+          <span class="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full"></span>
+        </button>
+        <div class="flex items-center gap-2.5">
+          <div class="text-right hidden sm:block">
+            <p class="text-sm font-semibold text-gray-800 leading-tight">Admin User</p>
+            <p class="text-xs text-gray-400">Super Admin</p>
+          </div>
+          <div class="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-sm">A</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Scrollable content -->
+    <main class="flex-1 overflow-y-auto p-6 space-y-6">
+
+      <!-- Page title + Create Order button -->
+      <div class="flex items-start justify-between">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Overview</h1>
+          <p class="text-sm text-gray-500 mt-0.5">Welcome back, here's what's happening at AmarBazaar today.</p>
+        </div>
+        <a routerLink="/orders" class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-colors">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+          </svg>
+          Create Order
+        </a>
+      </div>
+
+      <!-- 4 Summary stat cards -->
+      <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
+
+        <!-- Total Orders -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <div class="flex items-start justify-between">
+            <p class="text-sm text-gray-500">Total Orders</p>
+            <div class="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+              <svg class="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+              </svg>
+            </div>
+          </div>
+          <p class="text-2xl font-extrabold text-gray-900 mt-2">
+            {{ stats() ? stats()!.totalOrders.toLocaleString() : '—' }}
+          </p>
+          <p class="text-xs text-gray-400 mt-1">Compared to yesterday</p>
+        </div>
+
+        <!-- Total Revenue -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <div class="flex items-start justify-between">
+            <p class="text-sm text-gray-500">Total Revenue</p>
+            <div class="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center">
+              <svg class="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1"/>
+              </svg>
+            </div>
+          </div>
+          <p class="text-2xl font-extrabold text-gray-900 mt-2">
+            {{ stats() ? formatRevenue(stats()!.totalRevenue) : '—' }}
+          </p>
+          <p class="text-xs text-gray-400 mt-1">Compared to yesterday</p>
+        </div>
+
+        <!-- Pending Orders -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <div class="flex items-start justify-between">
+            <p class="text-sm text-gray-500">Pending Orders</p>
+            <div class="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center">
+              <svg class="w-5 h-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+          </div>
+          <p class="text-2xl font-extrabold text-gray-900 mt-2">
+            {{ stats() ? stats()!.pendingOrders : '—' }}
+          </p>
+          <p class="text-xs text-gray-400 mt-1">Awaiting processing</p>
+        </div>
+
+      </div>
+
+      <!-- Chart + Recent Activity row -->
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
+
+        <!-- Order Trends chart (2/3) -->
+        <div class="xl:col-span-2 bg-white rounded-xl border border-gray-200 p-5">
+          <div class="flex items-start justify-between mb-4">
+            <div>
+              <h2 class="text-base font-bold text-gray-900">Order Trends</h2>
+              <p class="text-xs text-gray-400 mt-0.5">Daily revenue over the last 7 days</p>
+            </div>
+            <div class="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
+              <button (click)="setTab('Weekly')" class="px-3 py-1.5 transition-colors"
+                [class.bg-gray-100]="activeTab() === 'Weekly'"
+                [class.text-gray-800]="activeTab() === 'Weekly'"
+                [class.bg-white]="activeTab() !== 'Weekly'"
+                [class.text-gray-500]="activeTab() !== 'Weekly'">Weekly</button>
+              <button (click)="setTab('Monthly')" class="px-3 py-1.5 transition-colors border-l border-gray-200"
+                [class.bg-gray-100]="activeTab() === 'Monthly'"
+                [class.text-gray-800]="activeTab() === 'Monthly'"
+                [class.bg-white]="activeTab() !== 'Monthly'"
+                [class.text-gray-500]="activeTab() !== 'Monthly'">Monthly</button>
+            </div>
+          </div>
+          <svg viewBox="0 0 560 180" class="w-full" preserveAspectRatio="none" style="height:200px">
+            <defs>
+              <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#10b981" stop-opacity="0.25"/>
+                <stop offset="100%" stop-color="#10b981" stop-opacity="0.02"/>
+              </linearGradient>
+            </defs>
+            @for (y of [40, 80, 120, 160]; track y) {
+              <line [attr.x1]="30" [attr.y1]="y" [attr.x2]="540" [attr.y2]="y" stroke="#f0f0f0" stroke-width="1" stroke-dasharray="4"/>
+            }
+            <polygon [attr.points]="chartArea" fill="url(#chartGrad)"/>
+            <polyline [attr.points]="chartPoints" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            @for (pt of chartDots; track pt.x) {
+              <circle [attr.cx]="pt.x" [attr.cy]="pt.y" r="4" fill="white" stroke="#10b981" stroke-width="2"/>
+            }
+            @for (day of chartDays; track day.l) {
+              <text [attr.x]="day.x" y="175" text-anchor="middle" fill="#9ca3af" font-size="11">{{ day.l }}</text>
+            }
+          </svg>
+        </div>
+
+        <!-- Recent Activity (1/3) -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-bold text-gray-900">Recent Activity</h2>
+            <a routerLink="/orders" class="text-xs text-emerald-600 hover:underline font-medium">View All</a>
+          </div>
+          <div class="space-y-4">
+
+            <!-- New Order activity -->
+            <div class="flex items-start gap-3">
+              <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg class="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+                </svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-semibold text-gray-800">New Order Placed</p>
+                <p class="text-xs text-gray-500 mt-0.5">{{ stats() ? stats()!.totalOrders + ' total orders' : 'Loading...' }}</p>
+                <p class="text-xs text-gray-400 mt-1">Just now</p>
+              </div>
+            </div>
+
+            <!-- Pending activity -->
+            <div class="flex items-start gap-3">
+              <div class="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg class="w-4 h-4 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-semibold text-gray-800">Pending Orders</p>
+                <p class="text-xs text-gray-500 mt-0.5">{{ stats() ? stats()!.pendingOrders + ' orders awaiting' : 'Loading...' }}</p>
+                <p class="text-xs text-gray-400 mt-1">Needs attention</p>
+              </div>
+            </div>
+
+            <!-- Revenue activity -->
+            <div class="flex items-start gap-3">
+              <div class="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg class="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1"/>
+                </svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-semibold text-gray-800">Revenue Update</p>
+                <p class="text-xs text-gray-500 mt-0.5">{{ stats() ? formatRevenue(stats()!.totalRevenue) + ' total' : 'Loading...' }}</p>
+                <p class="text-xs text-gray-400 mt-1">All time</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Top Products section -->
+      @if (homeData(); as data) {
+        @if (data.popularItems.length > 0) {
+          <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 class="text-base font-bold text-gray-900">Top Performing Products</h2>
+              <a routerLink="/products" class="text-xs text-emerald-600 hover:underline font-medium flex items-center gap-1">
+                See all
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                </svg>
+              </a>
+            </div>
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="border-b border-gray-100 bg-gray-50">
+                  <th class="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Product</th>
+                  <th class="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Price</th>
+                  <th class="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Stock</th>
+                  <th class="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-50">
+                @for (item of data.popularItems.slice(0, 5); track item.id) {
+                  <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-5 py-3.5">
+                      <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
+                          @if (item.imageUrl) {
+                            <img [src]="item.imageUrl" [alt]="item.name" class="w-full h-full object-cover"/>
+                          }
+                        </div>
+                        <p class="font-medium text-gray-800 truncate max-w-[160px]">{{ item.name }}</p>
+                      </div>
+                    </td>
+                    <td class="px-5 py-3.5 font-semibold text-gray-800">৳ {{ item.price }}</td>
+                    <td class="px-5 py-3.5 text-gray-600">{{ item.stockQuantity }}</td>
+                    <td class="px-5 py-3.5">
+                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold"
+                        [class.bg-emerald-100]="item.stockStatus === 'IN_STOCK'"
+                        [class.text-emerald-700]="item.stockStatus === 'IN_STOCK'"
+                        [class.bg-yellow-100]="item.stockStatus === 'LOW_STOCK'"
+                        [class.text-yellow-700]="item.stockStatus === 'LOW_STOCK'"
+                        [class.bg-red-100]="item.stockStatus === 'OUT_OF_STOCK'"
+                        [class.text-red-700]="item.stockStatus === 'OUT_OF_STOCK'">
+                        {{ item.stockStatus === 'IN_STOCK' ? 'In Stock' : item.stockStatus === 'LOW_STOCK' ? 'Low Stock' : 'Out of Stock' }}
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      }
+
+    </main>
+  </div>
+</div>

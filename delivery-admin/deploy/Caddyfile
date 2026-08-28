@@ -1,0 +1,71 @@
+# ============================================================================
+# Erezer reverse proxy — Caddy
+#
+# Caddy auto-provisions HTTPS via Let's Encrypt when given real hostnames.
+# Local dev uses Caddy's built-in self-signed CA for the *.localhost domains.
+#
+# Hostnames are supplied via env (set in deploy/.env):
+#   STOREFRONT_HOST = erezer.local | shop.erezer.com
+#   ADMIN_HOST      = admin.erezer.local | admin.erezer.com
+#   API_HOST        = api.erezer.local | api.erezer.com
+# ============================================================================
+
+{
+    # Global options. Set the operator email so Let's Encrypt can notify on
+    # cert renewal issues. Empty in dev (Caddy falls back to internal CA).
+    email {$ACME_EMAIL}
+    # Comment the next line out to use the real Let's Encrypt CA in prod.
+    # In dev we want the internal CA so *.localhost hostnames work.
+    {$CADDY_GLOBAL_EXTRA}
+}
+
+# ── Storefront (customer-facing) ──────────────────────────────────────────────
+{$STOREFRONT_HOST} {
+    encode zstd gzip
+    header {
+        Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+        X-Content-Type-Options    "nosniff"
+        X-Frame-Options           "SAMEORIGIN"
+        Referrer-Policy           "strict-origin-when-cross-origin"
+        Permissions-Policy        "geolocation=(), microphone=(), camera=()"
+        # Remove the server header so attackers can't fingerprint Caddy.
+        -Server
+    }
+    reverse_proxy erezer-store:80
+}
+
+# ── Admin panel ───────────────────────────────────────────────────────────────
+{$ADMIN_HOST} {
+    encode zstd gzip
+    header {
+        Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+        X-Content-Type-Options    "nosniff"
+        # Admin panel sets X-Frame-Options DENY to block clickjacking even
+        # from same-origin iframes.
+        X-Frame-Options           "DENY"
+        Referrer-Policy           "no-referrer"
+        -Server
+    }
+    reverse_proxy delivery-admin:80
+}
+
+# ── API backend (Spring Boot) ─────────────────────────────────────────────────
+{$API_HOST} {
+    encode zstd gzip
+    header {
+        Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+        X-Content-Type-Options    "nosniff"
+        -Server
+    }
+
+    # Preserve client IP + protocol so the backend's CorrelationIdFilter and
+    # rate-limiter see the real remote address.
+    reverse_proxy delivery-backend:8080 {
+        header_up X-Real-IP        {http.request.remote.host}
+        header_up X-Forwarded-For  {http.request.remote.host}
+        header_up X-Forwarded-Proto {scheme}
+        # WebSocket upgrade for the Phase 0 STOMP stock-updates endpoint.
+        header_up Connection {http.request.header.Connection}
+        header_up Upgrade    {http.request.header.Upgrade}
+    }
+}

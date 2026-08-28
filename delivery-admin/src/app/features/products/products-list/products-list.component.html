@@ -1,0 +1,263 @@
+<div class="flex h-screen bg-gray-50 overflow-hidden">
+  <app-sidebar />
+
+  <div class="flex-1 flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 px-6 h-14 flex items-center justify-between flex-shrink-0">
+      <div>
+        <h1 class="text-xl font-bold text-gray-900">Product Management</h1>
+        <p class="text-xs text-gray-400">Manage catalog, pricing, and stock for AmarBazaar delivery.</p>
+      </div>
+      <a
+        routerLink="/products/new"
+        class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
+      >
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+        </svg>
+        Add New Product
+      </a>
+    </header>
+
+    <main class="flex-1 overflow-y-auto p-6">
+      <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+
+        <!-- Search + actions bar -->
+        <div class="px-5 py-4 flex items-center gap-3 border-b border-gray-100">
+          <div class="flex-1 relative max-w-sm">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input
+              type="text"
+              [ngModel]="searchQuery()"
+              (ngModelChange)="onSearchChange($event)"
+              placeholder="Search by name, SKU or category..."
+              class="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400 placeholder-gray-400"
+            />
+          </div>
+          <div class="ml-auto flex items-center gap-2">
+            <button class="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
+              </svg>
+              Filter
+            </button>
+            <button class="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              Export
+            </button>
+          </div>
+        </div>
+
+        <!-- Error -->
+        @if (errorMessage()) {
+          <div class="mx-5 mt-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            {{ errorMessage() }}
+          </div>
+        }
+
+        <!-- Loading -->
+        @if (isLoading()) {
+          <div class="flex items-center justify-center py-16">
+            <svg class="animate-spin w-8 h-8 text-blue-500" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+            <span class="ml-3 text-gray-500 text-sm">Loading products...</span>
+          </div>
+        } @else {
+
+          <!-- Table -->
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-gray-100 bg-gray-50">
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider w-16">Image</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Product Info</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Category</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Price (৳)</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Stock</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Featured</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+              @for (product of filtered(); track product.id) {
+                <tr class="hover:bg-gray-50 transition-colors">
+                  <!-- Image -->
+                  <td class="px-4 py-3.5">
+                    <div class="w-11 h-11 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
+                      @if (product.imageUrl) {
+                        <img [src]="product.imageUrl" [alt]="product.name" class="w-full h-full object-cover"/>
+                      } @else {
+                        <svg class="w-6 h-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                      }
+                    </div>
+                  </td>
+                  <!-- Product info -->
+                  <td class="px-4 py-3.5">
+                    <p class="font-semibold text-gray-800 leading-tight">{{ product.name }}</p>
+                    <p class="text-xs text-gray-400 mt-0.5">
+                      @if (product.sku) { <span>SKU: {{ product.sku }}</span> }
+                      @if (product.sku && product.unit) { <span class="mx-1">•</span> }
+                      @if (product.unit) { <span>{{ product.unit }}</span> }
+                    </p>
+                  </td>
+                  <!-- Category -->
+                  <td class="px-4 py-3.5">
+                    @if (product.categoryName) {
+                      <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold" [class]="categoryBadgeClass(product.categoryName)">
+                        {{ product.categoryName }}
+                      </span>
+                    } @else {
+                      <span class="text-gray-300 text-xs">—</span>
+                    }
+                  </td>
+                  <!-- Price -->
+                  <td class="px-4 py-3.5 font-semibold text-gray-800">{{ product.price.toLocaleString() }}</td>
+                  <!-- Stock -->
+                  <td class="px-4 py-3.5">
+                    <p class="font-bold text-base" [class]="stockQtyClass(product.stockStatus)">{{ product.stockQuantity }}</p>
+                    <p class="text-xs text-gray-400">{{ stockLabel(product.stockStatus) }}</p>
+                  </td>
+                  <!-- Status toggle -->
+                  <td class="px-4 py-3.5">
+                    <button
+                      type="button"
+                      (click)="toggleAvailability(product)"
+                      class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none"
+                      [class.bg-emerald-500]="product.isAvailable"
+                      [class.bg-gray-300]="!product.isAvailable"
+                      [attr.aria-checked]="product.isAvailable"
+                      role="switch"
+                      [title]="product.isAvailable ? 'Available — click to disable' : 'Unavailable — click to enable'"
+                    >
+                      <span
+                        class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
+                        [class.translate-x-6]="product.isAvailable"
+                        [class.translate-x-1]="!product.isAvailable"
+                      ></span>
+                    </button>
+                  </td>
+                  <!-- Featured toggle -->
+                  <td class="px-4 py-3.5">
+                    <button
+                      type="button"
+                      (click)="toggleFeatured(product)"
+                      class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none"
+                      [class.bg-amber-500]="product.isFeatured"
+                      [class.bg-gray-300]="!product.isFeatured"
+                      [attr.aria-checked]="product.isFeatured"
+                      role="switch"
+                      [title]="product.isFeatured ? 'Featured on home — click to remove' : 'Not featured — click to feature'"
+                    >
+                      <span
+                        class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
+                        [class.translate-x-6]="product.isFeatured"
+                        [class.translate-x-1]="!product.isFeatured"
+                      ></span>
+                    </button>
+                  </td>
+                  <!-- Actions -->
+                  <td class="px-4 py-3.5">
+                    <div class="flex items-center gap-1">
+                      <button
+                        (click)="editProduct(product.id)"
+                        class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        aria-label="Edit product"
+                      >
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                      </button>
+                      @if (deleteConfirmId() === product.id) {
+                        <div class="flex items-center gap-1">
+                          <button
+                            (click)="deleteProduct(product.id)"
+                            [disabled]="isDeleting()"
+                            class="px-2 py-1 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded transition-colors disabled:opacity-50"
+                          >{{ isDeleting() ? '...' : 'Yes' }}</button>
+                          <button
+                            (click)="cancelDelete()"
+                            class="px-2 py-1 text-xs font-semibold text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+                          >No</button>
+                        </div>
+                      } @else {
+                        <button
+                          (click)="confirmDelete(product.id)"
+                          class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                          aria-label="Delete product"
+                        >
+                          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                          </svg>
+                        </button>
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+              @empty {
+                <tr>
+                  <td colspan="8" class="px-5 py-12 text-center text-gray-400 text-sm">
+                    No products found.
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+
+          <!-- Pagination -->
+          @if (totalPages() > 0) {
+            <div class="px-5 py-4 flex items-center justify-between border-t border-gray-100">
+              <p class="text-sm text-gray-500">
+                Showing
+                <span class="font-semibold text-gray-700">{{ showingFrom() }}-{{ showingTo() }}</span>
+                of
+                <span class="font-semibold text-gray-700">{{ totalElements() }}</span>
+                products
+              </p>
+              <div class="flex items-center gap-1">
+                <button
+                  (click)="setPage(currentPage() - 1)"
+                  [disabled]="currentPage() === 0"
+                  class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >Previous</button>
+
+                @for (p of pageNumbers(); track p) {
+                  @if (p === -1) {
+                    <span class="px-2 text-gray-400">...</span>
+                  } @else {
+                    <button
+                      (click)="setPage(p)"
+                      class="w-8 h-8 text-sm rounded-lg font-medium transition-colors"
+                      [class.bg-blue-600]="currentPage() === p"
+                      [class.text-white]="currentPage() === p"
+                      [class.border]="currentPage() !== p"
+                      [class.border-gray-200]="currentPage() !== p"
+                      [class.text-gray-600]="currentPage() !== p"
+                      [class.hover:bg-gray-50]="currentPage() !== p"
+                    >{{ p + 1 }}</button>
+                  }
+                }
+
+                <button
+                  (click)="setPage(currentPage() + 1)"
+                  [disabled]="currentPage() === totalPages() - 1"
+                  class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >Next</button>
+              </div>
+            </div>
+          }
+        }
+
+      </div>
+    </main>
+  </div>
+</div>

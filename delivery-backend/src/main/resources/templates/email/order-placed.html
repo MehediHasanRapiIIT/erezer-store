@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body style="margin:0;padding:0;background:#f5f5f4;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1c1917;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f5f5f4;padding:32px 0;">
+  <tr><td align="center">
+    <table width="600" cellspacing="0" cellpadding="0" border="0" style="background:#ffffff;border-radius:12px;border:1px solid #e7e5e4;">
+      <tr><td style="padding:24px 32px;background:#0c0a09;color:#fafaf9;">
+        <div style="font-size:22px;font-weight:700;letter-spacing:0.08em;">EREZER</div>
+      </td></tr>
+      <tr><td style="padding:32px;">
+        <h1 style="margin:0 0 8px;font-size:22px;">Thanks for your order!</h1>
+        <p style="margin:0 0 24px;color:#78716c;">
+          Order <strong th:text="${orderId}">#000</strong> &middot; placed <span th:text="${placedAt}">just now</span>
+        </p>
+
+        <table width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">
+          <thead>
+            <tr style="background:#fafaf9;color:#57534e;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;">
+              <th align="left" style="padding:10px 12px;">Item</th>
+              <th align="center" style="padding:10px 12px;">Qty</th>
+              <th align="right" style="padding:10px 12px;">Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr th:each="item : ${items}" style="border-top:1px solid #e7e5e4;">
+              <td style="padding:12px;" th:text="${item.name}">Item name</td>
+              <td align="center" style="padding:12px;" th:text="${item.quantity}">1</td>
+              <td align="right" style="padding:12px;" th:text="${item.lineTotal}">$0.00</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:16px;border-top:1px solid #e7e5e4;">
+          <tr><td align="right" style="padding:8px 12px;color:#78716c;">Subtotal</td><td align="right" style="padding:8px 12px;width:120px;" th:text="${subtotal}">$0.00</td></tr>
+          <tr><td align="right" style="padding:8px 12px;color:#78716c;">Shipping</td><td align="right" style="padding:8px 12px;" th:text="${shipping}">$0.00</td></tr>
+          <tr style="border-top:1px solid #e7e5e4;font-weight:700;"><td align="right" style="padding:12px;">Total</td><td align="right" style="padding:12px;" th:text="${total}">$0.00</td></tr>
+        </table>
+
+        <p style="margin:24px 0 8px;">
+          <a th:href="${orderUrl}" style="display:inline-block;background:#0c0a09;color:#fafaf9;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View order</a>
+        </p>
+        <p style="margin:24px 0 0;color:#78716c;font-size:13px;">
+          We'll send you another email when your order ships.
+        </p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>

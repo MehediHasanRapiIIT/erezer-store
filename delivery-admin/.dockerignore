@@ -1,0 +1,24 @@
+# Repo-root .dockerignore — applies to the admin Dockerfile build context.
+# Per-service builds (erezer-store, delivery-backend) get scoped to their
+# own folders by docker-compose's `build.context`.
+
+# Heavyweight folders that shouldn't ship into any image.
+node_modules
+**/node_modules
+dist
+**/dist
+
+# Other workspaces — not needed for the admin build.
+erezer-store
+delivery-backend
+
+# Build caches and IDE clutter.
+.gradle
+.idea
+.vscode
+.git
+.github
+
+# OS junk.
+.DS_Store
+Thumbs.db

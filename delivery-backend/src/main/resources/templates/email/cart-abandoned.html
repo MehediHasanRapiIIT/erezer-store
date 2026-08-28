@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body style="margin:0;padding:0;background:#f5f5f4;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1c1917;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f5f5f4;padding:32px 0;">
+  <tr><td align="center">
+    <table width="560" cellspacing="0" cellpadding="0" border="0" style="background:#ffffff;border-radius:12px;border:1px solid #e7e5e4;">
+      <tr><td style="padding:24px 32px;background:#0c0a09;color:#fafaf9;">
+        <div style="font-size:22px;font-weight:700;letter-spacing:0.08em;">EREZER</div>
+      </td></tr>
+      <tr><td style="padding:32px;">
+        <h1 style="margin:0 0 16px;font-size:22px;">Still thinking it over?</h1>
+        <p style="margin:0 0 16px;line-height:1.6;">
+          Hi <span th:text="${firstName}">there</span>, the pieces in your cart are still waiting.
+          We're holding them but stock moves fast — finish up before someone else grabs them.
+        </p>
+
+        <table width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:16px 0;border-top:1px solid #e7e5e4;">
+          <tbody>
+            <tr th:each="item : ${items}" style="border-bottom:1px solid #e7e5e4;">
+              <td style="padding:12px 0;">
+                <strong th:text="${item.name}">Item name</strong>
+                <span style="color:#78716c;font-size:13px;">&nbsp;·&nbsp; qty <span th:text="${item.quantity}">1</span></span>
+              </td>
+              <td align="right" style="padding:12px 0;" th:text="${item.lineTotal}">$0.00</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p style="margin:24px 0;">
+          <a th:href="${cartUrl}" style="display:inline-block;background:#0c0a09;color:#fafaf9;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Return to cart</a>
+        </p>
+        <p style="margin:24px 0 0;color:#78716c;font-size:13px;line-height:1.6;">
+          Changed your mind? Just ignore this email — no nudges after this one.
+        </p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>

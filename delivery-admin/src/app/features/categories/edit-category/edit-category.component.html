@@ -1,0 +1,152 @@
+<div class="flex h-screen bg-gray-50 overflow-hidden">
+  <app-sidebar />
+
+  <div class="flex-1 flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 px-6 h-14 flex items-center justify-between flex-shrink-0">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-full bg-orange-400 flex items-center justify-center text-white font-bold text-sm">R</div>
+        <div>
+          <p class="text-sm font-bold text-gray-900 leading-tight">AmarBazaar Admin</p>
+          <p class="text-xs text-gray-400">Super Admin</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <button
+          type="button"
+          (click)="onCancel()"
+          class="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+        >Cancel</button>
+        <button
+          type="button"
+          (click)="onSave()"
+          [disabled]="isLoading() || isFetching()"
+          class="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          @if (isLoading()) {
+            <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+            Saving…
+          } @else {
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+            </svg>
+            Update Category
+          }
+        </button>
+      </div>
+    </header>
+
+    @if (isFetching()) {
+      <div class="flex-1 flex items-center justify-center">
+        <svg class="animate-spin w-8 h-8 text-blue-500" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+        </svg>
+        <span class="ml-3 text-gray-500 text-sm">Loading category...</span>
+      </div>
+    } @else {
+
+    <main class="flex-1 overflow-y-auto p-6">
+
+      <nav class="flex items-center gap-2 text-sm mb-5">
+        <a routerLink="/dashboard"  class="text-gray-400 hover:text-gray-600">Home</a>
+        <svg class="w-3.5 h-3.5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        <a routerLink="/categories" class="text-gray-400 hover:text-gray-600">Categories</a>
+        <svg class="w-3.5 h-3.5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        <span class="text-blue-600 font-medium">Edit Category</span>
+      </nav>
+
+      <h1 class="text-2xl font-extrabold text-gray-900 mb-1">Edit Category</h1>
+      <p class="text-sm text-gray-400 mb-6">Update category details.</p>
+
+      @if (errorMessage()) {
+        <div class="mb-5 flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          </svg>
+          {{ errorMessage() }}
+        </div>
+      }
+
+      <div class="max-w-xl">
+        <div class="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+          <h2 class="text-base font-bold text-gray-900">General Information</h2>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1.5">
+              Category Name <span class="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              [ngModel]="categoryName()"
+              (ngModelChange)="categoryName.set($event)"
+              placeholder="e.g. Fresh Vegetables"
+              class="w-full px-3.5 py-2.5 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400 placeholder-gray-300"
+              [class.border-red-400]="fieldErrors()['name']"
+              [class.border-gray-200]="!fieldErrors()['name']"
+            />
+            @if (fieldErrors()['name']) {
+              <p class="mt-1 text-xs text-red-600">{{ fieldErrors()['name'] }}</p>
+            }
+          </div>
+
+          <!-- Category image -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1.5">Category Image</label>
+            <p class="text-xs text-gray-400 mb-2">Shown in the storefront "Shop by category" tiles.</p>
+            <div class="flex items-center gap-4">
+              <div class="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                @if (imageUrl()) {
+                  <img [src]="imageUrl()" alt="Category" class="h-full w-full object-cover" />
+                } @else {
+                  <div class="flex h-full w-full items-center justify-center text-[10px] text-gray-400">No image</div>
+                }
+              </div>
+              <label class="cursor-pointer px-3 py-2 text-sm font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50">
+                {{ uploading() ? 'Uploading…' : (imageUrl() ? 'Replace image' : 'Upload image') }}
+                <input type="file" accept="image/*" class="hidden" [disabled]="uploading()" (change)="onImageSelected($event)" />
+              </label>
+              @if (imageUrl()) {
+                <button type="button" (click)="imageUrl.set('')" class="act-btn act-btn-delete" title="Remove image">
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                  Remove
+                </button>
+              }
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium text-gray-700">Active</p>
+              <p class="text-xs text-gray-400">Visible to customers in the app</p>
+            </div>
+            <button
+              type="button"
+              (click)="isActive.set(!isActive())"
+              class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300"
+              [class.bg-blue-600]="isActive()"
+              [class.bg-gray-200]="!isActive()"
+              [attr.aria-checked]="isActive()"
+              role="switch"
+            >
+              <span
+                class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
+                [class.translate-x-6]="isActive()"
+                [class.translate-x-1]="!isActive()"
+              ></span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+
+    }
+
+  </div>
+</div>

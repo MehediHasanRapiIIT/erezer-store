@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /checkout
+Disallow: /account
+Disallow: /orders
+Disallow: /wishlist
+Disallow: /bkash-callback
+
+Sitemap: https://shop.erezer.com/sitemap.xml

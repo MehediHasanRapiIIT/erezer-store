@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body style="margin:0;padding:0;background:#f5f5f4;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1c1917;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f5f5f4;padding:32px 0;">
+  <tr><td align="center">
+    <table width="620" cellspacing="0" cellpadding="0" border="0" style="background:#ffffff;border-radius:12px;border:1px solid #e7e5e4;">
+      <tr><td style="padding:24px 32px;background:#0c0a09;color:#fafaf9;">
+        <div style="font-size:22px;font-weight:700;letter-spacing:0.08em;">EREZER</div>
+        <div style="font-size:13px;color:#a8a29e;margin-top:4px;">New custom design request</div>
+      </td></tr>
+      <tr><td style="padding:32px;">
+        <h1 style="margin:0 0 4px;font-size:20px;">Custom design request
+          <span th:text="${reference}" style="color:#78716c;">CD-XXXX</span>
+        </h1>
+        <p style="margin:0 0 24px;color:#78716c;">A customer submitted a design and is waiting for a price. Reply to them directly to quote.</p>
+
+        <!-- Customer -->
+        <div style="color:#78716c;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Customer</div>
+        <table width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 20px;font-size:14px;line-height:1.6;">
+          <tr><td style="color:#78716c;width:120px;">Name</td><td><strong th:text="${customerName}">Jane Doe</strong></td></tr>
+          <tr><td style="color:#78716c;">Email</td><td><a th:href="'mailto:' + ${email}" th:text="${email}" style="color:#0c0a09;">jane@example.com</a></td></tr>
+          <tr><td style="color:#78716c;">Phone</td><td th:text="${phone}">+880…</td></tr>
+        </table>
+
+        <!-- Shipping -->
+        <div style="color:#78716c;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Ship to</div>
+        <p style="margin:0 0 20px;font-size:14px;line-height:1.6;" th:text="${shippingBlock}">Address…</p>
+
+        <!-- Design snapshot -->
+        <div style="color:#78716c;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Design</div>
+        <table width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 20px;font-size:14px;line-height:1.6;">
+          <tr th:if="${itemName}"><td style="color:#78716c;width:120px;">Item</td><td th:text="${itemName}">T-Shirt</td></tr>
+          <tr th:if="${colorName}"><td style="color:#78716c;">Colour</td><td th:text="${colorName}">White</td></tr>
+          <tr th:if="${size}"><td style="color:#78716c;">Size</td><td th:text="${size}">M</td></tr>
+          <tr th:if="${printTechnique}"><td style="color:#78716c;">Technique</td><td th:text="${printTechnique}">Screen print</td></tr>
+        </table>
+
+        <!-- Notes (rich text from the form) -->
+        <div style="color:#78716c;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Order details / notes</div>
+        <div style="background:#fafaf9;border:1px solid #e7e5e4;border-radius:8px;padding:16px 20px;margin:0 0 8px;color:#44403c;line-height:1.6;font-size:14px;"
+             th:utext="${notes}">Size wise quantity, technique…</div>
+
+        <p style="margin:20px 0 0;color:#a8a29e;font-size:13px;">The flattened design previews are attached to this email. Full details are also in the admin panel.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>

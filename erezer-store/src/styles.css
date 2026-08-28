@@ -1,0 +1,185 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --radius-card: 1rem;
+  --shadow-card: 0 10px 35px -24px rgba(0, 0, 0, 0.35);
+}
+
+html,
+body {
+  margin: 0;
+  font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+body {
+  background-image: radial-gradient(circle at top, rgba(0, 0, 0, 0.04), transparent 36%);
+}
+
+.dark body {
+  background-image: radial-gradient(circle at top, rgba(255, 255, 255, 0.06), transparent 36%);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+.app-section-title {
+  font-size: 1.875rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.app-muted {
+  color: rgb(82 82 82);
+}
+
+.dark .app-muted {
+  color: rgb(163 163 163);
+}
+
+.app-card {
+  border: 1px solid rgb(229 229 229);
+  border-radius: var(--radius-card);
+  background: white;
+  box-shadow: var(--shadow-card);
+}
+
+.dark .app-card {
+  border-color: rgb(64 64 64);
+  background: rgb(23 23 23);
+  box-shadow: 0 14px 45px -30px rgba(0, 0, 0, 0.7);
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, rgb(10 10 10), rgb(38 38 38));
+  color: white;
+  padding: 0.75rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  opacity: 0.95;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid rgb(212 212 212);
+  background: white;
+  padding: 0.65rem 1.1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.dark .btn-secondary {
+  border-color: rgb(82 82 82);
+  background: rgb(23 23 23);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Motion: scroll-reveal, cinematic hero, marquee. Transforms/opacity only so
+   they stay on the GPU. All disabled under prefers-reduced-motion.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Scroll-reveal: hidden until the [appReveal] directive adds .is-visible. */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Cinematic hero */
+@keyframes kenburns {
+  from { transform: scale(1.05) translate(0, 0); }
+  to   { transform: scale(1.16) translate(-1.5%, -1.5%); }
+}
+.hero-kenburns {
+  animation: kenburns 14s ease-in-out infinite alternate;
+}
+
+@keyframes heroWordUp {
+  from { transform: translateY(115%); }
+  to   { transform: translateY(0); }
+}
+.hero-word-mask {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  padding-bottom: 0.12em;
+  margin-bottom: -0.12em;
+}
+.hero-word {
+  display: inline-block;
+  animation: heroWordUp 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes heroFadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.hero-fade {
+  animation: heroFadeUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes scrollCue {
+  0%, 100% { transform: translateY(0); opacity: 0.7; }
+  50%      { transform: translateY(8px); opacity: 1; }
+}
+.scroll-cue { animation: scrollCue 1.8s ease-in-out infinite; }
+
+/* Infinite marquee (trust strip — used later) */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.marquee-track {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: marquee 30s linear infinite;
+}
+.marquee-mask:hover .marquee-track { animation-play-state: paused; }
+
+/* Mobile nav drawer: enter animations (unmounted when closed, so an off-screen
+   fixed element never adds horizontal scroll on mobile). */
+@keyframes drawerIn {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+.animate-drawer-in {
+  animation: drawerIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-overlay-in {
+  animation: overlayIn 0.25s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+  .hero-kenburns, .hero-word, .hero-fade, .scroll-cue, .marquee-track {
+    animation: none !important;
+  }
+  .hero-word, .hero-fade { opacity: 1 !important; transform: none !important; }
+  .animate-drawer-in, .animate-overlay-in { animation: none !important; }
+}

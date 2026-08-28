@@ -1,0 +1,97 @@
+# ==============================
+# Gradle / Spring Boot
+# ==============================
+
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Gradle Wrapper generated files
+gradle-app.setting
+
+# Spring Boot
+*.log
+
+# ==============================
+# Java
+# ==============================
+
+*.class
+*.jar
+*.war
+*.ear
+
+# ==============================
+# IDE
+# ==============================
+
+.idea/
+*.iml
+*.iws
+*.ipr
+
+.vscode/
+.project
+.classpath
+.settings/
+
+# Eclipse
+.factorypath
+
+# ==============================
+# OS
+# ==============================
+
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ==============================
+# Angular / Node
+# ==============================
+
+node_modules/
+.angular/
+dist/
+.tmp/
+
+# Angular cache
+.cache/
+
+# npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==============================
+# Environment files
+# ==============================
+
+.env
+.env.*
+!.env.example
+
+# ==============================
+# Coverage
+# ==============================
+
+coverage/
+
+# ==============================
+# Temporary files
+# ==============================
+
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# ==============================
+# Local configuration
+# ==============================
+
+application-local.properties
+application-local.yml
+application-local.yaml

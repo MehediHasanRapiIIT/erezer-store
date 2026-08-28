@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d//**)",
+      "Read(//d/delivery-admin/**)",
+      "PowerShell(Set-Location \"D:\\\\delivery-admin\\\\delivery-admin\\\\delivery-backend\"; .\\\\gradlew.bat compileJava --console=plain 2>&1 | Select-Object -Last 20; \"EXIT=$LASTEXITCODE\")",
+      "Bash(echo \"=== structure ===\")",
+      "Bash(find /d/delivery-admin/delivery-admin/erezer-store/src/app -maxdepth 2 -type d)",
+      "PowerShell(Set-Location \"D:\\\\delivery-admin\\\\delivery-admin\\\\erezer-store\"; npm install fabric@^6 2>&1 | Select-Object -Last 15; \"EXIT=$LASTEXITCODE\")",
+      "Bash(node -e \"const p=require\\('./node_modules/fabric/package.json'\\); console.log\\('fabric', p.version, 'module:', p.module||p.main\\)\")",
+      "PowerShell(Set-Location \"D:\\\\delivery-admin\\\\delivery-admin\\\\erezer-store\"; npm run build 2>&1 | Select-String -Pattern \"ERROR|error TS|bundle generation complete\" | Select-Object -First 10; \"STORE_EXIT=$LASTEXITCODE\")",
+      "PowerShell(Set-Location \"D:\\\\delivery-admin\\\\delivery-admin\\\\delivery-backend\"; .\\\\gradlew.bat compileJava --console=plain 2>&1 | Select-Object -Last 12; \"EXIT=$LASTEXITCODE\")",
+      "PowerShell(Set-Location \"D:\\\\delivery-admin\\\\delivery-admin\"; npm run build 2>&1 | Select-String -Pattern \"ERROR|error TS|bundle generation complete\" | Select-Object -First 12; \"EXIT=$LASTEXITCODE\")",
+      "PowerShell(Set-Location \"D:\\\\delivery-admin\\\\delivery-admin\\\\erezer-store\"; npm run build 2>&1 | Select-String -Pattern \"ERROR|error TS|bundle generation complete\" | Select-Object -First 6; \"EXIT=$LASTEXITCODE\")"
+    ]
+  }
+}

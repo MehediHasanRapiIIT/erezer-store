@@ -1,0 +1,220 @@
+# ============================================================================
+# Erezer full-stack docker-compose
+#
+#   docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d
+#
+# All sensitive values live in deploy/.env (see deploy/.env.example).
+# ============================================================================
+
+name: erezer
+
+services:
+
+  # ── Datastore ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-erezer}
+      POSTGRES_USER:     ${POSTGRES_USER:-erezer}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-erezer}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ── Object storage for product images / return photos ──────────────────────
+  minio:
+    image: minio/minio:RELEASE.2025-01-20T14-49-07Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER:     ${MINIO_ROOT_USER:?required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?required}
+    volumes:
+      - minio-data:/data
+    # Exposed only on the internal docker network in prod. Uncomment to peek
+    # at the MinIO console during dev:
+    # ports: ["9001:9001"]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  # ── Identity (Keycloak — admin auth only) ──────────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    restart: unless-stopped
+    command: ["start", "--optimized", "--hostname=${KEYCLOAK_HOSTNAME:-keycloak}"]
+    environment:
+      KC_DB:             postgres
+      KC_DB_URL:         jdbc:postgresql://postgres:5432/${POSTGRES_DB:-erezer}
+      KC_DB_USERNAME:    ${POSTGRES_USER:-erezer}
+      KC_DB_PASSWORD:    ${POSTGRES_PASSWORD}
+      KC_HOSTNAME:       ${KEYCLOAK_HOSTNAME:-keycloak}
+      KC_PROXY_HEADERS:  xforwarded
+      KC_HTTP_ENABLED:   "true"
+      KEYCLOAK_ADMIN:          ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Spring Boot backend ────────────────────────────────────────────────────
+  delivery-backend:
+    build:
+      context: ../delivery-backend
+      dockerfile: Dockerfile
+    image: ghcr.io/${IMAGE_REPO_OWNER:-erezer}/delivery-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL:      jdbc:postgresql://postgres:5432/${POSTGRES_DB:-erezer}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-erezer}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+
+      MINIO_URL:        http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: https://${KEYCLOAK_HOSTNAME}/realms/${KEYCLOAK_REALM:-erezer-admin}
+
+      EREZER_JWT_SECRET:  ${EREZER_JWT_SECRET:?required}
+      EREZER_STORE_URL:   https://${STOREFRONT_HOST}
+      EREZER_ADMIN_URL:   https://${ADMIN_HOST}
+
+      MAIL_HOST:     ${MAIL_HOST}
+      MAIL_PORT:     ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_FROM:     ${MAIL_FROM}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Erezer}
+
+      BKASH_BASE_URL:    ${BKASH_BASE_URL:-}
+      BKASH_APP_KEY:     ${BKASH_APP_KEY:-}
+      BKASH_APP_SECRET:  ${BKASH_APP_SECRET:-}
+      BKASH_USERNAME:    ${BKASH_USERNAME:-}
+      BKASH_PASSWORD:    ${BKASH_PASSWORD:-}
+      BKASH_CALLBACK_URL: https://${API_HOST}/api/payments/bkash/callback
+
+      SENTRY_DSN:     ${SENTRY_DSN_BACKEND:-}
+      SENTRY_ENV:     ${SENTRY_ENV:-prod}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-erezer-backend@latest}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+      minio:    { condition: service_started }
+
+  # ── Customer storefront ────────────────────────────────────────────────────
+  erezer-store:
+    build:
+      context: ../erezer-store
+      dockerfile: Dockerfile
+    image: ghcr.io/${IMAGE_REPO_OWNER:-erezer}/erezer-store:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      - delivery-backend
+
+  # ── Admin panel ────────────────────────────────────────────────────────────
+  delivery-admin:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: ghcr.io/${IMAGE_REPO_OWNER:-erezer}/delivery-admin:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      - delivery-backend
+
+  # ── HTTPS reverse proxy (auto-renew via ACME) ──────────────────────────────
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    environment:
+      STOREFRONT_HOST: ${STOREFRONT_HOST}
+      ADMIN_HOST:      ${ADMIN_HOST}
+      API_HOST:        ${API_HOST}
+      ACME_EMAIL:      ${ACME_EMAIL:-}
+      # In dev, the .env sets CADDY_GLOBAL_EXTRA="local_certs" so Caddy uses
+      # its internal CA rather than Let's Encrypt (works for *.localhost).
+      CADDY_GLOBAL_EXTRA: ${CADDY_GLOBAL_EXTRA:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    depends_on:
+      - delivery-backend
+      - erezer-store
+      - delivery-admin
+
+  # ── Local mail catcher (dev only — replace with real SMTP in prod) ─────────
+  mailpit:
+    image: axllent/mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"  # SMTP (what the backend connects to)
+      - "8025:8025"  # Web UI for reading caught emails
+    profiles: ["dev"]
+
+  # ── Nightly Postgres backup ────────────────────────────────────────────────
+  pg-backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST:      postgres
+      PGUSER:      ${POSTGRES_USER:-erezer}
+      PGPASSWORD:  ${POSTGRES_PASSWORD}
+      PGDATABASE:  ${POSTGRES_DB:-erezer}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      # Optional off-host upload — leave blank to keep backups on the volume only.
+      S3_BUCKET:     ${BACKUP_S3_BUCKET:-}
+      S3_ENDPOINT:   ${BACKUP_S3_ENDPOINT:-}
+      AWS_ACCESS_KEY_ID:     ${BACKUP_S3_ACCESS_KEY:-}
+      AWS_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_KEY:-}
+    volumes:
+      - ./backup/pg-backup.sh:/usr/local/bin/pg-backup.sh:ro
+      - backup-data:/var/backups
+    entrypoint: ["/bin/sh", "-c"]
+    # Run once on boot, then daily at 03:00.
+    command:
+      - |
+        apk add --no-cache aws-cli >/dev/null 2>&1 || true
+        /usr/local/bin/pg-backup.sh || true
+        while true; do
+          sleep $$((24*3600))
+          /usr/local/bin/pg-backup.sh || true
+        done
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+
+volumes:
+  pg-data:
+  redis-data:
+  minio-data:
+  caddy-data:
+  caddy-config:
+  backup-data:
