@@ -1,8 +1,19 @@
+# Build context for the storefront only - keep it small and reproducible.
 node_modules
 dist
 .angular
-.git
-.vscode
+
+# Orchestration and docs are not image inputs.
+Dockerfile
+.dockerignore
+docker-compose*.yml
+README.md
+
+# IDE / VCS / OS clutter.
 .idea
+.vscode
+.git
+.gitignore
+.editorconfig
 Thumbs.db
 .DS_Store

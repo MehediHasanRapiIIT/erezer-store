@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectorRef, Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { catchError, of } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
@@ -179,6 +179,11 @@ const COLOR_VIEWS: { key: ColorView; label: string }[] = [
 })
 export class CustomDesignComponent implements OnInit {
   private readonly api = inject(CustomDesignAssetService);
+  // This app is zoneless: an HTTP callback that mutates plain (non-signal)
+  // state must notify change detection itself, or the view silently never
+  // updates. Signals (items, error, ...) do this on their own; the colour
+  // objects below are plain properties bound with ngModel, so they cannot.
+  private readonly cdr = inject(ChangeDetectorRef);
 
   readonly colorViews = COLOR_VIEWS;
   readonly items = signal<CustomDesignItemAdmin[]>([]);
@@ -239,7 +244,13 @@ export class CustomDesignComponent implements OnInit {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
     this.api.uploadImage(file).pipe(catchError((err) => { this.error.set(parseApiError(err)); return of(''); }))
-      .subscribe((url) => { if (url) color[`${view}ImageUrl`] = url; });
+      .subscribe((url) => {
+        if (url) color[`${view}ImageUrl`] = url;
+        // Zoneless: without this the upload succeeds but the thumbnail never
+        // renders, which reads as "upload is broken" and loses the URL when
+        // the admin navigates away without saving.
+        this.cdr.markForCheck();
+      });
   }
 
   protected saveItem(it: CustomDesignItemAdmin): void {
@@ -271,7 +282,10 @@ export class CustomDesignComponent implements OnInit {
     if (!file) return;
     if (!this.newLogoName.trim()) this.newLogoName = file.name.replace(/\.[^.]+$/, '');
     this.api.uploadImage(file).pipe(catchError((err) => { this.error.set(parseApiError(err)); return of(''); }))
-      .subscribe((url) => { if (url) this.newLogoUrl = url; });
+      .subscribe((url) => {
+        if (url) this.newLogoUrl = url;
+        this.cdr.markForCheck(); // zoneless - same reason as onColorImage
+      });
   }
 
   protected addLogo(): void {

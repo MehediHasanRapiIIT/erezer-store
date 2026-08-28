@@ -4,7 +4,7 @@ import { ActivatedRoute } from '@angular/router';
 import { catchError, of } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { AuthService } from '../core/auth.service';
-import { CustomDesignCanvasService } from '../core/custom-design-canvas.service';
+import { CustomDesignCanvasService, ImageFilterPreset } from '../core/custom-design-canvas.service';
 import type {
   CustomDesignColor,
   CustomDesignDraft,
@@ -21,8 +21,8 @@ interface ViewTab { id: CustomDesignView; label: string; }
   imports: [FormsModule],
   providers: [CustomDesignCanvasService],
   template: `
-    <section class="mx-auto max-w-7xl px-3 py-6">
-      <header class="mb-5 rounded-2xl bg-amber-100 px-6 py-5 text-center dark:bg-amber-950/40">
+    <section class="studio-bleed mx-auto max-w-[1600px] px-4 py-6">
+      <header class="mb-3 rounded-2xl bg-amber-100 px-6 py-3 text-center dark:bg-amber-950/40">
         <h1 class="text-lg font-bold tracking-wide sm:text-xl">DESIGN YOUR OWN CLOTHING IN JUST MINUTES</h1>
         <p class="app-muted mt-1 text-sm">No minimum order — even a single piece. Design t-shirts, hoodies and more, then submit for a price.</p>
       </header>
@@ -36,7 +36,7 @@ interface ViewTab { id: CustomDesignView; label: string; }
       <!-- The grid (and canvas) must stay VISIBLE in the DOM: fabric initialised on a
            display:none canvas can't measure it and paints nothing. We dim it while
            loading instead of hiding it. -->
-      <div class="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_220px]" [class.opacity-50]="loading()">
+      <div class="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_248px]" [class.opacity-50]="loading()">
 
           <!-- ── Left: tools ─────────────────────────────────────────────── -->
           <aside class="space-y-3">
@@ -73,7 +73,13 @@ interface ViewTab { id: CustomDesignView; label: string; }
                   <select [ngModel]="a.fontFamily" (ngModelChange)="canvas.setFontFamily($event)"
                     class="w-full rounded-lg border border-neutral-300 px-2 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-900"
                     [style.font-family]="a.fontFamily">
-                    @for (f of fonts; track f) { <option [value]="f" [style.font-family]="f">{{ f }}</option> }
+                    @for (g of fontGroups; track g.label) {
+                      <optgroup [label]="g.label">
+                        @for (f of g.fonts; track f) {
+                          <option [value]="f" [style.font-family]="f">{{ f }}</option>
+                        }
+                      </optgroup>
+                    }
                   </select>
 
                   <div class="flex items-center gap-2">
@@ -87,6 +93,9 @@ interface ViewTab { id: CustomDesignView; label: string; }
                     <button type="button" (click)="canvas.toggleItalic()" title="Italic"
                       class="h-8 w-8 rounded-lg border text-sm italic" [class.bg-neutral-900]="a.italic" [class.text-white]="a.italic"
                       [class.border-neutral-300]="!a.italic" [class.dark:border-neutral-700]="!a.italic">I</button>
+                    <button type="button" (click)="canvas.toggleUnderline()" title="Underline"
+                      class="h-8 w-8 rounded-lg border text-sm underline" [class.bg-neutral-900]="a.underline" [class.text-white]="a.underline"
+                      [class.border-neutral-300]="!a.underline" [class.dark:border-neutral-700]="!a.underline">U</button>
                   </div>
 
                   <div class="flex items-center gap-2">
@@ -108,6 +117,35 @@ interface ViewTab { id: CustomDesignView; label: string; }
                     <input type="color" [value]="a.strokeColor" (change)="onStroke($event, a.strokeWidth)" class="h-7 w-8 cursor-pointer rounded" />
                     <input type="range" min="0" max="8" step="0.5" [ngModel]="a.strokeWidth" (ngModelChange)="canvas.setTextStroke(a.strokeColor, $event)" class="flex-1" />
                   </div>
+
+                  <!-- Letter spacing: fabric measures it in 1/1000 em, so the
+                       slider range is wide but the label shows plain steps. -->
+                  <label class="flex items-center gap-2 text-xs">
+                    <span class="w-14 shrink-0">Spacing</span>
+                    <input type="range" min="-50" max="600" step="10" [ngModel]="a.charSpacing"
+                      (ngModelChange)="canvas.setCharSpacing($event)" class="flex-1" />
+                  </label>
+
+                  <label class="flex items-center gap-2 text-xs">
+                    <span class="w-14 shrink-0">Line gap</span>
+                    <input type="range" min="0.7" max="2.4" step="0.05" [ngModel]="a.lineHeight"
+                      (ngModelChange)="canvas.setLineHeight($event)" class="flex-1" />
+                  </label>
+
+                  <div class="flex items-center gap-2 text-xs">
+                    <button type="button" (click)="canvas.setShadow(!a.shadow, a.shadowColor)"
+                      class="rounded-lg border px-2 py-1" [class.bg-neutral-900]="a.shadow" [class.text-white]="a.shadow"
+                      [class.border-neutral-300]="!a.shadow" [class.dark:border-neutral-700]="!a.shadow">Shadow</button>
+                    @if (a.shadow) {
+                      <input type="color" [value]="a.shadowColor" (change)="onShadowColor($event)"
+                        title="Shadow colour" class="h-7 w-8 cursor-pointer rounded" />
+                    }
+                    <span class="ml-auto flex overflow-hidden rounded-lg border border-neutral-300 dark:border-neutral-700">
+                      <button type="button" (click)="canvas.transformCase('upper')" title="UPPERCASE" class="px-2 py-1">AA</button>
+                      <button type="button" (click)="canvas.transformCase('title')" title="Title Case" class="px-2 py-1">Aa</button>
+                      <button type="button" (click)="canvas.transformCase('lower')" title="lowercase" class="px-2 py-1">aa</button>
+                    </span>
+                  </div>
                 }
 
                 @if (a.kind === 'image') {
@@ -119,7 +157,48 @@ interface ViewTab { id: CustomDesignView; label: string; }
                     {{ removingBg() ? 'Removing…' : 'Remove background' }}
                   </button>
                   @if (removeBgError()) { <p class="text-xs text-red-500">{{ removeBgError() }}</p> }
+
+                  <!-- Filter presets. Rebuilding the whole fabric filter stack
+                       on each change, so these are mutually exclusive. -->
+                  <div class="flex overflow-hidden rounded-lg border border-neutral-300 text-xs dark:border-neutral-700">
+                    @for (f of imageFilters; track f.id) {
+                      <button type="button" (click)="canvas.setImageFilter(f.id)" class="flex-1 px-1 py-1"
+                        [class.bg-neutral-900]="a.filterPreset === f.id" [class.text-white]="a.filterPreset === f.id">{{ f.label }}</button>
+                    }
+                  </div>
+
+                  <label class="flex items-center gap-2 text-xs">
+                    <span class="w-14 shrink-0">Bright</span>
+                    <input type="range" min="-0.6" max="0.6" step="0.05" [ngModel]="a.brightness"
+                      (ngModelChange)="canvas.setBrightness($event)" class="flex-1" />
+                  </label>
+                  <label class="flex items-center gap-2 text-xs">
+                    <span class="w-14 shrink-0">Contrast</span>
+                    <input type="range" min="-0.6" max="0.6" step="0.05" [ngModel]="a.contrast"
+                      (ngModelChange)="canvas.setContrast($event)" class="flex-1" />
+                  </label>
+                  <label class="flex items-center gap-2 text-xs">
+                    <span class="w-14 shrink-0">Saturate</span>
+                    <input type="range" min="-1" max="1" step="0.05" [ngModel]="a.saturation"
+                      (ngModelChange)="canvas.setSaturation($event)" class="flex-1" />
+                  </label>
+                  <button type="button" (click)="canvas.resetAdjustments()" class="btn-secondary w-full py-1.5 text-xs">Reset adjustments</button>
                 }
+
+                <!-- Applies to any element, not just images. -->
+                <div class="flex items-center gap-2 text-xs">
+                  <span class="w-14 shrink-0">Rotate</span>
+                  <button type="button" (click)="canvas.rotateBy(-90)" title="Rotate left" class="rounded-lg border border-neutral-300 px-2 py-1 dark:border-neutral-700">↺</button>
+                  <input type="range" min="0" max="359" step="1" [ngModel]="a.angle"
+                    (ngModelChange)="canvas.setAngle($event)" class="flex-1" />
+                  <button type="button" (click)="canvas.rotateBy(90)" title="Rotate right" class="rounded-lg border border-neutral-300 px-2 py-1 dark:border-neutral-700">↻</button>
+                </div>
+
+                <div class="flex gap-2">
+                  <button type="button" (click)="canvas.bringForward()" class="btn-secondary flex-1 py-1.5 text-xs" title="Bring forward">Forward ↑</button>
+                  <button type="button" (click)="canvas.sendBackward()" class="btn-secondary flex-1 py-1.5 text-xs" title="Send backward">Back ↓</button>
+                </div>
+                <button type="button" (click)="canvas.fitToPrintArea()" class="btn-secondary w-full py-1.5 text-xs">Fit to print area</button>
 
                 <label class="flex items-center gap-2 text-xs">Opacity
                   <input type="range" min="0.1" max="1" step="0.05" [ngModel]="a.opacity" (ngModelChange)="canvas.setOpacity($event)" class="flex-1" />
@@ -184,9 +263,13 @@ interface ViewTab { id: CustomDesignView; label: string; }
             }
           </aside>
 
-          <!-- ── Center: canvas ───────────────────────────────────────────── -->
-          <div class="space-y-3">
-            <div class="flex items-center justify-center gap-1 rounded-full bg-neutral-900 px-3 py-2 text-white">
+          <!-- ── Center: canvas ───────────────────────────── -->
+          <!-- position:relative so the toolbar can float over the stage instead of
+               occupying its own row above it - that row cost ~66px of height,
+               which on a laptop is the difference between the whole garment
+               being visible and having to scroll for it. -->
+          <div class="relative flex justify-center rounded-2xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900">
+            <div class="pointer-events-auto absolute right-6 top-6 z-10 flex items-center gap-1 rounded-full bg-neutral-900/90 px-3 py-2 text-white shadow-lg backdrop-blur">
               <button type="button" (click)="canvas.setZoom(canvas.zoom() + 0.1)" title="Zoom in" class="rounded-full p-2 hover:bg-white/10">＋</button>
               <button type="button" (click)="canvas.setZoom(canvas.zoom() - 0.1)" title="Zoom out" class="rounded-full p-2 hover:bg-white/10">－</button>
               <button type="button" (click)="canvas.duplicateActive()" [disabled]="!canvas.hasSelection()" title="Duplicate" class="rounded-full p-2 hover:bg-white/10 disabled:opacity-40">⧉</button>
@@ -199,13 +282,11 @@ interface ViewTab { id: CustomDesignView; label: string; }
                 {{ canvas.showGuide() ? '▣ area' : '▢ area' }}
               </button>
             </div>
-            <div class="flex justify-center rounded-2xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900">
-              <!-- IMPORTANT: no background/class styling on the canvas element itself.
-                   Fabric copies the element's className + inline style onto the
-                   transparent "upper canvas" it overlays for selection — any
-                   background here becomes an opaque layer hiding everything drawn. -->
-              <canvas #canvasEl></canvas>
-            </div>
+            <!-- IMPORTANT: no background/class styling on the canvas element itself.
+                 Fabric copies the element's className + inline style onto the
+                 transparent "upper canvas" it overlays for selection — any
+                 background here becomes an opaque layer hiding everything drawn. -->
+            <canvas #canvasEl></canvas>
           </div>
 
           <!-- ── Right: views + actions ───────────────────────────────────── -->
@@ -213,13 +294,25 @@ interface ViewTab { id: CustomDesignView; label: string; }
             <div class="grid grid-cols-2 gap-2">
               @for (tab of viewTabs; track tab.id) {
                 <button type="button" (click)="selectView(tab.id)"
-                  class="rounded-xl border p-2 text-center text-xs font-medium transition"
+                  class="relative rounded-xl border-2 bg-neutral-50 p-1.5 transition hover:border-neutral-400 dark:bg-neutral-900"
                   [class.border-black]="view() === tab.id"
                   [class.dark:border-white]="view() === tab.id"
                   [class.border-neutral-200]="view() !== tab.id"
                   [class.dark:border-neutral-700]="view() !== tab.id">
-                  {{ tab.label }}
-                  @if (!canvas.isViewEmpty(tab.id)) { <span class="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-green-500"></span> }
+                  <span class="flex h-16 items-center justify-center overflow-hidden">
+                    @if (viewThumb(tab.id); as thumb) {
+                      <img [src]="thumb" [alt]="tab.label" class="max-h-full max-w-full object-contain" />
+                    } @else {
+                      <!-- No mockup uploaded for this view yet; keep the tab usable. -->
+                      <span class="text-[10px] leading-tight opacity-40">no
+                        <br />mockup</span>
+                    }
+                  </span>
+                  <span class="mt-1 block text-center text-[11px] font-medium lowercase">{{ tab.label }}</span>
+                  @if (!canvas.isViewEmpty(tab.id)) {
+                    <span class="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-green-500"
+                      title="This view has artwork"></span>
+                  }
                 </button>
               }
             </div>
@@ -334,6 +427,24 @@ interface ViewTab { id: CustomDesignView; label: string; }
       background: #fafafa;
     }
     :host-context(.dark) .cd-input { background: rgb(23 23 23); border-color: rgb(64 64 64); }
+
+    /*
+     * The app shell wraps every route in <main class="max-w-7xl">, which caps
+     * this page at 1280px and leaves ~340px of dead margin either side on a
+     * wide monitor. The design stage is the whole point of this page, so it
+     * escapes that column with negative margins.
+     *
+     * max(..., -190px) bounds the escape so the section never exceeds 1600px,
+     * and the +10px allows for the scrollbar - 50vw includes it, so without
+     * that slack a full-bleed element overflows and adds a horizontal scrollbar.
+     * Only from 1280px up; below that the shell's own width is already right.
+     */
+    @media (min-width: 1280px) {
+      .studio-bleed {
+        margin-left: max(calc(50% - 50vw + 10px), -190px);
+        margin-right: max(calc(50% - 50vw + 10px), -190px);
+      }
+    }
   `],
 })
 export class CustomDesignPage implements AfterViewInit, OnDestroy {
@@ -344,6 +455,15 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
 
   @ViewChild('canvasEl') private canvasRef!: ElementRef<HTMLCanvasElement>;
   @ViewChild('textInput') private textInputRef?: ElementRef<HTMLInputElement>;
+
+  /**
+   * Mockup image for a view tab's thumbnail, taken from the currently-selected
+   * colourway. Null until an admin uploads that view's mockup, in which case the
+   * tab falls back to a text placeholder rather than a broken image.
+   */
+  protected viewThumb(view: CustomDesignView): string | null {
+    return this.selectedColor()?.images?.[view] ?? null;
+  }
 
   protected readonly viewTabs: ViewTab[] = [
     { id: 'front', label: 'Front' },
@@ -367,11 +487,31 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
   protected newText = '';
   protected textColor = '#111111';
 
-  /** Common system/web-safe fonts (no external font loading needed). */
-  protected readonly fonts = [
-    'Inter', 'Arial', 'Helvetica', 'Georgia', 'Times New Roman', 'Courier New',
-    'Trebuchet MS', 'Verdana', 'Impact', 'Comic Sans MS', 'Brush Script MT',
+  /**
+   * Fonts offered in the text tool, grouped so the list stays scannable.
+   *
+   * The webfont families are loaded in index.html. System families need no
+   * loading; both kinds are awaited through ensureFontLoaded before being
+   * applied, because canvas text is rasterised once and will not repaint
+   * itself when a font arrives late.
+   */
+  protected readonly imageFilters: { id: ImageFilterPreset; label: string }[] = [
+    { id: 'none', label: 'None' },
+    { id: 'grayscale', label: 'B&W' },
+    { id: 'sepia', label: 'Sepia' },
+    { id: 'invert', label: 'Invert' },
   ];
+
+  protected readonly fontGroups: { label: string; fonts: string[] }[] = [
+    { label: 'Sans', fonts: ['Inter', 'Montserrat', 'Poppins', 'Oswald', 'Arial', 'Helvetica', 'Trebuchet MS', 'Verdana'] },
+    { label: 'Display', fonts: ['Anton', 'Bebas Neue', 'Archivo Black', 'Righteous', 'Bangers', 'Impact'] },
+    { label: 'Script & handwriting', fonts: ['Pacifico', 'Lobster', 'Permanent Marker', 'Caveat', 'Brush Script MT', 'Comic Sans MS'] },
+    { label: 'Serif & mono', fonts: ['Playfair Display', 'Georgia', 'Times New Roman', 'Courier New'] },
+    { label: 'বাংলা / Bengali', fonts: ['Hind Siliguri', 'Noto Sans Bengali'] },
+  ];
+
+  /** Flat list, used to warm the webfont cache once the studio opens. */
+  protected readonly fonts = this.fontGroups.flatMap((g) => g.fonts);
   protected readonly removingBg = signal(false);
   protected readonly removeBgError = signal('');
 
@@ -403,8 +543,26 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
   ngAfterViewInit(): void {
     // The grid is always visible now, so the canvas is laid out here → fabric can
     // measure it and will actually paint.
-    this.canvas.init(this.canvasRef.nativeElement, 460, 560);
+    // A square stage, as large as the centre column allows. Fabric maps canvas
+    // pixels 1:1, so the backing store must be sized here rather than stretched
+    // with CSS - scaling it in CSS would desynchronise pointer coordinates.
+    const host = this.canvasRef.nativeElement.parentElement;
+    const available = Math.floor((host?.clientWidth ?? 0) - 32); // minus wrapper p-4
+    // Also bound by the viewport height: the stage is square, so sizing purely
+    // on width would push the garment below the fold on a short window.
+    // Garment mockups are portrait, so the rendered shirt is bounded by the
+    // canvas height, not its width - sizing on width alone would just add empty
+    // margins either side of the shirt.
+    // Leave room for the site header, the page banner and the canvas toolbar
+    // that sit above the stage, so the whole garment is visible without
+    // scrolling on a typical laptop.
+    const byHeight = Math.floor(window.innerHeight - 185);
+    const size = Math.max(360, Math.min(1040, available || 840, byHeight));
+    this.canvas.init(this.canvasRef.nativeElement, size, size);
     this.canvasReady = true;
+    // Fire-and-forget: canvas text does not repaint when a webfont lands, so
+    // the families are fetched up front rather than at first use.
+    void Promise.all(this.fonts.map((f) => this.canvas.ensureFontLoaded(f)));
     this.loadAssets();
   }
 
@@ -586,6 +744,11 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
   }
 
   /** Outline colour input passes the current width alongside the new colour. */
+  protected onShadowColor(event: Event): void {
+    const color = (event.target as HTMLInputElement).value;
+    this.canvas.setShadow(true, color);
+  }
+
   protected onStroke(event: Event, width: number): void {
     const color = (event.target as HTMLInputElement).value;
     this.canvas.setTextStroke(color, width > 0 ? width : 1);

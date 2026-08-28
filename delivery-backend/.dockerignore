@@ -1,8 +1,27 @@
+# Build output and caches - never belong in the build context.
 build
 .gradle
+bin
+
+# JVM crash + replay dumps (these run to tens of MB and slow every build).
+hs_err_pid*.log
+replay_pid*.log
+*.log
+
+# Local orchestration and docs - not inputs to the image.
+docker-compose*.yml
+Dockerfile
+.dockerignore
+docs
+.kiro
+.claude
+claude
+
+# IDE / VCS / OS clutter.
 .idea
 .vscode
 .git
+.gitignore
+.gitattributes
 Thumbs.db
 .DS_Store
-*.log

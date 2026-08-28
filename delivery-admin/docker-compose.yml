@@ -1,0 +1,42 @@
+# ============================================================================
+# delivery-admin - STANDALONE
+#
+# Builds and serves the admin panel on its own. It is a static SPA, so it has
+# no dependencies of its own: it needs a backend and a Keycloak somewhere, but
+# the BROWSER is what calls them, not this container. That is why the URLs
+# below are host addresses, not compose service names.
+#
+#   docker compose up -d --build     ->  http://localhost:4300
+#
+# Point it at whichever backend you are running - the full stack at the repo
+# root, the standalone backend stack, or one running from your IDE:
+#
+#   API_BASE_URL=http://localhost:8080 docker compose up -d
+#
+# Nothing is rebuilt when you change these: env.js is regenerated on every
+# container start, so `docker compose up -d --force-recreate` is enough.
+# ============================================================================
+
+name: erezer-admin
+
+services:
+
+  admin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${IMAGE_REPO_OWNER:-erezer}/delivery-admin:${IMAGE_TAG:-local}
+    container_name: erezer-admin-standalone
+    restart: unless-stopped
+    environment:
+      # Browser-facing addresses. KEYCLOAK_URL must match the issuer the
+      # backend validates against, or every admin login is rejected.
+      API_BASE_URL: ${PUBLIC_API_URL:-http://localhost:8080}
+      KEYCLOAK_URL: ${PUBLIC_KEYCLOAK_URL:-http://localhost:9090}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-delivery-admin}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-delivery-admin-ui}
+      SENTRY_DSN: ${SENTRY_DSN_ADMIN:-}
+      SENTRY_ENV: ${SENTRY_ENV:-local}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-delivery-admin@local}
+    ports:
+      - "${ADMIN_HOST_PORT:-4300}:80"

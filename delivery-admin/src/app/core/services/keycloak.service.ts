@@ -1,9 +1,14 @@
 import { Injectable } from '@angular/core';
 import Keycloak from 'keycloak-js';
+import { runtimeConfig } from '../runtime-config';
 
-const url = 'http://keycloak:9090'; // must match KC_HOSTNAME + backend issuer-uri; needs '127.0.0.1 keycloak' in the hosts file
-const realm = 'delivery-admin';
-const clientId = 'delivery-admin-ui';
+// Resolved at runtime from /env.js, not baked into the bundle, so one image
+// works against any Keycloak. `url` is the address the BROWSER uses; it must
+// match Keycloak's KC_HOSTNAME, because that is what lands in the token's
+// `iss` claim, which the backend validates against its own issuer-uri.
+const url = runtimeConfig('KEYCLOAK_URL', 'http://localhost:9090');
+const realm = runtimeConfig('KEYCLOAK_REALM', 'delivery-admin');
+const clientId = runtimeConfig('KEYCLOAK_CLIENT_ID', 'delivery-admin-ui');
 
 @Injectable({ providedIn: 'root' })
 export class KeycloakService {

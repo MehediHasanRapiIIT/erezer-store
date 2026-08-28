@@ -35,14 +35,36 @@ public class AdminDashboardController {
     private final CategoryRepository categoryRepository;
     private final InventoryService inventoryService;
 
+    /**
+     * Whether an order's total counts toward revenue.
+     *
+     * <p>Mirrors {@code order_status NOT IN ('CANCELLED','RETURNED')} in
+     * ReportRepository - the reports screen already excluded these, so the
+     * dashboard disagreeing with it was the visible symptom.
+     */
+    private static boolean countsAsRevenue(Order order) {
+        String status = order.getOrderStatus();
+        return !("CANCELLED".equalsIgnoreCase(status) || "RETURNED".equalsIgnoreCase(status));
+    }
+
     @GetMapping("/stats")
     public ResponseEntity<DashboardStatsDTO> getStats() {
-        long totalOrders = orderRepository.findAllOrders().size();
-        double totalRevenue = orderRepository.findAllOrders().stream()
+        List<Order> orders = orderRepository.findAllOrders();
+        long totalOrders = orders.size();
+        // Revenue counts money the business actually keeps. A cancelled or
+        // returned order was refunded, so including its total overstates takings
+        // and inflates every figure derived from it.
+        double totalRevenue = orders.stream()
+                .filter(AdminDashboardController::countsAsRevenue)
                 .mapToDouble(o -> o.getTotalAmount() != null ? o.getTotalAmount().doubleValue() : 0).sum();
         long activeRiders = userRiderRepository.findAll().stream()
                 .filter(r -> "ACTIVE".equalsIgnoreCase(r.getStatus())).count();
-        long pendingOrders = orderRepository.findByOrderStatus("PENDING").size();
+        // Orders awaiting action. PLACED is the real initial status; PENDING is
+        // the deprecated legacy spelling, and querying only for it made this
+        // tile permanently read zero.
+        long pendingOrders = orders.stream().filter(o ->
+                "PLACED".equalsIgnoreCase(o.getOrderStatus())
+                        || "PENDING".equalsIgnoreCase(o.getOrderStatus())).count();
         return ResponseEntity.ok(new DashboardStatsDTO(totalOrders, totalRevenue, activeRiders, pendingOrders));
     }
 
@@ -63,14 +85,18 @@ public class AdminDashboardController {
 
         // Core KPIs
         long totalOrders = allOrders.size();
+        // Same rule as /stats: cancelled and returned orders are not revenue.
+        // avgOrderValue below is derived from this, so it would be wrong too.
         double totalRevenue = allOrders.stream()
+                .filter(AdminDashboardController::countsAsRevenue)
                 .mapToDouble(o -> o.getTotalAmount() != null ? o.getTotalAmount().doubleValue() : 0).sum();
         long completedOrders = allOrders.stream()
                 .filter(o -> "DELIVERED".equalsIgnoreCase(o.getOrderStatus()) || "COMPLETED".equalsIgnoreCase(o.getOrderStatus())).count();
         long cancelledOrders = allOrders.stream()
                 .filter(o -> "CANCELLED".equalsIgnoreCase(o.getOrderStatus())).count();
         long pendingOrders = allOrders.stream()
-                .filter(o -> "PENDING".equalsIgnoreCase(o.getOrderStatus())).count();
+                .filter(o -> "PLACED".equalsIgnoreCase(o.getOrderStatus())
+                        || "PENDING".equalsIgnoreCase(o.getOrderStatus())).count();
 
         // Derived KPIs
         double completionRate = totalOrders > 0 ? Math.round((completedOrders * 100.0 / totalOrders) * 10.0) / 10.0 : 0;

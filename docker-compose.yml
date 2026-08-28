@@ -1,0 +1,296 @@
+# ============================================================================
+# Erezer - full local stack
+#
+#   docker compose up -d --build     bring everything up
+#   docker compose logs -f backend   tail the API
+#   docker compose ps                see health of every service
+#   docker compose down              stop (data volumes survive)
+#   docker compose down -v           stop and WIPE the database + uploads
+#
+# Once healthy:
+#   storefront   http://localhost:4200
+#   admin panel  http://localhost:4300      (login: admin / admin)
+#   API + docs   http://localhost:8080/swagger-ui/index.html
+#   Keycloak     http://localhost:9090      (console: admin / admin)
+#   MinIO        http://localhost:9001      (minioadmin / minioadmin)
+#   Mailpit      http://localhost:8025      (every outbound email lands here)
+#
+# No hosts-file entry is required. The backend validates Keycloak's public
+# issuer (localhost:9090) while fetching signing keys over the internal network
+# (keycloak:9090), so the browser and the backend can disagree on the address
+# without disagreeing on the token.
+# ============================================================================
+
+name: erezer
+
+services:
+
+  # -- PostgreSQL ------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: erezer-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-delivery_app_v1}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-root}
+    ports:
+      - "${POSTGRES_HOST_PORT:-5432}:5432"   # published so psql/DBeaver can attach
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # Flyway fails fast, so "container started" is not enough - Postgres has
+      # to be actually accepting connections before the backend boots.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-delivery_app_v1}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks: [erezer]
+
+  # -- Redis (sessions, cache, rate limiting) --------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: erezer-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks: [erezer]
+
+  # -- MinIO (product images, banners, return photos, custom designs) --------
+  minio:
+    image: minio/minio:latest
+    container_name: erezer-minio
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "${MINIO_API_HOST_PORT:-9000}:9000"       # S3 API - also how the browser loads images
+      - "${MINIO_CONSOLE_HOST_PORT:-9001}:9001"   # web console
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks: [erezer]
+
+  # -- One-shot bucket bootstrap (creates buckets, then exits) ---------------
+  minio-init:
+    image: minio/mc:latest
+    container_name: erezer-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    # The app creates buckets on demand, but they default to private - an
+    # <img src> from the browser would get 403. This grants anonymous read so
+    # uploaded images actually render.
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin} &&
+      for b in product-images banner-images custom-design-images return-photos; do
+        mc mb --ignore-existing local/$$b &&
+        mc anonymous set download local/$$b;
+      done &&
+      echo 'MinIO buckets ready'
+      "
+    restart: "no"
+    networks: [erezer]
+
+  # -- Mailpit - catches every outbound email, nothing leaves your machine ---
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: erezer-mailpit
+    restart: unless-stopped
+    environment:
+      # Mailpit keeps mail in memory by default, so every restart throws away
+      # the verification and order emails you were about to click. Persisting
+      # to the volume keeps them across `docker compose down`.
+      MP_DATABASE: /data/mailpit.db
+    ports:
+      - "${MAILPIT_SMTP_HOST_PORT:-1025}:1025"   # SMTP
+      - "${MAILPIT_UI_HOST_PORT:-8025}:8025"     # web UI
+    volumes:
+      - mailpit-data:/data
+    networks: [erezer]
+
+  # -- Keycloak - admin panel authentication --------------------------------
+  keycloak:
+    # Built rather than pulled, so the custom Erezer login theme is baked in.
+    # See delivery-admin/keycloak-theme/Dockerfile.
+    build:
+      context: ./delivery-admin/keycloak-theme
+      dockerfile: Dockerfile
+    image: ${IMAGE_REPO_OWNER:-erezer}/keycloak:${IMAGE_TAG:-local}
+    container_name: erezer-keycloak
+    restart: unless-stopped
+    command: ["start-dev", "--http-port=9090", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      # The PUBLIC address. Whatever is set here becomes the `iss` claim in
+      # every issued token, which is exactly what the backend validates.
+      KC_HOSTNAME: ${PUBLIC_KEYCLOAK_URL:-http://localhost:9090}
+      KC_HOSTNAME_STRICT: "false"
+      # Lets container-to-container calls arrive on keycloak:9090 while the
+      # browser-facing hostname above stays localhost:9090.
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      # Serve the theme straight from disk instead of caching it, so editing
+      # login.ftl or login.css and refreshing the browser is enough - no
+      # rebuild, no restart. Production leaves caching on (see the prod overlay).
+      KC_SPI_THEME_CACHE_THEMES: "false"
+      KC_SPI_THEME_CACHE_TEMPLATES: "false"
+      KC_SPI_THEME_STATIC_MAX_AGE: "-1"
+    ports:
+      - "${KEYCLOAK_HOST_PORT:-9090}:9090"
+    volumes:
+      # Realm import runs on FIRST boot only (while the realm does not exist).
+      # Seeded operator: admin / admin. `loginTheme` in this file is what
+      # actually switches the login page over to the custom theme - the files
+      # alone do nothing.
+      - ./delivery-backend/keycloak:/opt/keycloak/data/import:ro
+      # Live theme editing: shadows the copy baked into the image above.
+      # Not present in production, where the baked-in copy is served.
+      - ./delivery-admin/keycloak-theme/erezer:/opt/keycloak/themes/erezer:ro
+    healthcheck:
+      # Keycloak 25+ serves health on a separate management port (9000), and
+      # the image ships no curl or wget - so probe the socket with bash's
+      # built-in /dev/tcp. Nothing critical is gated on this; it exists so
+      # `docker compose ps` reports something meaningful.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    networks: [erezer]
+
+  # -- Spring Boot API -------------------------------------------------------
+  backend:
+    build:
+      context: ./delivery-backend
+      dockerfile: Dockerfile
+    image: ${IMAGE_REPO_OWNER:-erezer}/delivery-backend:${IMAGE_TAG:-local}
+    container_name: erezer-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      # Not gated on Keycloak being healthy: key fetching is lazy, so the API
+      # boots fine without it and only /admin/** would 401 until it is up.
+      keycloak:
+        condition: service_started
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+
+      # --- Database (internal network address) ---
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-delivery_app_v1}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-root}
+
+      # --- Schema management ---
+      FLYWAY_ENABLED: ${FLYWAY_ENABLED:-true}
+      DDL_AUTO: ${DDL_AUTO:-validate}
+      SHOW_SQL: ${SHOW_SQL:-false}
+
+      # --- Keycloak: public issuer to validate, internal URL to fetch keys ---
+      KEYCLOAK_ISSUER_URI: ${PUBLIC_KEYCLOAK_URL:-http://localhost:9090}/realms/${KEYCLOAK_REALM:-delivery-admin}
+      KEYCLOAK_JWK_SET_URI: http://keycloak:9090/realms/${KEYCLOAK_REALM:-delivery-admin}/protocol/openid-connect/certs
+
+      # --- MinIO: upload through the internal endpoint, hand back public URLs ---
+      MINIO_URL: http://minio:9000
+      MINIO_PUBLIC_URL: ${PUBLIC_MINIO_URL:-http://localhost:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+
+      # --- Redis + mail (internal) ---
+      REDIS_HOST: redis
+      MAIL_HOST: mailpit
+      MAIL_PORT: "1025"
+
+      # --- Links pasted into emails: must be reachable from a human's browser ---
+      EREZER_STORE_URL: ${PUBLIC_STORE_URL:-http://localhost:4200}
+      EREZER_ADMIN_URL: ${PUBLIC_ADMIN_URL:-http://localhost:4300}
+
+      EREZER_JWT_SECRET: ${EREZER_JWT_SECRET:?set EREZER_JWT_SECRET in .env (min 32 chars)}
+
+      SENTRY_DSN: ${SENTRY_DSN_BACKEND:-}
+      SENTRY_ENV: ${SENTRY_ENV:-local}
+      LOG_LEVEL_ROOT: ${LOG_LEVEL_ROOT:-INFO}
+    ports:
+      - "${API_HOST_PORT:-8080}:8080"
+    networks: [erezer]
+
+  # -- Customer storefront ---------------------------------------------------
+  store:
+    build:
+      context: ./erezer-store
+      dockerfile: Dockerfile
+    image: ${IMAGE_REPO_OWNER:-erezer}/erezer-store:${IMAGE_TAG:-local}
+    container_name: erezer-store
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      # Browser-facing: this is baked into env.js at container start, and the
+      # browser - not this container - is what resolves it.
+      API_BASE_URL: ${PUBLIC_API_URL:-http://localhost:8080}
+      META_PIXEL_ID: ${META_PIXEL_ID:-}
+      SENTRY_DSN: ${SENTRY_DSN_STORE:-}
+      SENTRY_ENV: ${SENTRY_ENV:-local}
+    ports:
+      - "${STORE_HOST_PORT:-4200}:80"
+    networks: [erezer]
+
+  # -- Admin panel -----------------------------------------------------------
+  admin:
+    build:
+      context: ./delivery-admin
+      dockerfile: Dockerfile
+    image: ${IMAGE_REPO_OWNER:-erezer}/delivery-admin:${IMAGE_TAG:-local}
+    container_name: erezer-admin
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      # All browser-facing. KEYCLOAK_URL must equal the backend's configured
+      # issuer host, or admin logins are rejected with a token/issuer mismatch.
+      API_BASE_URL: ${PUBLIC_API_URL:-http://localhost:8080}
+      KEYCLOAK_URL: ${PUBLIC_KEYCLOAK_URL:-http://localhost:9090}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-delivery-admin}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-delivery-admin-ui}
+      SENTRY_DSN: ${SENTRY_DSN_ADMIN:-}
+      SENTRY_ENV: ${SENTRY_ENV:-local}
+    ports:
+      - "${ADMIN_HOST_PORT:-4300}:80"
+    networks: [erezer]
+
+networks:
+  erezer:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+  mailpit-data:

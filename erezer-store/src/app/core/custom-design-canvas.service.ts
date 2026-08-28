@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { Canvas, FabricImage, FabricObject, IText, Rect } from 'fabric';
+import { Canvas, FabricImage, FabricObject, IText, Rect, Shadow, filters } from 'fabric';
 import type { CustomDesignImages, CustomDesignView } from './api.models';
 
 const VIEWS: CustomDesignView[] = ['front', 'back', 'leftSleeve', 'rightSleeve'];
@@ -19,6 +19,29 @@ export interface ActiveProps {
   strokeColor: string;
   strokeWidth: number;
   opacity: number;
+  underline: boolean;
+  /** Fabric measures letter spacing in 1/1000 em, so 100 = 0.1em. */
+  charSpacing: number;
+  lineHeight: number;
+  shadow: boolean;
+  shadowColor: string;
+  /** Rotation in degrees (any object). */
+  angle: number;
+  /** Image-only adjustments, read back off the fabric filter stack. */
+  filterPreset: ImageFilterPreset;
+  brightness: number;
+  contrast: number;
+  saturation: number;
+}
+
+export type ImageFilterPreset = 'none' | 'grayscale' | 'sepia' | 'invert';
+
+/** The adjustable image settings the UI drives; rebuilt into fabric filters. */
+export interface ImageAdjustments {
+  preset: ImageFilterPreset;
+  brightness: number;
+  contrast: number;
+  saturation: number;
 }
 
 /**
@@ -32,8 +55,8 @@ export interface ActiveProps {
 @Injectable()
 export class CustomDesignCanvasService {
   private canvas: Canvas | null = null;
-  private width = 500;
-  private height = 600;
+  private width = 840;
+  private height = 840;
 
   private currentView: CustomDesignView = 'front';
   private readonly objectsByView = new Map<CustomDesignView, unknown>();
@@ -68,7 +91,7 @@ export class CustomDesignCanvasService {
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
-  init(el: HTMLCanvasElement, width = 500, height = 600): void {
+  init(el: HTMLCanvasElement, width = 840, height = 840): void {
     this.width = width;
     this.height = height;
     this.computePrintArea();
@@ -96,6 +119,10 @@ export class CustomDesignCanvasService {
     // Keep designs within the printable area.
     this.canvas.on('object:moving', (e) => this.clampToArea(e.target));
     this.canvas.on('object:scaling', (e) => this.clampToArea(e.target));
+    // The printable-area guide is only meaningful once there is artwork to
+    // place, so its visibility follows the object count.
+    this.canvas.on('object:added', () => this.refreshGuideVisibility());
+    this.canvas.on('object:removed', () => this.refreshGuideVisibility());
 
     this.ensurePrintArea();
     this.canvas.renderAll();
@@ -148,6 +175,8 @@ export class CustomDesignCanvasService {
         console.warn('[custom-design] mockup failed to load:', url, e);
       }
     }
+    // Must run after the mockup is placed - the area is derived from its bounds.
+    this.computePrintAreaFromMockup();
     this.ensurePrintArea();
     this.restackBackground();
     this.canvas.renderAll();
@@ -163,7 +192,8 @@ export class CustomDesignCanvasService {
   // ── Printable area guide ──────────────────────────────────────────────────────
 
   private computePrintArea(): void {
-    // A centred chest-area rectangle. Tunable per garment later.
+    // Fallback used before a mockup has loaded: a centred rectangle on the
+    // bare canvas.
     this.printArea = {
       left: this.width * 0.22,
       top: this.height * 0.20,
@@ -172,18 +202,75 @@ export class CustomDesignCanvasService {
     };
   }
 
+  /**
+   * Places the printable area on the GARMENT rather than on the canvas.
+   *
+   * The mockup is letterboxed into the canvas ("contain"), so a portrait photo
+   * leaves wide empty margins. Deriving the area from the canvas would float it
+   * off the shirt; deriving it from the mockup's rendered bounds keeps it on the
+   * chest whatever the photo's aspect ratio.
+   */
+  private computePrintAreaFromMockup(): void {
+    if (!this.mockup) {
+      this.computePrintArea();
+      return;
+    }
+    const b = this.mockup.getBoundingRect();
+    const sleeve = this.currentView === 'leftSleeve' || this.currentView === 'rightSleeve';
+    // Sleeves take a small centred badge; body views take a chest panel that
+    // starts below the collar.
+    const fx = sleeve ? 0.30 : 0.26;
+    const fy = sleeve ? 0.34 : 0.24;
+    const fw = sleeve ? 0.40 : 0.48;
+    const fh = sleeve ? 0.28 : 0.42;
+    this.printArea = {
+      left: b.left + b.width * fx,
+      top: b.top + b.height * fy,
+      width: b.width * fw,
+      height: b.height * fh,
+    };
+  }
+
   private ensurePrintArea(): void {
     if (!this.canvas) return;
-    if (this.printGuide && this.canvas.getObjects().includes(this.printGuide)) return;
     const a = this.printArea;
+    // The area moves with the garment, so an existing guide is repositioned
+    // rather than left where the previous mockup put it.
+    if (this.printGuide && this.canvas.getObjects().includes(this.printGuide)) {
+      this.printGuide.set({ left: a.left, top: a.top, width: a.width, height: a.height });
+      this.printGuide.setCoords();
+      this.refreshGuideVisibility();
+      return;
+    }
     this.printGuide = new Rect({
       left: a.left, top: a.top, width: a.width, height: a.height,
       fill: 'transparent', stroke: '#3b82f6', strokeWidth: 1, strokeDashArray: [6, 6],
       selectable: false, evented: false, hoverCursor: 'default',
       excludeFromExport: true, objectCaching: false,
-      visible: this.showGuide(),
+      visible: false,
     });
     this.canvas.add(this.printGuide);
+    this.refreshGuideVisibility();
+  }
+
+  /** Any object that is not one of our locked helpers. */
+  private hasUserObjects(): boolean {
+    if (!this.canvas) return false;
+    return this.canvas.getObjects().some((o) => o !== this.mockup && o !== this.printGuide);
+  }
+
+  /**
+   * Shows the dashed guide only once there is artwork on the view. On an empty
+   * garment it is noise - it reads as a broken box floating on the shirt - so
+   * it stays hidden until it has something to constrain.
+   */
+  private refreshGuideVisibility(): void {
+    if (!this.printGuide) return;
+    const visible = this.showGuide() && this.hasUserObjects();
+    if (this.printGuide.visible !== visible) {
+      this.printGuide.visible = visible;
+      this.canvas?.requestRenderAll();
+    }
   }
 
   /** Push the mockup to the very back and the guide just above it. */
@@ -195,10 +282,7 @@ export class CustomDesignCanvasService {
 
   toggleGuide(): void {
     this.showGuide.update((v) => !v);
-    if (this.printGuide) {
-      this.printGuide.visible = this.showGuide();
-      this.canvas?.requestRenderAll();
-    }
+    this.refreshGuideVisibility();
   }
 
   /** Nudge an object back inside the printable area (called live during drag/scale). */
@@ -332,6 +416,13 @@ export class CustomDesignCanvasService {
       strokeColor: (t['stroke'] as string) ?? '#000000',
       strokeWidth: (t['strokeWidth'] as number) ?? 0,
       opacity: (o.opacity ?? 1),
+      underline: t['underline'] === true,
+      charSpacing: (t['charSpacing'] as number) ?? 0,
+      lineHeight: (t['lineHeight'] as number) ?? 1.16,
+      shadow: !!o.shadow,
+      shadowColor: (o.shadow as Shadow | null)?.color ?? '#000000',
+      angle: Math.round(o.angle ?? 0),
+      ...this.readAdjustments(o),
     });
   }
 
@@ -348,8 +439,80 @@ export class CustomDesignCanvasService {
     this.mutateActive((o) => this.isText(o), (o) => o.set('fill', color));
   }
 
-  setFontFamily(family: string): void {
+  /**
+   * Applies a font, waiting for the webfont to be downloaded first.
+   *
+   * Canvas draws with whatever the font engine has ready at that instant - it
+   * does not re-paint when a webfont finishes loading the way DOM text does.
+   * Setting the family before the file arrives silently renders the fallback
+   * and leaves it there, so the load has to be awaited and the canvas
+   * re-rendered afterwards.
+   */
+  async setFontFamily(family: string): Promise<void> {
+    await this.ensureFontLoaded(family);
     this.mutateActive((o) => this.isText(o), (o) => o.set('fontFamily', family));
+    this.canvas?.requestRenderAll();
+  }
+
+  /** Resolves once the family is usable, or immediately if it cannot be loaded. */
+  async ensureFontLoaded(family: string): Promise<void> {
+    const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
+    if (!fonts?.load) return;
+    try {
+      // Both weights: toggling bold on an unloaded weight has the same problem.
+      await Promise.all([
+        fonts.load(`400 32px "${family}"`),
+        fonts.load(`700 32px "${family}"`),
+      ]);
+    } catch {
+      // Offline or a blocked CDN - fabric falls back to a system font.
+    }
+  }
+
+  toggleUnderline(): void {
+    this.mutateActive((o) => this.isText(o), (o) => o.set('underline', !(o as unknown as Record<string, unknown>)['underline']));
+  }
+
+  /** Letter spacing in 1/1000 em (fabric's unit), clamped to a sane range. */
+  setCharSpacing(value: number): void {
+    const v = Math.max(-200, Math.min(1000, Math.round(value) || 0));
+    this.mutateActive((o) => this.isText(o), (o) => o.set('charSpacing', v));
+  }
+
+  setLineHeight(value: number): void {
+    const v = Math.max(0.5, Math.min(3, Number(value) || 1.16));
+    this.mutateActive((o) => this.isText(o), (o) => o.set('lineHeight', v));
+  }
+
+  /**
+   * Drop shadow. Offsets scale with the font size so a shadow stays
+   * proportional instead of vanishing on large display type.
+   */
+  setShadow(enabled: boolean, color = '#000000'): void {
+    this.mutateActive((o) => this.isText(o), (o) => {
+      if (!enabled) { o.set('shadow', null); return; }
+      const size = ((o as unknown as Record<string, unknown>)['fontSize'] as number) ?? 40;
+      o.set('shadow', new Shadow({
+        color,
+        blur: Math.max(2, size * 0.12),
+        offsetX: Math.max(1, size * 0.05),
+        offsetY: Math.max(1, size * 0.05),
+      }));
+    });
+  }
+
+  /** Rewrites the selected text's casing in place. */
+  transformCase(mode: 'upper' | 'lower' | 'title'): void {
+    this.mutateActive((o) => this.isText(o), (o) => {
+      const t = o as unknown as { text?: string; set: (k: string, v: unknown) => void };
+      const current = t.text ?? '';
+      if (!current) return;
+      const next =
+        mode === 'upper' ? current.toUpperCase()
+        : mode === 'lower' ? current.toLowerCase()
+        : current.replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
+      t.set('text', next);
+    });
   }
 
   setFontSize(size: number): void {
@@ -388,6 +551,143 @@ export class CustomDesignCanvasService {
 
   flipVertical(): void {
     this.mutateActive((o) => o.type === 'image', (o) => o.set('flipY', !(o as unknown as Record<string, unknown>)['flipY']));
+  }
+
+  // ── Rotation ────────────────────────────────────────────────────────────────
+
+  /** Absolute angle in degrees. Objects use a centre origin, so this spins in place. */
+  setAngle(deg: number): void {
+    const a = ((Math.round(deg) % 360) + 360) % 360;
+    this.mutateActive(() => true, (o) => { o.set('angle', a); o.setCoords(); });
+  }
+
+  /** Quarter turns, for the common "my photo is sideways" case. */
+  rotateBy(delta: number): void {
+    const o = this.canvas?.getActiveObject();
+    if (!o) return;
+    this.setAngle((o.angle ?? 0) + delta);
+  }
+
+  // ── Image adjustments ───────────────────────────────────────────────────────
+
+  /**
+   * Reconstructs the UI's slider state from the object's actual filter stack.
+   *
+   * Deliberately derived rather than cached on the side: fabric serialises
+   * `filters` into a saved draft but would not serialise a private settings
+   * object, so reading the stack back is what keeps the panel in step with a
+   * reopened design.
+   */
+  private readAdjustments(o: FabricObject): ImageAdjustments & { filterPreset: ImageFilterPreset } {
+    const empty = { preset: 'none' as ImageFilterPreset, brightness: 0, contrast: 0, saturation: 0 };
+    const stack = (o as unknown as { filters?: unknown[] }).filters;
+    if (o.type !== 'image' || !Array.isArray(stack)) {
+      return { ...empty, filterPreset: 'none' };
+    }
+    const out: ImageAdjustments = { ...empty };
+    for (const f of stack) {
+      const rec = f as Record<string, unknown>;
+      const type = String(rec['type'] ?? '').toLowerCase();
+      if (type === 'grayscale') out.preset = 'grayscale';
+      else if (type === 'sepia') out.preset = 'sepia';
+      else if (type === 'invert') out.preset = 'invert';
+      else if (type === 'brightness') out.brightness = (rec['brightness'] as number) ?? 0;
+      else if (type === 'contrast') out.contrast = (rec['contrast'] as number) ?? 0;
+      else if (type === 'saturation') out.saturation = (rec['saturation'] as number) ?? 0;
+    }
+    return { ...out, filterPreset: out.preset };
+  }
+
+  /** Current adjustments for the selected image, defaults when nothing applies. */
+  private currentAdjustments(): ImageAdjustments {
+    const o = this.canvas?.getActiveObject();
+    if (!o) return { preset: 'none', brightness: 0, contrast: 0, saturation: 0 };
+    const a = this.readAdjustments(o);
+    return { preset: a.preset, brightness: a.brightness, contrast: a.contrast, saturation: a.saturation };
+  }
+
+  /**
+   * Rebuilds the whole filter stack from a settings object.
+   *
+   * Fabric applies filters in array order and has no notion of "replace the
+   * grayscale one", so every change re-creates the list. Zero-valued
+   * adjustments are omitted entirely - an identity filter still costs a full
+   * pixel pass on every render.
+   */
+  private applyAdjustments(next: ImageAdjustments): void {
+    const o = this.canvas?.getActiveObject();
+    if (!o || o.type !== 'image') return;
+    const img = o as FabricImage;
+    const stack: unknown[] = [];
+    if (next.preset === 'grayscale') stack.push(new filters.Grayscale());
+    else if (next.preset === 'sepia') stack.push(new filters.Sepia());
+    else if (next.preset === 'invert') stack.push(new filters.Invert());
+    if (next.brightness) stack.push(new filters.Brightness({ brightness: next.brightness }));
+    if (next.contrast) stack.push(new filters.Contrast({ contrast: next.contrast }));
+    if (next.saturation) stack.push(new filters.Saturation({ saturation: next.saturation }));
+
+    (img as unknown as { filters: unknown[] }).filters = stack;
+    try {
+      img.applyFilters();
+    } catch {
+      // applyFilters rasterises through a 2D context, which throws if the
+      // source image tainted the canvas (a non-CORS load). Leave the image
+      // unfiltered rather than breaking the studio.
+      (img as unknown as { filters: unknown[] }).filters = [];
+    }
+    this.canvas?.requestRenderAll();
+    this.pushHistory();
+    this.syncActive();
+  }
+
+  setImageFilter(preset: ImageFilterPreset): void {
+    this.applyAdjustments({ ...this.currentAdjustments(), preset });
+  }
+
+  setBrightness(v: number): void {
+    this.applyAdjustments({ ...this.currentAdjustments(), brightness: this.clampAdjust(v) });
+  }
+
+  setContrast(v: number): void {
+    this.applyAdjustments({ ...this.currentAdjustments(), contrast: this.clampAdjust(v) });
+  }
+
+  setSaturation(v: number): void {
+    this.applyAdjustments({ ...this.currentAdjustments(), saturation: this.clampAdjust(v) });
+  }
+
+  resetAdjustments(): void {
+    this.applyAdjustments({ preset: 'none', brightness: 0, contrast: 0, saturation: 0 });
+  }
+
+  private clampAdjust(v: number): number {
+    return Math.max(-1, Math.min(1, Number(v) || 0));
+  }
+
+  /**
+   * Scales the selection to sit inside the printable area and centres it there.
+   * Uses "contain" so artwork is never cropped or distorted.
+   */
+  fitToPrintArea(): void {
+    const o = this.canvas?.getActiveObject();
+    if (!o || !this.canvas) return;
+    const a = this.printArea;
+    if (!a.width || !a.height) return;
+    // Measure unscaled, so repeated calls converge instead of shrinking.
+    const w = (o.width ?? 1) || 1;
+    const h = (o.height ?? 1) || 1;
+    const scale = Math.min(a.width / w, a.height / h);
+    o.set({
+      scaleX: scale, scaleY: scale,
+      angle: 0,
+      originX: 'center', originY: 'center',
+      left: a.left + a.width / 2,
+      top: a.top + a.height / 2,
+    });
+    o.setCoords();
+    this.canvas.requestRenderAll();
+    this.pushHistory();
+    this.syncActive();
   }
 
   /**
@@ -455,6 +755,11 @@ export class CustomDesignCanvasService {
     const obj = this.canvas?.getActiveObject();
     if (obj && this.canvas) {
       this.canvas.bringObjectForward(obj);
+      // Re-assert the helpers at the bottom of the stack. The mockup and the
+      // print guide live in the same object list as the user's artwork, so an
+      // unguarded reorder can drop a design *behind the garment* and make it
+      // vanish - it is still selected, just painted over.
+      this.restackBackground();
       this.canvas.requestRenderAll();
       this.pushHistory();
     }
@@ -464,6 +769,8 @@ export class CustomDesignCanvasService {
     const obj = this.canvas?.getActiveObject();
     if (obj && this.canvas) {
       this.canvas.sendObjectBackwards(obj);
+      // Same guard as bringForward: never let artwork sink below the mockup.
+      this.restackBackground();
       this.canvas.requestRenderAll();
       this.pushHistory();
     }

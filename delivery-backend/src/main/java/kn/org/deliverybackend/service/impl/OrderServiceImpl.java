@@ -59,6 +59,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderStatusHistoryRepository statusHistoryRepository;
     private final UsersRepository usersRepository;
     private final InventoryService inventoryService;
+    private final OrderStockRestorer stockRestorer;
     private final ApplicationEventPublisher eventPublisher;
     private final CartRepository cartRepository;
 
@@ -382,23 +383,20 @@ public class OrderServiceImpl implements OrderService {
             throw new InvalidStockOperationException(
                     "Cannot cancel an order in status: " + current.normalize());
         }
-        // Time-window: customer self-cancel is only allowed within N minutes
-        // of placing. Admin override via PATCH /admin/orders/{id}/status is
-        // not subject to this check.
-        if (order.getCreatedAt() != null) {
-            LocalDateTime placedAt = LocalDateTime.ofInstant(
-                    order.getCreatedAt().toInstant(), java.time.ZoneId.systemDefault());
-            if (placedAt.plusMinutes(cancellationWindowMinutes).isBefore(LocalDateTime.now())) {
-                throw new InvalidStockOperationException(
-                        "Cancellation window of " + cancellationWindowMinutes +
-                                " minutes has expired. Please contact support.");
-            }
-        }
+        // Cancellation is governed purely by ORDER STATUS: a customer may cancel
+        // while the order is still PLACED or ACCEPTED, and not once it has moved
+        // into production. There is deliberately no elapsed-time cut-off - an
+        // order that has not been actioned is cancellable however long it has
+        // been sitting, and one already in production is not, five minutes in.
 
         order.setOrderStatus(OrderStatus.CANCELLED.name());
         order.setCancellationReason(request != null ? request.getReason() : null);
         order.setCancelledAt(LocalDateTime.now());
         Order saved = orderRepository.save(order);
+
+        // Put the reserved units back. Guarded by the status checks above, which
+        // reject an already-CANCELLED order, so this cannot double-credit.
+        stockRestorer.restoreForCancelledOrder(saved.getId());
 
         recordHistory(saved.getId(), current, OrderStatus.CANCELLED,
                 request != null ? request.getReason() : null, "customer");
@@ -464,17 +462,10 @@ public class OrderServiceImpl implements OrderService {
                 .map(this::toHistoryDTO)
                 .toList();
 
-        // Compute the cancellation deadline and only allow CANCELLED in
-        // allowedCustomerNextStates if the deadline hasn't passed.
-        LocalDateTime deadline = null;
-        if (order.getCreatedAt() != null) {
-            deadline = LocalDateTime.ofInstant(order.getCreatedAt().toInstant(),
-                            java.time.ZoneId.systemDefault())
-                    .plusMinutes(cancellationWindowMinutes);
-        }
-        boolean withinWindow = deadline == null || deadline.isAfter(LocalDateTime.now());
-
-        List<String> customerAllowed = (current.isCancellableByCustomer() && withinWindow)
+        // Cancellability is a pure function of status now - see cancelOrder.
+        // cancellationDeadline stays in the payload (clients still read the
+        // field) but is always null: there is no longer a deadline to meet.
+        List<String> customerAllowed = current.isCancellableByCustomer()
                 ? List.of(OrderStatus.CANCELLED.name())
                 : List.of();
 
@@ -485,7 +476,7 @@ public class OrderServiceImpl implements OrderService {
                 .trackingNumber(order.getTrackingNumber())
                 .history(history)
                 .allowedCustomerNextStates(customerAllowed)
-                .cancellationDeadline(deadline != null ? deadline.toString() : null)
+                .cancellationDeadline(null)
                 .build();
     }
 

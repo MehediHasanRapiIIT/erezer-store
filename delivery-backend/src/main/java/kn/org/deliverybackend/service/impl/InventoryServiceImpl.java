@@ -202,9 +202,29 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional
     public void decrementStock(Product product, int quantity) {
+        adjustStock(product, -quantity);
+    }
+
+    @Override
+    @Transactional
+    public void incrementStock(Product product, int quantity) {
+        adjustStock(product, quantity);
+    }
+
+    /**
+     * Single write path for both directions, so the inventory row and the
+     * denormalised product.stockQuantity can never disagree.
+     *
+     * <p>Takes the row lock first: cancellation and a concurrent order for the
+     * same product would otherwise read the same figure and one write would be
+     * lost.
+     */
+    private void adjustStock(Product product, int delta) {
         Inventory inventory = inventoryRepository.findByProductIdWithLock(product.getId())
                 .orElseGet(() -> createInventoryForProduct(product));
-        int newQty = inventory.getStockQuantity() - quantity;
+        int current = inventory.getStockQuantity();
+        // Never let a credit-back push the figure negative through bad data.
+        int newQty = Math.max(0, current + delta);
         inventory.setStockQuantity(newQty);
         inventoryRepository.save(inventory);
         product.setStockQuantity(newQty);

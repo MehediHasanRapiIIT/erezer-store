@@ -1,0 +1,114 @@
+# ============================================================================
+# Erezer reverse proxy - Caddy
+#
+# Used only by docker-compose.prod.yml. Caddy terminates TLS and routes by
+# hostname; it auto-provisions and renews Let's Encrypt certificates for real
+# public hostnames, and uses its own internal CA for *.localhost.
+#
+# Hostnames come from deploy/.env:
+#   STOREFRONT_HOST = erezer.localhost | shop.erezer.com
+#   ADMIN_HOST      = admin.erezer.localhost | admin.erezer.com
+#   API_HOST        = api.erezer.localhost | api.erezer.com
+#   KEYCLOAK_HOST   = auth.erezer.localhost | auth.erezer.com
+#   MEDIA_HOST      = media.erezer.localhost | media.erezer.com
+# ============================================================================
+
+{
+	# Let's Encrypt notifies this address if a renewal ever fails.
+	email {$ACME_EMAIL}
+	# Set CADDY_GLOBAL_EXTRA=local_certs in .env to use Caddy's internal CA
+	# when rehearsing against *.localhost. Leave it empty in production.
+	{$CADDY_GLOBAL_EXTRA}
+}
+
+# Header set applied to every site.
+(common_headers) {
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		# Drop the server banner so the stack is harder to fingerprint.
+		-Server
+	}
+}
+
+# -- Storefront (customer-facing) ---------------------------------------------
+{$STOREFRONT_HOST} {
+	encode zstd gzip
+	import common_headers
+	header X-Frame-Options "SAMEORIGIN"
+	reverse_proxy store:80
+}
+
+# -- Admin panel --------------------------------------------------------------
+{$ADMIN_HOST} {
+	encode zstd gzip
+	import common_headers
+	# The admin panel is never legitimately framed, so deny it outright.
+	header X-Frame-Options "DENY"
+	header Referrer-Policy "no-referrer"
+	reverse_proxy admin:80
+}
+
+# -- API (Spring Boot) --------------------------------------------------------
+{$API_HOST} {
+	encode zstd gzip
+	import common_headers
+
+	# The actuator is for the orchestrator, not the internet. Health is already
+	# reachable inside the network for the container healthcheck.
+	handle /actuator/* {
+		respond 404
+	}
+
+	reverse_proxy backend:8080 {
+		# Preserve the real client address and scheme so the backend's
+		# CorrelationIdFilter and Redis rate limiter see the actual caller
+		# rather than Caddy's container IP.
+		header_up X-Real-IP {http.request.remote.host}
+		header_up X-Forwarded-Proto {scheme}
+		# WebSocket upgrade for the STOMP stock-update channel at /ws.
+		header_up Connection {http.request.header.Connection}
+		header_up Upgrade {http.request.header.Upgrade}
+	}
+}
+
+# -- Keycloak (admin authentication) -----------------------------------------
+{$KEYCLOAK_HOST} {
+	encode zstd gzip
+	import common_headers
+
+	# The admin console is a standing target. Either leave this block in place
+	# to keep it off the public internet and reach it over an SSH tunnel, or
+	# replace `respond 403` with an IP allowlist for your office range.
+	handle /admin/* {
+		respond 403
+	}
+
+	reverse_proxy keycloak:9090 {
+		header_up X-Real-IP {http.request.remote.host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}
+
+# -- Media (MinIO objects: product images, banners, return photos) ------------
+# This is the public face of MinIO, and the value the backend hands to browsers
+# as MINIO_PUBLIC_URL. Only object reads are exposed - the S3 admin API and the
+# MinIO console stay on the internal network.
+{$MEDIA_HOST} {
+	encode zstd gzip
+	import common_headers
+	header X-Frame-Options "SAMEORIGIN"
+
+	# Uploaded objects are immutable: every filename carries a fresh UUID.
+	header /product-images/* Cache-Control "public, max-age=31536000, immutable"
+	header /banner-images/* Cache-Control "public, max-age=31536000, immutable"
+	header /custom-design-images/* Cache-Control "public, max-age=31536000, immutable"
+
+	# Reads only. Anything that could mutate a bucket is refused at the edge.
+	@mutating method PUT POST DELETE PATCH
+	respond @mutating 405
+
+	reverse_proxy minio:9000
+}

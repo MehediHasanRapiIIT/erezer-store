@@ -52,8 +52,11 @@ import {
   SubmitReviewPayload,
   UpdateReviewPayload,
 } from './api.models';
+import { runtimeConfig } from './runtime-config';
 
-const BASE = 'http://localhost:8080';
+// Resolved at runtime from /env.js rather than inlined at build time, so the
+// same production image can point at any backend. See core/runtime-config.ts.
+const BASE = runtimeConfig('API_BASE_URL', 'http://localhost:8080');
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {

@@ -1,0 +1,39 @@
+# ============================================================================
+# erezer-store - STANDALONE
+#
+# Builds and serves the customer storefront on its own. It is a static SPA, so
+# it has no dependencies of its own: it needs a backend somewhere, but the
+# BROWSER is what calls it, not this container. That is why the URL below is a
+# host address, not a compose service name.
+#
+#   docker compose up -d --build     ->  http://localhost:4200
+#
+# Point it at whichever backend you are running - the full stack at the repo
+# root, the standalone backend stack, or one running from your IDE:
+#
+#   API_BASE_URL=http://localhost:8080 docker compose up -d
+#
+# Nothing is rebuilt when you change these: env.js is regenerated on every
+# container start, so `docker compose up -d --force-recreate` is enough.
+# ============================================================================
+
+name: erezer-store
+
+services:
+
+  store:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${IMAGE_REPO_OWNER:-erezer}/erezer-store:${IMAGE_TAG:-local}
+    container_name: erezer-store-standalone
+    restart: unless-stopped
+    environment:
+      # Browser-facing address - the browser resolves this, not the container.
+      API_BASE_URL: ${PUBLIC_API_URL:-http://localhost:8080}
+      META_PIXEL_ID: ${META_PIXEL_ID:-}
+      SENTRY_DSN: ${SENTRY_DSN_STORE:-}
+      SENTRY_ENV: ${SENTRY_ENV:-local}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-erezer-store@local}
+    ports:
+      - "${STORE_HOST_PORT:-4200}:80"

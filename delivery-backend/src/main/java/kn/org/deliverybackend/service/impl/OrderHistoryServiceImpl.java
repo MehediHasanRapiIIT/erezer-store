@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
 public class OrderHistoryServiceImpl implements OrderHistoryService {
 
     private final OrderRepository orderRepository;
+    private final OrderStockRestorer stockRestorer;
     private final OrderItemRepository orderItemRepository;
     private final OrderStatusHistoryRepository statusHistoryRepository;
     private final UsersRepository usersRepository;
@@ -186,6 +187,13 @@ public class OrderHistoryServiceImpl implements OrderHistoryService {
         }
 
         Order saved = orderRepository.save(order);
+
+        // An admin cancelling leaves the same hole in inventory as a customer
+        // cancelling, so the same credit-back applies. The `current == target`
+        // short-circuit above means this runs at most once per order.
+        if (target == OrderStatus.CANCELLED) {
+            stockRestorer.restoreForCancelledOrder(saved.getId());
+        }
 
         statusHistoryRepository.save(OrderStatusHistory.builder()
                 .orderId(orderId)

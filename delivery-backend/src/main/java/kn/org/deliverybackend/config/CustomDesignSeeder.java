@@ -23,7 +23,10 @@ import java.util.List;
  * uploads real front/back/sleeve mockups via the Custom Design screen.
  */
 @Component
-@Profile("local")
+// Both dev profiles: `local` for running from an IDE, `docker` for the
+// containerised stack. Without `docker` here, a fresh containerised database
+// starts with no garments at all and the custom-design studio renders empty.
+@Profile({"local", "docker"})
 @Order(100)
 @RequiredArgsConstructor
 @Slf4j

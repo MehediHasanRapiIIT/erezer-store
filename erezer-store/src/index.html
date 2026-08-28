@@ -6,6 +6,18 @@
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <!-- Runtime config. Must load before the Angular bundle: the container
+       rewrites this file at startup so one image serves every environment. -->
+  <script src="env.js"></script>
+
+  <!-- Design-studio fonts. These must be real webfonts, not CSS-only names:
+       the custom-design canvas rasterises text with the font engine, so a
+       family that is not actually loaded silently renders as a fallback.
+       Only weights each family genuinely ships are requested - asking for a
+       weight a font does not have makes Google return an error instead of CSS. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo+Black&family=Bangers&family=Bebas+Neue&family=Caveat:wght@400;700&family=Lobster&family=Montserrat:wght@400;700&family=Oswald:wght@400;700&family=Pacifico&family=Permanent+Marker&family=Playfair+Display:wght@400;700&family=Poppins:wght@400;700&family=Righteous&family=Hind+Siliguri:wght@400;700&family=Noto+Sans+Bengali:wght@400;700&display=swap" />
 </head>
 <body>
   <app-root></app-root>

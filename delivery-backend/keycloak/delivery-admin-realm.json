@@ -36,8 +36,26 @@
       "firstName": "Admin",
       "lastName": "User",
       "credentials": [
-        { "type": "password", "value": "admin", "temporary": false }
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "admin"
       ]
     }
-  ]
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "admin",
+        "description": "Erezer admin panel operator",
+        "composite": false,
+        "clientRole": false
+      }
+    ]
+  },
+  "loginTheme": "erezer"
 }

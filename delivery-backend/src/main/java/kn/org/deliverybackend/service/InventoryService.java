@@ -22,6 +22,9 @@ public interface InventoryService {
 
     void decrementStock(Product product, int quantity);
 
+    /** Credits units back, e.g. when an order that reserved them is cancelled. */
+    void incrementStock(Product product, int quantity);
+
     List<StockResponseDTO> getAllStockDetails();
 
     InventorySummaryDTO getSummary();

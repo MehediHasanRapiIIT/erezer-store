@@ -1,0 +1,249 @@
+# ============================================================================
+# Erezer - PRODUCTION overlay
+#
+# Layered on top of docker-compose.yml, never used alone:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# What it changes:
+#   * Nothing is published to the host except Caddy's 80/443. Postgres, Redis,
+#     MinIO, Keycloak and the backend become reachable only on the internal
+#     network or through the proxy.
+#   * Caddy terminates TLS (auto-renewing Let's Encrypt certs) and routes by
+#     hostname to the storefront, admin, API, Keycloak and media.
+#   * The backend switches to the `prod` Spring profile: Flyway owns the schema
+#     and Hibernate runs `validate`, so no entity change can silently alter a
+#     live database.
+#   * Keycloak runs in production mode against its own Postgres database
+#     instead of the throwaway in-memory dev store.
+#   * Mailpit no longer starts; mail goes to a real SMTP provider.
+#   * Nightly pg_dump with retention.
+#
+# Set these in .env before using it (see .env.example for the full list):
+#   STOREFRONT_HOST  ADMIN_HOST  API_HOST  KEYCLOAK_HOST  MEDIA_HOST
+#   ACME_EMAIL  POSTGRES_PASSWORD  MINIO_ROOT_PASSWORD
+#   KEYCLOAK_ADMIN_PASSWORD  EREZER_JWT_SECRET  MAIL_*
+#
+# `!reset []` clears the port lists inherited from the base file - compose
+# concatenates sequences on merge, so this is the only way to unpublish.
+# ============================================================================
+
+services:
+
+  # -- Datastores: internal network only -------------------------------------
+  postgres:
+    ports: !reset []
+    environment:
+      # Consumed by deploy/postgres-init/01-keycloak-db.sh on first init.
+      KEYCLOAK_DB: ${KEYCLOAK_DB:-keycloak}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Runs once, on an empty data volume, to create Keycloak's database.
+      - ./deploy/postgres-init:/docker-entrypoint-initdb.d:ro
+
+  redis:
+    ports: !reset []
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - ${REDIS_MAXMEMORY:-256mb}
+      - --maxmemory-policy
+      - allkeys-lru
+
+  minio:
+    ports: !reset []
+
+  # -- Mail: a real provider in prod, so the local catcher must not run ------
+  # Guarded behind a profile that is off by default; `--profile mail-catcher`
+  # would still start it if you ever need to intercept mail on a staging host.
+  mailpit:
+    profiles: ["mail-catcher"]
+
+  # -- Keycloak: production mode, persistent database ------------------------
+  keycloak:
+    command: ["start", "--http-port=9090", "--import-realm"]
+    ports: !reset []
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${KEYCLOAK_DB:-keycloak}
+      KC_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      # Public HTTPS address. This becomes the `iss` claim in every token.
+      KC_HOSTNAME: https://${KEYCLOAK_HOST}
+      KC_HOSTNAME_STRICT: "true"
+      # Backchannel calls (the backend fetching signing keys) arrive on the
+      # internal name, so they must not be rewritten to the public hostname.
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      # TLS is terminated at Caddy; Keycloak must trust its forwarded headers
+      # or it will build redirect URLs with the wrong scheme.
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      # Caching back ON. The local stack disables it so theme edits show on a
+      # refresh; in production the theme never changes at runtime and serving it
+      # from disk on every login is pure overhead.
+      KC_SPI_THEME_CACHE_THEMES: "true"
+      KC_SPI_THEME_CACHE_TEMPLATES: "true"
+      KC_SPI_THEME_STATIC_MAX_AGE: "2592000"
+    # Drops the local live-edit theme mount (compose concatenates volume lists,
+    # so replacing it needs an explicit reset), then re-adds only the realm
+    # import. The theme served here is the one baked into the image, which is
+    # what makes the deployment self-contained.
+    # `!override`, not `!reset`: reset empties the list outright, whereas
+    # override replaces the inherited one with exactly what follows.
+    volumes: !override
+      - ./delivery-backend/keycloak:/opt/keycloak/data/import:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # -- Backend ---------------------------------------------------------------
+  backend:
+    ports: !reset []
+    environment:
+      # The prod profile is deliberately strict: it declares no defaults for
+      # secrets, so a missing value fails at startup instead of silently
+      # falling back to a development one.
+      SPRING_PROFILES_ACTIVE: prod
+
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-erezer}
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?required}
+
+      # validate, never update: Flyway owns the schema in production.
+      JPA_DDL_AUTO: ${JPA_DDL_AUTO:-validate}
+
+      # Public issuer to validate against; internal URL to fetch keys from.
+      KEYCLOAK_ISSUER_URI: https://${KEYCLOAK_HOST}/realms/${KEYCLOAK_REALM:-delivery-admin}
+      KEYCLOAK_JWK_SET_URI: http://keycloak:9090/realms/${KEYCLOAK_REALM:-delivery-admin}/protocol/openid-connect/certs
+
+      # Upload over the internal network, hand the browser the public media host.
+      MINIO_URL: http://minio:9000
+      MINIO_PUBLIC_URL: https://${MEDIA_HOST}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?required}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?required}
+
+      REDIS_HOST: redis
+
+      # Real SMTP. The prod profile inherits the mail properties from the base
+      # application.properties, which reads exactly these variables.
+      MAIL_HOST: ${MAIL_HOST:?required}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@erezer.com}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Erezer}
+
+      EREZER_STORE_URL: https://${STOREFRONT_HOST}
+      EREZER_ADMIN_URL: https://${ADMIN_HOST}
+      EREZER_JWT_SECRET: ${EREZER_JWT_SECRET:?required}
+
+      BKASH_BASE_URL: ${BKASH_BASE_URL:-}
+      BKASH_APP_KEY: ${BKASH_APP_KEY:-}
+      BKASH_APP_SECRET: ${BKASH_APP_SECRET:-}
+      BKASH_USERNAME: ${BKASH_USERNAME:-}
+      BKASH_PASSWORD: ${BKASH_PASSWORD:-}
+      BKASH_CALLBACK_URL: https://${API_HOST}/api/payments/bkash/callback
+
+      SMS_MODE: ${SMS_MODE:-STUB}
+      SMS_BASE_URL: ${SMS_BASE_URL:-}
+      SMS_API_KEY: ${SMS_API_KEY:-}
+      SMS_SENDER_ID: ${SMS_SENDER_ID:-}
+
+      SENTRY_DSN: ${SENTRY_DSN_BACKEND:-}
+      SENTRY_ENV: ${SENTRY_ENV:-prod}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-erezer-backend@latest}
+      LOG_LEVEL_ROOT: ${LOG_LEVEL_ROOT:-INFO}
+
+  # -- Frontends: served through Caddy, not published directly ---------------
+  store:
+    ports: !reset []
+    environment:
+      API_BASE_URL: https://${API_HOST}
+      META_PIXEL_ID: ${META_PIXEL_ID:-}
+      SENTRY_DSN: ${SENTRY_DSN_STORE:-}
+      SENTRY_ENV: ${SENTRY_ENV:-prod}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-erezer-store@latest}
+
+  admin:
+    ports: !reset []
+    environment:
+      API_BASE_URL: https://${API_HOST}
+      KEYCLOAK_URL: https://${KEYCLOAK_HOST}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-delivery-admin}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-delivery-admin-ui}
+      SENTRY_DSN: ${SENTRY_DSN_ADMIN:-}
+      SENTRY_ENV: ${SENTRY_ENV:-prod}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-delivery-admin@latest}
+
+  # -- TLS reverse proxy: the only thing exposed to the internet -------------
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: erezer-caddy
+    restart: unless-stopped
+    environment:
+      STOREFRONT_HOST: ${STOREFRONT_HOST:?required}
+      ADMIN_HOST: ${ADMIN_HOST:?required}
+      API_HOST: ${API_HOST:?required}
+      KEYCLOAK_HOST: ${KEYCLOAK_HOST:?required}
+      MEDIA_HOST: ${MEDIA_HOST:?required}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+      # Set CADDY_GLOBAL_EXTRA=local_certs to use Caddy's internal CA when
+      # rehearsing this overlay against *.localhost hostnames.
+      CADDY_GLOBAL_EXTRA: ${CADDY_GLOBAL_EXTRA:-}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data      # certificates - losing this re-issues them
+      - caddy-config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"         # HTTP/3
+    depends_on:
+      - backend
+      - store
+      - admin
+      - keycloak
+    networks: [erezer]
+
+  # -- Nightly database backup ----------------------------------------------
+  pg-backup:
+    image: postgres:16-alpine
+    container_name: erezer-pg-backup
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-erezer}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      # Optional off-host copy. Blank keeps backups on the volume only, which
+      # does NOT protect against losing the host - set these for real safety.
+      S3_BUCKET: ${BACKUP_S3_BUCKET:-}
+      S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:-}
+      AWS_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY:-}
+      AWS_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_KEY:-}
+    volumes:
+      - ./deploy/backup/pg-backup.sh:/usr/local/bin/pg-backup.sh:ro
+      - backup-data:/var/backups
+    entrypoint: ["/bin/sh", "-c"]
+    # One backup on boot, then every 24h.
+    command:
+      - |
+        apk add --no-cache aws-cli >/dev/null 2>&1 || true
+        /usr/local/bin/pg-backup.sh || true
+        while true; do
+          sleep $$((24*3600))
+          /usr/local/bin/pg-backup.sh || true
+        done
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [erezer]
+
+volumes:
+  caddy-data:
+  caddy-config:
+  backup-data:

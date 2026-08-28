@@ -1,19 +1,20 @@
 # syntax=docker/dockerfile:1.7
 # ============================================================================
-# Erezer admin — multi-stage build
+# Erezer admin panel - multi-stage build
 # Stage 1: Node 22 builds the Angular bundle.
-# Stage 2: nginx-alpine serves the static files with SPA fallback.
-# Build context is the repo root (this Dockerfile sits at root because the
-# admin project is the root Angular workspace).
+# Stage 2: nginx-alpine serves it with SPA fallback.
+#
+# Build context is this directory (delivery-admin/).
 # ============================================================================
 
 FROM node:22-alpine AS build
 WORKDIR /workspace
 
-# Exclude the storefront's own node_modules and the backend tree via the
-# .dockerignore at the repo root so this stage only sees what it needs.
+# Dependencies first: the lockfile changes far less often than app source, so
+# this layer stays cached across ordinary code edits.
 COPY package.json package-lock.json* ./
-RUN npm ci --no-audit --no-fund
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --no-audit --no-fund
 
 COPY angular.json tsconfig.json tsconfig.app.json tsconfig.spec.json ./
 COPY postcss.config.json tailwind.config.js ./
@@ -37,26 +38,44 @@ server {
                application/xml+rss application/atom+xml image/svg+xml;
     gzip_min_length 256;
 
+    # Runtime config. This MUST come before the hashed-asset rule below:
+    # env.js ends in .js but is rewritten on every container start, so caching
+    # it would pin the browser to a previous environment's URLs. An exact-match
+    # (`=`) location outranks the regex location, so this wins.
+    location = /env.js {
+        add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+        expires -1;
+    }
+
+    # Hashed build output is content-addressed and safe to cache forever.
     location ~* \.(?:js|css|woff2?|ttf|otf|jpg|jpeg|png|gif|webp|svg|ico)$ {
         expires 1y;
         add_header Cache-Control "public, immutable";
         try_files $uri =404;
     }
 
+    # SPA fallback for Angular client-side routes.
     location / {
         try_files $uri $uri/ /index.html;
         add_header Cache-Control "no-cache";
     }
 
-    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Frame-Options "DENY" always;
     add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Referrer-Policy "no-referrer" always;
 }
 NGINXCONF
 
-# The root Angular workspace name is `delivery-admin` in angular.json,
-# so the bundle lands here:
+# The Angular workspace is named `delivery-admin` in angular.json.
 COPY --from=build /workspace/dist/delivery-admin/browser/ /usr/share/nginx/html/
 
+# The stock nginx entrypoint executes everything in this directory at boot,
+# so env.js is regenerated on every start without overriding ENTRYPOINT/CMD.
+COPY --chmod=0755 docker-entrypoint.sh /docker-entrypoint.d/40-erezer-env.sh
+
 EXPOSE 80
-HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://localhost/ || exit 1
+# Probe 127.0.0.1, not localhost: inside the container localhost also
+# resolves to ::1, nginx listens on IPv4 only, and wget tries the IPv6
+# address first - which fails while the server is perfectly healthy.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget -qO- http://127.0.0.1/ >/dev/null || exit 1

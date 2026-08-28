@@ -1,14 +1,24 @@
+import { runtimeConfig } from './runtime-config';
+
 /**
- * Runtime config for the storefront.
+ * Storefront runtime config.
  *
- * META_PIXEL_ID: your Meta (Facebook) Pixel ID. Leave blank to disable the
- * pixel entirely (no script is injected, no events fire). Set it here, or
- * override at deploy time via a global `window.__EREZER_META_PIXEL_ID__`
- * defined in index.html so non-dev environments can change it without a rebuild.
+ * META_PIXEL_ID: your Meta (Facebook) Pixel ID. Blank disables the pixel
+ * entirely - no script is injected and no events fire. It is read at runtime
+ * from /env.js (see core/runtime-config.ts) so it can be changed per
+ * environment without rebuilding the image.
+ *
+ * The legacy `window.__EREZER_META_PIXEL_ID__` global is still honoured so
+ * existing deployments that set it in index.html keep working.
  */
-function fromWindow(key: string): string | undefined {
+function legacyPixelId(): string | undefined {
   if (typeof window === 'undefined') return undefined;
-  return (window as unknown as Record<string, string | undefined>)[key];
+  return (window as unknown as Record<string, string | undefined>)[
+    '__EREZER_META_PIXEL_ID__'
+  ];
 }
 
-export const META_PIXEL_ID: string = fromWindow('__EREZER_META_PIXEL_ID__') ?? '';
+export const META_PIXEL_ID: string = runtimeConfig(
+  'META_PIXEL_ID',
+  legacyPixelId() ?? '',
+);

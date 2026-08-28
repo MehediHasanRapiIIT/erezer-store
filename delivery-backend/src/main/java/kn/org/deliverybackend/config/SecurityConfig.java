@@ -101,6 +101,12 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()
 
+                        // Container/orchestrator health probe. Only /health is
+                        // exposed (see management.endpoints.web.exposure.include)
+                        // and it reports status without details, so this leaks
+                        // nothing. Needed because anyRequest() below is denyAll.
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+
                         // Guest checkout: placing an order without an account is allowed.
                         // The endpoint itself must accept guest payloads (email + shipping
                         // address inline) and skip userId-based lookups in that case.
