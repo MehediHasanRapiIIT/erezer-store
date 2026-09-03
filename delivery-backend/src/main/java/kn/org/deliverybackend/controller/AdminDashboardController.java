@@ -2,70 +2,104 @@ package kn.org.deliverybackend.controller;
 
 import kn.org.deliverybackend.dto.AnalyticsDTO;
 import kn.org.deliverybackend.dto.DashboardStatsDTO;
-import kn.org.deliverybackend.entity.Order;
-import kn.org.deliverybackend.entity.OrderItem;
-import kn.org.deliverybackend.repository.CategoryRepository;
-import kn.org.deliverybackend.repository.OrderItemRepository;
-import kn.org.deliverybackend.repository.OrderRepository;
+import kn.org.deliverybackend.dto.report.PeriodReportDTO.Bucket;
+import kn.org.deliverybackend.dto.report.PeriodReportDTO.PeriodMetrics;
+import kn.org.deliverybackend.dto.report.TopProductDTO;
+import kn.org.deliverybackend.dto.response.product.InventorySummaryDTO;
+import kn.org.deliverybackend.entity.Product;
+import kn.org.deliverybackend.reporting.BusinessCalendar;
+import kn.org.deliverybackend.reporting.PeriodType;
+import kn.org.deliverybackend.reporting.ReportPeriod;
 import kn.org.deliverybackend.repository.ProductRepository;
 import kn.org.deliverybackend.repository.UserRiderRepository;
 import kn.org.deliverybackend.service.InventoryService;
-import kn.org.deliverybackend.dto.response.product.InventorySummaryDTO;
+import kn.org.deliverybackend.service.ReportService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * Dashboard and analytics endpoints. Both delegate every number to
+ * {@link ReportService}, so the dashboard, the analytics page and the
+ * Reports page are three views of one set of SQL definitions rather than
+ * three separate calculations that can drift apart.
+ */
 @RestController
 @RequestMapping("/admin/dashboard")
 @RequiredArgsConstructor
 @CrossOrigin("*")
 public class AdminDashboardController {
 
-    private final OrderRepository orderRepository;
-    private final OrderItemRepository orderItemRepository;
+    private static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
+    private static final DateTimeFormatter AS_OF = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+
+    private final ReportService reportService;
+    private final BusinessCalendar calendar;
     private final UserRiderRepository userRiderRepository;
     private final ProductRepository productRepository;
-    private final CategoryRepository categoryRepository;
     private final InventoryService inventoryService;
 
-    /**
-     * Whether an order's total counts toward revenue.
-     *
-     * <p>Mirrors {@code order_status NOT IN ('CANCELLED','RETURNED')} in
-     * ReportRepository - the reports screen already excluded these, so the
-     * dashboard disagreeing with it was the visible symptom.
-     */
-    private static boolean countsAsRevenue(Order order) {
-        String status = order.getOrderStatus();
-        return !("CANCELLED".equalsIgnoreCase(status) || "RETURNED".equalsIgnoreCase(status));
-    }
+    @Value("${app.business.currency:BDT}")
+    private String currency;
 
     @GetMapping("/stats")
     public ResponseEntity<DashboardStatsDTO> getStats() {
-        List<Order> orders = orderRepository.findAllOrders();
-        long totalOrders = orders.size();
-        // Revenue counts money the business actually keeps. A cancelled or
-        // returned order was refunded, so including its total overstates takings
-        // and inflates every figure derived from it.
-        double totalRevenue = orders.stream()
-                .filter(AdminDashboardController::countsAsRevenue)
-                .mapToDouble(o -> o.getTotalAmount() != null ? o.getTotalAmount().doubleValue() : 0).sum();
+        LocalDate today = calendar.today();
+        ReportPeriod week = calendar.period(PeriodType.WEEK, today);
+        ReportPeriod lastWeek = calendar.previous(week);
+        ReportPeriod month = calendar.period(PeriodType.MONTH, today);
+        ReportPeriod lastMonth = calendar.previous(month);
+
+        PeriodMetrics allTime   = reportService.windowMetrics(EPOCH, today);
+        PeriodMetrics todayM    = reportService.windowMetrics(today, today);
+        PeriodMetrics yesterday = reportService.windowMetrics(today.minusDays(1), today.minusDays(1));
+        PeriodMetrics weekM     = metrics(week);
+        PeriodMetrics lastWeekM = metrics(lastWeek);
+        PeriodMetrics monthM    = metrics(month);
+        PeriodMetrics lastMonthM = metrics(lastMonth);
+
         long activeRiders = userRiderRepository.findAll().stream()
                 .filter(r -> "ACTIVE".equalsIgnoreCase(r.getStatus())).count();
-        // Orders awaiting action. PLACED is the real initial status; PENDING is
-        // the deprecated legacy spelling, and querying only for it made this
-        // tile permanently read zero.
-        long pendingOrders = orders.stream().filter(o ->
-                "PLACED".equalsIgnoreCase(o.getOrderStatus())
-                        || "PENDING".equalsIgnoreCase(o.getOrderStatus())).count();
-        return ResponseEntity.ok(new DashboardStatsDTO(totalOrders, totalRevenue, activeRiders, pendingOrders));
+        InventorySummaryDTO inventory = inventoryService.getSummary();
+
+        return ResponseEntity.ok(DashboardStatsDTO.builder()
+                .totalOrders(allTime.getPlacedOrders())
+                .validOrders(allTime.getOrders())
+                .totalRevenue(allTime.getNetRevenue().doubleValue())
+                .pendingOrders(allTime.getPendingOrders())
+                .cancelledOrders(allTime.getCancelledOrders())
+                .activeRiders(activeRiders)
+                .todayOrders(todayM.getOrders())
+                .todayRevenue(todayM.getNetRevenue().doubleValue())
+                .yesterdayOrders(yesterday.getOrders())
+                .yesterdayRevenue(yesterday.getNetRevenue().doubleValue())
+                .weekOrders(weekM.getOrders())
+                .weekRevenue(weekM.getNetRevenue().doubleValue())
+                .lastWeekOrders(lastWeekM.getOrders())
+                .lastWeekRevenue(lastWeekM.getNetRevenue().doubleValue())
+                .monthOrders(monthM.getOrders())
+                .monthRevenue(monthM.getNetRevenue().doubleValue())
+                .lastMonthOrders(lastMonthM.getOrders())
+                .lastMonthRevenue(lastMonthM.getNetRevenue().doubleValue())
+                .lowStockProducts(inventory.getCriticalLow())
+                .outOfStockProducts(inventory.getOutOfStock())
+                .asOf(AS_OF.format(calendar.now()))
+                .zone(calendar.zone().getId())
+                .currency(currency)
+                .build());
     }
 
     @GetMapping("/analytics")
@@ -73,134 +107,86 @@ public class AdminDashboardController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) {
 
-        // Filter orders by date range if provided
-        List<Order> allOrders = orderRepository.findAllOrders().stream()
-                .filter(o -> {
-                    if (o.getCreatedAt() == null) return true;
-                    LocalDate orderDate = o.getCreatedAt().toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-                    if (fromDate != null && orderDate.isBefore(fromDate)) return false;
-                    if (toDate != null && orderDate.isAfter(toDate)) return false;
-                    return true;
-                }).collect(Collectors.toList());
+        LocalDate today = calendar.today();
+        LocalDate from = fromDate != null ? fromDate : EPOCH;
+        LocalDate to = toDate != null ? toDate : today;
 
-        // Core KPIs
-        long totalOrders = allOrders.size();
-        // Same rule as /stats: cancelled and returned orders are not revenue.
-        // avgOrderValue below is derived from this, so it would be wrong too.
-        double totalRevenue = allOrders.stream()
-                .filter(AdminDashboardController::countsAsRevenue)
-                .mapToDouble(o -> o.getTotalAmount() != null ? o.getTotalAmount().doubleValue() : 0).sum();
-        long completedOrders = allOrders.stream()
-                .filter(o -> "DELIVERED".equalsIgnoreCase(o.getOrderStatus()) || "COMPLETED".equalsIgnoreCase(o.getOrderStatus())).count();
-        long cancelledOrders = allOrders.stream()
-                .filter(o -> "CANCELLED".equalsIgnoreCase(o.getOrderStatus())).count();
-        long pendingOrders = allOrders.stream()
-                .filter(o -> "PLACED".equalsIgnoreCase(o.getOrderStatus())
-                        || "PENDING".equalsIgnoreCase(o.getOrderStatus())).count();
+        PeriodMetrics m = reportService.windowMetrics(from, to);
 
-        // Derived KPIs
-        double completionRate = totalOrders > 0 ? Math.round((completedOrders * 100.0 / totalOrders) * 10.0) / 10.0 : 0;
-        double cancellationRate = totalOrders > 0 ? Math.round((cancelledOrders * 100.0 / totalOrders) * 10.0) / 10.0 : 0;
-        double avgOrderValue = totalOrders > 0 ? Math.round((totalRevenue / totalOrders) * 100.0) / 100.0 : 0;
+        // Orders by status: every placed order in the window.
+        List<AnalyticsDTO.OrderStatusCount> byStatus = reportService.ordersByStatus(from, to).stream()
+                .map(s -> new AnalyticsDTO.OrderStatusCount(s.getStatus(), s.getCount()))
+                .toList();
 
-        // Rider stats
+        // Payment split: counted orders and their net revenue.
+        List<AnalyticsDTO.PaymentMethodCount> byPayment = reportService.ordersByPayment(from, to).stream()
+                .map(p -> new AnalyticsDTO.PaymentMethodCount(p.getMethod(), p.getOrders(), p.getRevenue().doubleValue()))
+                .toList();
+
+        // Trend: the last seven business days ending at the window's end,
+        // zero-filled so a quiet day is drawn as zero rather than skipped.
+        LocalDate trendEnd = to.isAfter(today) ? today : to;
+        LocalDate trendStart = trendEnd.minusDays(6);
+        if (trendStart.isBefore(from)) trendStart = from;
+        List<AnalyticsDTO.DailyOrderCount> daily = reportService
+                .series(trendStart, trendEnd, ReportService.Granularity.DAY).stream()
+                .map(b -> new AnalyticsDTO.DailyOrderCount(
+                        b.getBucketStart().toLocalDate().toString(), b.getOrders(), b.getNetRevenue().doubleValue()))
+                .toList();
+
+        List<AnalyticsDTO.CategoryRevenue> topCategories = reportService.topCategories(from, to, 6).stream()
+                .map(c -> new AnalyticsDTO.CategoryRevenue(c.getCategoryName(), c.getRevenue().doubleValue(), c.getOrderCount()))
+                .toList();
+
+        // Best sellers in the window, decorated with current price and stock.
+        List<TopProductDTO> best = reportService.topProducts(from, to, 5);
+        Map<Long, Product> products = productRepository.findAllById(
+                        best.stream().map(TopProductDTO::getProductId).toList()).stream()
+                .collect(Collectors.toMap(Product::getId, Function.identity()));
+        List<AnalyticsDTO.TopProduct> topProducts = best.stream()
+                .map(t -> {
+                    Product p = products.get(t.getProductId());
+                    int stock = p != null ? p.getStockQuantity() : 0;
+                    double price = p != null && p.getPrice() != null ? p.getPrice().doubleValue() : 0;
+                    return new AnalyticsDTO.TopProduct(
+                            t.getProductId(), t.getProductName(), t.getImageUrl(), price, stock,
+                            stock == 0 ? "OUT_OF_STOCK" : stock <= 10 ? "LOW_STOCK" : "IN_STOCK");
+                })
+                .toList();
+
+        // Riders are a legacy of the delivery-app era; kept for API compatibility.
         var allRiders = userRiderRepository.findAll();
         long activeRiders = allRiders.stream().filter(r -> "ACTIVE".equalsIgnoreCase(r.getStatus())).count();
         long totalRiders = allRiders.size();
-        long inactiveRiders = totalRiders - activeRiders;
-        double avgRiderRating = allRiders.stream()
+        double avgRiderRating = Math.round(allRiders.stream()
                 .filter(r -> r.getRating() != null && r.getRating() > 0)
-                .mapToDouble(r -> r.getRating())
-                .average().orElse(0.0);
-        avgRiderRating = Math.round(avgRiderRating * 10.0) / 10.0;
-
-        // Inventory health
-        InventorySummaryDTO invSummary = inventoryService.getSummary();
-
-        // Orders by status
-        Map<String, Long> statusMap = allOrders.stream()
-                .collect(Collectors.groupingBy(o -> o.getOrderStatus() != null ? o.getOrderStatus() : "UNKNOWN", Collectors.counting()));
-        List<AnalyticsDTO.OrderStatusCount> byStatus = statusMap.entrySet().stream()
-                .map(e -> new AnalyticsDTO.OrderStatusCount(e.getKey(), e.getValue()))
-                .sorted(Comparator.comparingLong(AnalyticsDTO.OrderStatusCount::getCount).reversed())
-                .collect(Collectors.toList());
-
-        // Orders by payment method
-        Map<String, List<Order>> paymentMap = allOrders.stream()
-                .collect(Collectors.groupingBy(o -> o.getPaymentMethod() != null ? o.getPaymentMethod() : "UNKNOWN"));
-        List<AnalyticsDTO.PaymentMethodCount> byPayment = paymentMap.entrySet().stream()
-                .map(e -> new AnalyticsDTO.PaymentMethodCount(
-                        e.getKey(), e.getValue().size(),
-                        e.getValue().stream().mapToDouble(o -> o.getTotalAmount() != null ? o.getTotalAmount().doubleValue() : 0).sum()
-                )).sorted(Comparator.comparingDouble(AnalyticsDTO.PaymentMethodCount::getRevenue).reversed())
-                .collect(Collectors.toList());
-
-        // Daily orders — last 7 days
-        LocalDate today = LocalDate.now();
-        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-        List<AnalyticsDTO.DailyOrderCount> dailyOrders = new ArrayList<>();
-        for (int i = 6; i >= 0; i--) {
-            LocalDate day = today.minusDays(i);
-            List<Order> dayOrders = allOrders.stream()
-                    .filter(o -> o.getCreatedAt() != null &&
-                            o.getCreatedAt().toInstant().atZone(ZoneId.systemDefault()).toLocalDate().equals(day))
-                    .collect(Collectors.toList());
-            double dayRevenue = dayOrders.stream()
-                    .mapToDouble(o -> o.getTotalAmount() != null ? o.getTotalAmount().doubleValue() : 0).sum();
-            dailyOrders.add(new AnalyticsDTO.DailyOrderCount(day.format(fmt), dayOrders.size(), dayRevenue));
-        }
-
-        // Top categories by revenue (via OrderItem → Product → Category)
-        List<OrderItem> allItems = orderItemRepository.findAll().stream()
-                .filter(oi -> oi.getProductId() != null).collect(Collectors.toList());
-        Map<Long, Double> productRevenue = new HashMap<>();
-        for (OrderItem item : allItems) {
-            double rev = item.getPriceAtOrder() != null ? item.getPriceAtOrder().doubleValue() * item.getQuantity() : 0;
-            productRevenue.merge(item.getProductId(), rev, Double::sum);
-        }
-        Map<String, double[]> categoryStats = new HashMap<>(); // [revenue, count]
-        for (Map.Entry<Long, Double> entry : productRevenue.entrySet()) {
-            productRepository.findById(entry.getKey()).ifPresent(product -> {
-                if (product.getCategoryId() != null) {
-                    categoryRepository.findById(product.getCategoryId()).ifPresent(cat -> {
-                        categoryStats.merge(cat.getName(),
-                                new double[]{entry.getValue(), 1},
-                                (a, b) -> new double[]{a[0] + b[0], a[1] + b[1]});
-                    });
-                }
-            });
-        }
-        List<AnalyticsDTO.CategoryRevenue> topCategories = categoryStats.entrySet().stream()
-                .map(e -> new AnalyticsDTO.CategoryRevenue(e.getKey(), e.getValue()[0], (long) e.getValue()[1]))
-                .sorted(Comparator.comparingDouble(AnalyticsDTO.CategoryRevenue::getRevenue).reversed())
-                .limit(6)
-                .collect(Collectors.toList());
-
-        // Top products
-        List<AnalyticsDTO.TopProduct> topProducts = productRepository.findAll().stream()
-                .limit(5)
-                .map(p -> new AnalyticsDTO.TopProduct(
-                        p.getId(), p.getName(), p.getImageUrl(),
-                        p.getPrice() != null ? p.getPrice().doubleValue() : 0,
-                        p.getStockQuantity(),
-                        p.getStockQuantity() == 0 ? "OUT_OF_STOCK" : p.getStockQuantity() <= 10 ? "LOW_STOCK" : "IN_STOCK"
-                )).collect(Collectors.toList());
-
-        // Top riders
-        List<AnalyticsDTO.RiderStat> topRiders = allRiders.stream()
-                .limit(5)
+                .mapToDouble(r -> r.getRating()).average().orElse(0.0) * 10.0) / 10.0;
+        List<AnalyticsDTO.RiderStat> topRiders = allRiders.stream().limit(5)
                 .map(r -> new AnalyticsDTO.RiderStat(
                         r.getId() != null ? r.getId().toString() : "",
                         r.getName(), r.getImageUrl(), r.getStatus(),
-                        r.getRating() != null ? r.getRating() : 0.0, 0L
-                )).collect(Collectors.toList());
+                        r.getRating() != null ? r.getRating() : 0.0, 0L))
+                .toList();
+
+        InventorySummaryDTO inventory = inventoryService.getSummary();
 
         return ResponseEntity.ok(new AnalyticsDTO(
-                totalRevenue, totalOrders, activeRiders, cancelledOrders, completedOrders, pendingOrders,
-                completionRate, cancellationRate, avgOrderValue,
-                invSummary.getCriticalLow(), invSummary.getOutOfStock(), invSummary.getReorderPending(),
-                totalRiders, inactiveRiders, avgRiderRating,
-                byStatus, byPayment, dailyOrders, topCategories, topProducts, topRiders
+                m.getNetRevenue().doubleValue(),
+                m.getPlacedOrders(),
+                activeRiders,
+                m.getCancelledOrders(),
+                m.getDeliveredOrders(),
+                m.getPendingOrders(),
+                m.getDeliveryRate(),
+                m.getCancellationRate(),
+                m.getAverageOrderValue().doubleValue(),
+                inventory.getCriticalLow(), inventory.getOutOfStock(), inventory.getReorderPending(),
+                totalRiders, totalRiders - activeRiders, avgRiderRating,
+                byStatus, byPayment, daily, topCategories, topProducts, topRiders
         ));
+    }
+
+    private PeriodMetrics metrics(ReportPeriod period) {
+        return reportService.windowMetrics(period.start(), period.endInclusive());
     }
 }

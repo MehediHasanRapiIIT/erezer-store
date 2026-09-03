@@ -20,7 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -62,15 +64,28 @@ public class HomePageServiceImpl implements HomePageService {
                 .collect(Collectors.toList()));
 
         // Get categories (active only)
-        List<Category> categories = categoryRepository.findAll().stream()
+        List<Category> allCategories = categoryRepository.findAll();
+        List<Category> categories = allCategories.stream()
                 .filter(Category::getIsActive)
                 .collect(Collectors.toList());
         response.setCategories(categoryMapper.toDTOs(categories));
 
+        // Product cards show the category name; resolve it once here rather
+        // than one lookup per product (the same enrichment /api/products does).
+        Map<Long, String> categoryNames = new HashMap<>();
+        for (Category c : allCategories) {
+            if (c.getId() != null) categoryNames.put(c.getId(), c.getName());
+        }
+        java.util.function.Function<Product, ProductResponseDTO> toCard = product -> {
+            ProductResponseDTO dto = productMapper.toResponseDTO(product);
+            if (product.getCategoryId() != null) dto.setCategoryName(categoryNames.get(product.getCategoryId()));
+            return dto;
+        };
+
         // Get popular items (limit to 10)
         List<Product> popularItems = productRepository.findTop10ByOrderByCreatedAtDesc();
         response.setPopularItems(popularItems.stream()
-                .map(productMapper::toResponseDTO)
+                .map(toCard)
                 .collect(Collectors.toList()));
 
         // Featured: admin-flagged products (limit 9). Fall back to newest 9 so the
@@ -80,7 +95,7 @@ public class HomePageServiceImpl implements HomePageService {
             featuredItems = productRepository.findTop9ByOrderByCreatedAtDesc();
         }
         response.setFeaturedItems(featuredItems.stream()
-                .map(productMapper::toResponseDTO)
+                .map(toCard)
                 .collect(Collectors.toList()));
 
         // New arrivals: admin-flagged products (limit 9). Fall back to newest 9
@@ -90,7 +105,7 @@ public class HomePageServiceImpl implements HomePageService {
             newArrivals = productRepository.findTop9ByOrderByCreatedAtDesc();
         }
         response.setNewArrivalItems(newArrivals.stream()
-                .map(productMapper::toResponseDTO)
+                .map(toCard)
                 .collect(Collectors.toList()));
 
         // Admin-promoted category bands, e.g. "Erezer Pink". Products are bundled
@@ -99,7 +114,7 @@ public class HomePageServiceImpl implements HomePageService {
         response.setHomeSections(categoryRepository
                 .findByShowOnHomeTrueAndIsActiveTrueAndDeletedFalseOrderByHomeSortOrderAscNameAsc()
                 .stream()
-                .map(this::toHomeSection)
+                .map(category -> toHomeSection(category, toCard))
                 // A promoted category with nothing in it would render an empty
                 // band, so drop it rather than showing a bare heading.
                 .filter(section -> !section.getProducts().isEmpty())
@@ -108,12 +123,13 @@ public class HomePageServiceImpl implements HomePageService {
         return response;
     }
 
-    private HomeCategorySectionDTO toHomeSection(Category category) {
+    private HomeCategorySectionDTO toHomeSection(Category category,
+                                                 java.util.function.Function<Product, ProductResponseDTO> toCard) {
         List<ProductResponseDTO> products = productRepository.findByCategoryId(category.getId()).stream()
                 .filter(pr -> !Boolean.TRUE.equals(pr.getDeleted()))
                 .filter(pr -> !Boolean.FALSE.equals(pr.getIsAvailable()))
                 .limit(HOME_SECTION_PRODUCT_LIMIT)
-                .map(productMapper::toResponseDTO)
+                .map(toCard)
                 .collect(Collectors.toList());
 
         return HomeCategorySectionDTO.builder()

@@ -17,4 +17,6 @@ public class TopProductDTO {
     private String imageUrl;
     private long unitsSold;
     private BigDecimal revenue;
+    /** Distinct counted orders containing the product. */
+    private long orderCount;
 }

@@ -16,4 +16,6 @@ public class TopCategoryDTO {
     private String categoryName;
     private long unitsSold;
     private BigDecimal revenue;
+    /** Distinct counted orders containing a product of this category. */
+    private long orderCount;
 }

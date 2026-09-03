@@ -93,6 +93,8 @@ export interface ApiCategory {
 export interface ApiProduct {
   id: number;
   categoryId: number;
+  /** Category name, resolved by the backend; absent on very old rows. */
+  categoryName?: string | null;
   name: string;
   description: string;
   price: number;
@@ -153,6 +155,8 @@ export interface ApiStockStatus {
  */
 export interface ApiHomeSection {
   categoryId: number;
+  /** Category name, resolved by the backend; absent on very old rows. */
+  categoryName?: string | null;
   name: string;
   slug: string | null;
   imageUrl: string | null;

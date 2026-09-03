@@ -18,6 +18,6 @@ public class SalesSummaryDTO {
     private long returnedOrders;
     private BigDecimal grossRevenue;     // sum of total_amount across all orders
     private BigDecimal netRevenue;        // gross excluding cancelled/returned
-    private BigDecimal averageOrderValue; // net / delivered count
+    private BigDecimal averageOrderValue; // net / counted (non-cancelled, non-returned) orders
     private long uniqueCustomers;
 }

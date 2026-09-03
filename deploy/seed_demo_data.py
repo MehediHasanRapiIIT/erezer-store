@@ -51,7 +51,7 @@ CATEGORIES = [
     # (name, hero photo, promoted to its own home band?)
     ("T-Shirts",    "1521572163474-6864f9cf17ab", False),
     ("Hoodies",     "1556821840-3a63f95609a7", False),
-    ("Jackets",     "1551028719-00167b16eac5", False),
+    ("Jackets",     "1517841905240-472988babdf9", False),
     ("Denim",       "1542272604-787c3835535d", False),
     ("Accessories", "1523293182086-7651a899d37f", False),
     ("Bags",        "1553062407-98eeb64c6a62", False),
@@ -72,7 +72,7 @@ PRODUCTS = [
     ("Hoodies",  "Cropped Fleece Hoodie",    "1618354691373-d851c5c3a990", 2600, 20, False, True),
     ("Hoodies",  "Heavyweight Boxy Hoodie",  "1509942774463-acf339cf87d5", 3400, 12, True,  False),
 
-    ("Jackets",  "Denim Trucker Jacket",     "1551028719-00167b16eac5",    4200, 14, True,  False),
+    ("Jackets",  "Denim Trucker Jacket",     "1517841905240-472988babdf9",    4200, 14, True,  False),
     ("Jackets",  "Quilted Bomber",           "1591047139829-d91aecb6caea", 4800, 10, False, True),
     ("Jackets",  "Lightweight Windbreaker",  "1544022613-e87ca75a784a",    3900, 16, False, False),
 
@@ -85,18 +85,18 @@ PRODUCTS = [
     ("Accessories", "Everyday Socks (3-pack)","1586350977771-b3b0abd50c82", 650, 80, False, False),
 
     ("Bags",     "Canvas Tote Bag",          "1553062407-98eeb64c6a62",     850, 50, True,  False),
-    ("Bags",     "Daily Backpack",           "1548036328-c9fa89d128fa",    3600, 12, False, True),
+    ("Bags",     "Everyday Black Tote",      "1572196284554-4e321b0e7e0b", 3600, 12, False, True),
     ("Bags",     "Compact Crossbody",        "1590874103328-eac38a683ce7", 2400, 18, False, False),
 
     ("Caps",     "Six-Panel Cap",            "1588850561407-ed78c282e89b",  900, 45, False, False),
     ("Caps",     "Corduroy Cap",             "1534215754734-18e55d13e346", 1100, 28, False, True),
 
-    ("Erezer Pink", "Pink Oversized Tee",    "1595777457583-95e059d581b8", 1400, 30, True,  True),
-    ("Erezer Pink", "Pink Cropped Hoodie",   "1618354691229-88d47f285158", 2900, 18, False, True),
-    ("Erezer Pink", "Pink Knit Cardigan",    "1434389677669-e08b4cac3105", 3300, 12, False, False),
-    ("Erezer Pink", "Pink Canvas Tote",      "1591561954557-26941169b49e",  950, 35, False, False),
-    ("Erezer Pink", "Pink Ribbed Top",       "1515886657613-9f3515b0c78f", 1650, 24, False, False),
-    ("Erezer Pink", "Pink Bucket Hat",       "1521369909029-2afed882baee",  850, 40, False, False),
+    ("Erezer Pink", "Scarlet Flare Dress",   "1595777457583-95e059d581b8", 2400, 30, True,  True),
+    ("Erezer Pink", "Cropped Graphic Hoodie","1618354691229-88d47f285158", 2900, 18, False, True),
+    ("Erezer Pink", "Fringed Knit Poncho",   "1434389677669-e08b4cac3105", 3300, 12, False, False),
+    ("Erezer Pink", "Floral Print Tote",     "1591561954557-26941169b49e",  950, 35, False, False),
+    ("Erezer Pink", "Mustard Track Set",     "1515886657613-9f3515b0c78f", 1650, 24, False, False),
+    ("Erezer Pink", "Cotton Bucket Hat",     "1521369909029-2afed882baee",  850, 40, False, False),
 ]
 
 # (slot, photo id, title, subtitle, button label, button link)
@@ -110,7 +110,7 @@ BANNERS = [
     ("GRID_1",       "1553062407-98eeb64c6a62", "Bags", "", "BAGS", "/bags"),
     ("GRID_2",       "1588850561407-ed78c282e89b", "Caps", "", "CAPS", "/caps"),
     ("GRID_3",       "1523293182086-7651a899d37f", "Accessories", "", "ACCESSORIES", "/accessories"),
-    ("GRID_4",       "1551028719-00167b16eac5", "Jackets", "", "JACKETS", "/jackets"),
+    ("GRID_4",       "1517841905240-472988babdf9", "Jackets", "", "JACKETS", "/jackets"),
     ("CUSTOM_PROMO", "1521572163474-6864f9cf17ab", "CUSTOMIZE YOUR APPAREL, YOUR WAY.",
      "Design your own t-shirts, hoodies and more in our online studio — no minimum order, even a single piece.",
      "TRY IT NOW", "/custom-design"),

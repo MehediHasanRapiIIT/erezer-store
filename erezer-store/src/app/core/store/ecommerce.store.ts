@@ -156,7 +156,7 @@ export class EcommerceStore {
       price:       this.discountsStore.effectivePrice(
                      baseProductPrice(api.price, api.discountPrice), api.id, api.categoryId),
       image:       api.imageUrl,
-      category:    'Tops',                  // API has no category string; use categoryId mapping if needed
+      category:    api.categoryName?.trim() || 'Erezer',
       sizes:       ['One Size'],
       rating:      4.5,
       isFeatured:  false,

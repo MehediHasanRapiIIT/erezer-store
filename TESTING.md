@@ -57,6 +57,33 @@ safe to re-run — it skips whatever already exists.
 > there is no admin screen or API for creating shops, so the first product can
 > never be created through the UI alone. The script inserts that row for you.
 
+### A year of order history for the reports
+
+The Reports, Dashboard and Analytics pages are empty until orders exist. This
+writes ~2,100 realistic Bangladeshi orders (1 July 2025 → today) straight into
+PostgreSQL: Dhaka ordering hours, Fri/Sat weekend pattern, Ramadan/Eid and
+Pohela Boishakh peaks, cash-on-delivery vs bKash vs card, ৳60/৳120 shipping,
+coupons, ~9 % cancellations, ~3 % returns, and 80 registered customers:
+
+```bash
+docker compose exec -T postgres psql -U postgres -d delivery_app_v1 < deploy/seed_demo_orders.sql
+```
+
+It needs products (run the product seeder first) and is idempotent — every row
+carries an `@demo.erezer.local` email and the script removes those before
+re-inserting. The header comment shows how to delete them again.
+
+To prove the numbers, recompute every report from the raw rows in plain
+Python and compare with the API:
+
+```bash
+python deploy/verify_reports.py --dates 2026-09-04 2026-06-30 2026-03-20 2025-12-31
+```
+
+It checks day / week / month / year / fiscal-year reports for each date plus
+the dashboard tiles and analytics page — several thousand figures — and exits
+non-zero on the first paisa of disagreement.
+
 ### Garment mockups for the custom-design studio
 
 `/custom-design` draws whatever image is attached to the selected garment
@@ -102,7 +129,9 @@ theme caching is off locally.
 
 | Check | What you should see |
 |---|---|
-| Dashboard | Stats tiles load without errors |
+| Dashboard | Today / this week / this month revenue with deltas, real 7-day and 12-month trend |
+| Reports | Daily, Weekly (Sun–Sat), Monthly, Yearly and Fiscal-year (Jul–Jun) tabs; ‹ › steps periods; Export CSV downloads; all figures in ৳ |
+| Analytics | Same numbers as Reports for the same window (cancelled/returned never count as revenue) |
 | Products | The 4 seeded products |
 | Inventory | Stock quantities, low-stock thresholds |
 | Categories | T-Shirts, Hoodies, Accessories |

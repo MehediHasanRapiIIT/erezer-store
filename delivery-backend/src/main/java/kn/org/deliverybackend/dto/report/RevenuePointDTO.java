@@ -16,5 +16,6 @@ public class RevenuePointDTO {
     /** Bucket date (always the start of the day/week/month depending on granularity). */
     private LocalDate date;
     private BigDecimal revenue;
-    private long orderCount;
+    private long orderCount;      // counted orders (cancelled & returned excluded)
+    private long cancelledOrders;
 }

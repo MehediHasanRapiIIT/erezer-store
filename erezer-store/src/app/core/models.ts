@@ -7,7 +7,8 @@ export interface Product {
   image: string;
   /** Optional secondary image; cards crossfade to it on hover when present. */
   hoverImage?: string;
-  category: 'Tops' | 'Outerwear' | 'Bottoms' | 'Accessories';
+  /** Category name as the admin named it (e.g. "Erezer Pink"). */
+  category: string;
   sizes: string[];
   rating: number;
   isFeatured?: boolean;
