@@ -60,4 +60,7 @@ public class ProductRequestDTO {
     private Boolean customSizeEnabled;
     private BigDecimal customSizeSurcharge;
     private String customSizeNote;
+
+    /** True to keep this product at full price, ignoring every automatic discount. */
+    private Boolean discountExcluded;
 }

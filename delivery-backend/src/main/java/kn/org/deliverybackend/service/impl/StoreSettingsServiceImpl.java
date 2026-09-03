@@ -89,6 +89,13 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
         settings.setPaymentCodEnabled(request.getPaymentCodEnabled() == null || request.getPaymentCodEnabled());
         settings.setPaymentBkashEnabled(request.getPaymentBkashEnabled() == null || request.getPaymentBkashEnabled());
         settings.setPaymentCardEnabled(request.getPaymentCardEnabled() == null || request.getPaymentCardEnabled());
+        // Discount switches: null in request → default enabled, so a client that
+        // does not know about this feature cannot switch discounting off by
+        // omitting the fields.
+        settings.setDiscountsEnabled(request.getDiscountsEnabled() == null || request.getDiscountsEnabled());
+        settings.setDiscountsGlobalEnabled(request.getDiscountsGlobalEnabled() == null || request.getDiscountsGlobalEnabled());
+        settings.setDiscountsCategoryEnabled(request.getDiscountsCategoryEnabled() == null || request.getDiscountsCategoryEnabled());
+        settings.setDiscountsProductEnabled(request.getDiscountsProductEnabled() == null || request.getDiscountsProductEnabled());
 
         return toDTO(repository.save(settings));
     }
@@ -113,6 +120,10 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
                 .paymentCodEnabled(true)
                 .paymentBkashEnabled(true)
                 .paymentCardEnabled(true)
+                .discountsEnabled(true)
+                .discountsGlobalEnabled(true)
+                .discountsCategoryEnabled(true)
+                .discountsProductEnabled(true)
                 .build();
         return repository.save(settings);
     }
@@ -281,6 +292,11 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
                 .paymentCodEnabled(s.getPaymentCodEnabled() == null || s.getPaymentCodEnabled())
                 .paymentBkashEnabled(s.getPaymentBkashEnabled() == null || s.getPaymentBkashEnabled())
                 .paymentCardEnabled(s.getPaymentCardEnabled() == null || s.getPaymentCardEnabled())
+                // Same rule for the discount switches: null → discounting is on.
+                .discountsEnabled(s.getDiscountsEnabled() == null || s.getDiscountsEnabled())
+                .discountsGlobalEnabled(s.getDiscountsGlobalEnabled() == null || s.getDiscountsGlobalEnabled())
+                .discountsCategoryEnabled(s.getDiscountsCategoryEnabled() == null || s.getDiscountsCategoryEnabled())
+                .discountsProductEnabled(s.getDiscountsProductEnabled() == null || s.getDiscountsProductEnabled())
                 .build();
     }
 }

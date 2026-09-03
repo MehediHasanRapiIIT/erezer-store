@@ -87,6 +87,15 @@ public class Product extends AbstractBaseEntity<Long> {
     @Column(name = "custom_size_note", length = 255)
     private String customSizeNote;
 
+    /**
+     * True to keep this product at full price: the discount engine ignores
+     * every automatic discount for it, including store-wide ones. Its own
+     * sale price ({@link #discountPrice}) still applies — that is set on the
+     * product itself, not a discount rule. Null means not excluded.
+     */
+    @Column(name = "discount_excluded")
+    private Boolean discountExcluded;
+
     @PostPersist
     public void generateSku() {
         if (this.sku == null) {

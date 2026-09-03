@@ -500,6 +500,12 @@ export class StoreSettingsComponent implements OnInit {
     paymentCodEnabled: true,
     paymentBkashEnabled: true,
     paymentCardEnabled: true,
+    // Discount switches are owned by the Discounts screen. They are carried
+    // here so saving this form round-trips them instead of resetting them.
+    discountsEnabled: true,
+    discountsGlobalEnabled: true,
+    discountsCategoryEnabled: true,
+    discountsProductEnabled: true,
   };
   protected chart: SizeChart = { columns: [...EMPTY_CHART.columns], rows: [] };
   protected brand: BrandStory = structuredClone(EMPTY_BRAND);

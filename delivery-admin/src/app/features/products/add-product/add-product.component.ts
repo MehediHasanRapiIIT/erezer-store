@@ -28,6 +28,8 @@ export class AddProductComponent implements OnInit {
   isAvailable  = signal(true);
   isNewArrival = signal(false);
   isFeatured   = signal(false);
+  /** Keep this product at full price, ignoring every automatic discount. */
+  discountExcluded = signal(false);
 
   // State
   categories   = signal<CategoryResponse[]>([]);
@@ -76,6 +78,7 @@ export class AddProductComponent implements OnInit {
       isAvailable: this.isAvailable(),
       isNewArrival: this.isNewArrival(),
       isFeatured: this.isFeatured(),
+      discountExcluded: this.discountExcluded(),
     };
 
     this.isLoading.set(true);

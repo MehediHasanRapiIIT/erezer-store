@@ -72,13 +72,20 @@ public class HomePageServiceImpl implements HomePageService {
 
         // Product cards show the category name; resolve it once here rather
         // than one lookup per product (the same enrichment /api/products does).
-        Map<Long, String> categoryNames = new HashMap<>();
+        Map<Long, Category> categoriesById = new HashMap<>();
         for (Category c : allCategories) {
-            if (c.getId() != null) categoryNames.put(c.getId(), c.getName());
+            if (c.getId() != null) categoriesById.put(c.getId(), c);
         }
         java.util.function.Function<Product, ProductResponseDTO> toCard = product -> {
             ProductResponseDTO dto = productMapper.toResponseDTO(product);
-            if (product.getCategoryId() != null) dto.setCategoryName(categoryNames.get(product.getCategoryId()));
+            Category category = product.getCategoryId() == null
+                    ? null : categoriesById.get(product.getCategoryId());
+            if (category != null) {
+                dto.setCategoryName(category.getName());
+                dto.setCategoryDiscountExcluded(Boolean.TRUE.equals(category.getDiscountExcluded()));
+            } else {
+                dto.setCategoryDiscountExcluded(false);
+            }
             return dto;
         };
 

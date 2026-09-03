@@ -55,7 +55,7 @@ public class CheckoutQuoteServiceImpl implements CheckoutQuoteService {
             BigDecimal lineSubtotal = unit.multiply(BigDecimal.valueOf(item.getQuantity()));
             subtotal = subtotal.add(lineSubtotal);
             autoDiscount = autoDiscount.add(
-                    discountEngine.discountForLine(p.getId(), p.getCategoryId(), lineSubtotal));
+                    discountEngine.discountForLine(p, lineSubtotal));
             // Flat custom-size surcharge (server-authoritative) for made-to-order lines.
             if (item.getCustomMeasurements() != null && !item.getCustomMeasurements().isBlank()
                     && Boolean.TRUE.equals(p.getCustomSizeEnabled()) && p.getCustomSizeSurcharge() != null) {

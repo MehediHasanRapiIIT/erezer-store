@@ -312,8 +312,7 @@ public class OrderServiceImpl implements OrderService {
                     : null;
             BigDecimal unitPrice = PricingSupport.effectiveUnitPrice(product, variant);
             BigDecimal lineSubtotal = unitPrice.multiply(BigDecimal.valueOf(item.getQuantity()));
-            total = total.add(discountEngine.discountForLine(
-                    product.getId(), product.getCategoryId(), lineSubtotal));
+            total = total.add(discountEngine.discountForLine(product, lineSubtotal));
         }
         return total;
     }

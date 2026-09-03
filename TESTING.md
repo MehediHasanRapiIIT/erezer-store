@@ -84,6 +84,20 @@ It checks day / week / month / year / fiscal-year reports for each date plus
 the dashboard tiles and analytics page — several thousand figures — and exits
 non-zero on the first paisa of disagreement.
 
+### Discount on/off switches
+
+The Discounts screen has a master switch plus three per-scope switches, and a
+product or a whole category can be marked "never discount". To prove they reach
+the real checkout price rather than just the display:
+
+```bash
+python deploy/verify_discount_switches.py
+```
+
+It creates three throwaway rules, flips each switch, asserts the checkout quote
+responds, then deletes the rules and restores your settings. Exits non-zero on
+the first disagreement.
+
 ### Garment mockups for the custom-design studio
 
 `/custom-design` draws whatever image is attached to the selected garment
@@ -132,6 +146,9 @@ theme caching is off locally.
 | Dashboard | Today / this week / this month revenue with deltas, real 7-day and 12-month trend |
 | Reports | Daily, Weekly (Sun–Sat), Monthly, Yearly and Fiscal-year (Jul–Jun) tabs; ‹ › steps periods; Export CSV downloads; all figures in ৳ |
 | Analytics | Same numbers as Reports for the same window (cancelled/returned never count as revenue) |
+| Discounts | Master switch flips ON/OFF and survives a reload; the three scope checkboxes suspend one scope each |
+| Products → edit | "Never discount this product" saves and reloads checked |
+| Categories → edit | "Never discount this category" saves and reloads on |
 | Products | The 4 seeded products |
 | Inventory | Stock quantities, low-stock thresholds |
 | Categories | T-Shirts, Hoodies, Accessories |

@@ -20,7 +20,7 @@ import { AuthService } from '../core/auth.service';
 import { ProductCardComponent } from '../components/shared/product-card.component';
 import { RecentlyViewedComponent } from '../components/shared/recently-viewed.component';
 import { RecentlyViewedService } from '../core/recently-viewed.service';
-import { baseProductPrice, effectiveUnitPrice } from '../core/discount-pricing';
+import { baseProductPrice, effectiveUnitPrice, isDiscountExcluded } from '../core/discount-pricing';
 import { PixelService } from '../core/pixel.service';
 import { SeoService } from '../core/seo.service';
 import { RevealDirective } from '../core/reveal.directive';
@@ -1117,7 +1117,8 @@ export class ProductDetailPage implements OnInit {
 
   /** Unit price after automatic product/category/global discounts. */
   protected effectivePrice(p: ApiProduct): number {
-    return effectiveUnitPrice(this.basePrice(p), p.id, p.categoryId, this.activeDiscounts());
+    return effectiveUnitPrice(this.basePrice(p), p.id, p.categoryId, this.activeDiscounts(),
+      isDiscountExcluded(p));
   }
 
   /** True when an automatic discount further reduces the base price. */

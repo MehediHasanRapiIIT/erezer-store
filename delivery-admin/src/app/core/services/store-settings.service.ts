@@ -88,6 +88,19 @@ export interface StoreSettings {
   paymentCodEnabled: boolean | null;
   paymentBkashEnabled: boolean | null;
   paymentCardEnabled: boolean | null;
+
+  /**
+   * Automatic-discount switches. Null means on, so a settings row saved before
+   * this feature existed keeps discounting.
+   *
+   * These govern the rules on the Discounts screen only. A product's own sale
+   * price, coupon codes, flash sales and bundle offers are separate and each
+   * has its own screen.
+   */
+  discountsEnabled: boolean | null;
+  discountsGlobalEnabled: boolean | null;
+  discountsCategoryEnabled: boolean | null;
+  discountsProductEnabled: boolean | null;
 }
 
 @Injectable({ providedIn: 'root' })

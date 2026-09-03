@@ -10,9 +10,13 @@ import {
   DiscountType,
 } from '../../core/services/discount.service';
 import { CategoryService } from '../../core/services/category.service';
+import { StoreSettings, StoreSettingsService } from '../../core/services/store-settings.service';
 import { ProductService } from '../../core/services/product.service';
 import { CategoryResponse, ProductResponse } from '../../core/models/api.models';
 import { parseApiError } from '../../core/utils/api-error.util';
+
+/** The three per-scope switches, keyed by their field on StoreSettings. */
+type ScopeSwitch = 'discountsGlobalEnabled' | 'discountsCategoryEnabled' | 'discountsProductEnabled';
 
 interface DiscountForm {
   name: string;
@@ -65,10 +69,58 @@ const EMPTY_FORM: DiscountForm = {
         <main class="flex-1 overflow-y-auto p-6">
           <div class="max-w-5xl mx-auto space-y-5">
 
+            <!-- On/off switches. Suspends rules without deleting them. -->
+            <section class="rounded-xl border bg-white overflow-hidden"
+              [class.border-red-300]="!masterOn()" [class.border-gray-200]="masterOn()">
+              <div class="flex items-center justify-between gap-4 px-5 py-4"
+                [class.bg-red-50]="!masterOn()">
+                <div>
+                  <h2 class="font-bold text-gray-900">
+                    Automatic discounts are
+                    <span [class.text-emerald-600]="masterOn()" [class.text-red-600]="!masterOn()">
+                      {{ masterOn() ? 'ON' : 'OFF' }}
+                    </span>
+                  </h2>
+                  <p class="text-xs text-gray-500 mt-0.5">
+                    @if (masterOn()) {
+                      Rules below apply at checkout and on the storefront.
+                    } @else {
+                      Every rule below is suspended. Nothing is deleted, and the storefront shows full prices.
+                    }
+                    Sale prices, coupons, flash sales and bundles are separate and keep working.
+                  </p>
+                </div>
+                <button type="button" (click)="toggleMaster()" [disabled]="savingSettings()"
+                  class="relative inline-flex h-7 w-13 flex-shrink-0 rounded-full transition-colors disabled:opacity-50"
+                  [class.bg-emerald-500]="masterOn()" [class.bg-gray-300]="!masterOn()"
+                  [attr.aria-label]="masterOn() ? 'Switch all discounts off' : 'Switch all discounts on'"
+                  style="width:3.25rem">
+                  <span class="absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all"
+                    [style.left]="masterOn() ? '1.75rem' : '0.25rem'"></span>
+                </button>
+              </div>
+
+              <div class="grid gap-px bg-gray-100 sm:grid-cols-3 border-t border-gray-200"
+                [class.opacity-50]="!masterOn()" [class.pointer-events-none]="!masterOn()">
+                @for (sw of scopeSwitches; track sw.key) {
+                  <label class="flex items-start gap-3 bg-white px-5 py-3 cursor-pointer">
+                    <input type="checkbox" class="mt-0.5 h-4 w-4 rounded border-gray-300"
+                      [checked]="scopeOn(sw.key)" (change)="toggleScope(sw.key)" [disabled]="savingSettings()" />
+                    <span>
+                      <span class="block text-sm font-medium text-gray-800">{{ sw.label }}</span>
+                      <span class="block text-xs text-gray-500">{{ sw.hint }}</span>
+                    </span>
+                  </label>
+                }
+              </div>
+            </section>
+
             <p class="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-700">
               Discounts apply automatically at checkout. <strong>Stackable</strong> discounts combine with
               other stackable ones; a non-stackable discount applies on its own. When discounts overlap and
               don't stack, the one with the <strong>highest priority</strong> wins.
+              To keep one product or a whole collection at full price, use
+              <strong>Never discount</strong> on that product or category.
             </p>
 
             @if (errorMessage()) {
@@ -249,6 +301,7 @@ export class DiscountsComponent implements OnInit {
   private readonly api = inject(DiscountService);
   private readonly categoryApi = inject(CategoryService);
   private readonly productApi = inject(ProductService);
+  private readonly settingsApi = inject(StoreSettingsService);
 
   readonly discounts  = signal<DiscountResponse[]>([]);
   readonly categories = signal<CategoryResponse[]>([]);
@@ -261,8 +314,65 @@ export class DiscountsComponent implements OnInit {
 
   protected form: DiscountForm = { ...EMPTY_FORM };
 
+  // ── on/off switches ───────────────────────────────────────────────────────
+
+  readonly settings = signal<StoreSettings | null>(null);
+  readonly savingSettings = signal(false);
+
+  protected readonly scopeSwitches: { key: ScopeSwitch; label: string; hint: string }[] = [
+    { key: 'discountsGlobalEnabled',   label: 'Store-wide rules',  hint: 'Rules that apply to every product.' },
+    { key: 'discountsCategoryEnabled', label: 'Category rules',    hint: 'Rules targeting one category.' },
+    { key: 'discountsProductEnabled',  label: 'Product rules',     hint: 'Rules targeting one product.' },
+  ];
+
+  /** Null means on, so a settings row saved before this feature keeps discounting. */
+  private isOn(flag: boolean | null | undefined): boolean {
+    return flag !== false;
+  }
+
+  protected masterOn(): boolean {
+    return this.isOn(this.settings()?.discountsEnabled);
+  }
+
+  protected scopeOn(key: ScopeSwitch): boolean {
+    return this.isOn(this.settings()?.[key]);
+  }
+
+  protected toggleMaster(): void {
+    this.saveSettings({ discountsEnabled: !this.masterOn() });
+  }
+
+  protected toggleScope(key: ScopeSwitch): void {
+    this.saveSettings({ [key]: !this.scopeOn(key) } as Partial<StoreSettings>);
+  }
+
+  /**
+   * Settings are a single document, so a change is sent as the whole object
+   * with one field replaced. Anything not loaded yet is not overwritten,
+   * because the panel is only interactive once the load has finished.
+   */
+  private saveSettings(change: Partial<StoreSettings>): void {
+    const current = this.settings();
+    if (!current || this.savingSettings()) return;
+    const next = { ...current, ...change };
+    this.savingSettings.set(true);
+    // Optimistic: the switch flips immediately, and reverts if the save fails.
+    this.settings.set(next);
+    this.settingsApi.update(next).subscribe({
+      next: (saved) => { this.settings.set(saved); this.savingSettings.set(false); },
+      error: (err) => {
+        this.settings.set(current);
+        this.savingSettings.set(false);
+        this.errorMessage.set(parseApiError(err));
+      },
+    });
+  }
+
   ngOnInit(): void {
     this.reload();
+    this.settingsApi.get()
+      .pipe(catchError(() => of(null)))
+      .subscribe((s) => this.settings.set(s));
     this.categoryApi.getCategories()
       .pipe(catchError(() => of([] as CategoryResponse[])))
       .subscribe((list) => this.categories.set(list));

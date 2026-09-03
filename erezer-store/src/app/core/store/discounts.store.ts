@@ -2,7 +2,7 @@ import { inject, Injectable, signal } from '@angular/core';
 import { catchError, of } from 'rxjs';
 import { ApiService } from '../api.service';
 import { ApiActiveDiscount } from '../api.models';
-import { effectiveUnitPrice } from '../discount-pricing';
+import { effectiveUnitPrice, isDiscountExcluded } from '../discount-pricing';
 
 /**
  * Loads the currently-active automatic discounts once and exposes a helper to
@@ -25,7 +25,19 @@ export class DiscountsStore {
       .subscribe((d) => this.discounts.set(d));
   }
 
-  effectivePrice(basePrice: number, productId: number, categoryId: number): number {
-    return effectiveUnitPrice(basePrice, productId, categoryId, this.discounts());
+  /**
+   * Display price after automatic discounts.
+   *
+   * When the admin has switched discounts off, the backend returns no active
+   * discounts at all, so this returns the base price without any special case.
+   * `excluded` covers the narrower per-product and per-category exclusions.
+   */
+  effectivePrice(basePrice: number, productId: number, categoryId: number, excluded = false): number {
+    return effectiveUnitPrice(basePrice, productId, categoryId, this.discounts(), excluded);
+  }
+
+  /** True when no automatic discount may touch this product. */
+  isExcluded(product: { discountExcluded?: boolean | null; categoryDiscountExcluded?: boolean | null }): boolean {
+    return isDiscountExcluded(product);
   }
 }

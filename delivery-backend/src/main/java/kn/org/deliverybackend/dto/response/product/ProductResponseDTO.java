@@ -40,4 +40,19 @@ public class ProductResponseDTO {
     private Boolean customSizeEnabled;
     private BigDecimal customSizeSurcharge;
     private String customSizeNote;
+
+    /**
+     * True when the admin excluded this product itself from automatic discounts.
+     * Round-trips with the edit form, so it is the product's own flag and never
+     * inherits its category's.
+     */
+    private Boolean discountExcluded;
+
+    /**
+     * True when the product's category is excluded, which keeps this product at
+     * full price too. Read-only; edited on the category, not here. The
+     * storefront treats {@code discountExcluded || categoryDiscountExcluded} as
+     * "never automatically discounted".
+     */
+    private Boolean categoryDiscountExcluded;
 }

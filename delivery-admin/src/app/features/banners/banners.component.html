@@ -16,7 +16,7 @@
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
         </svg>
-        Upload Banner
+        Add banner
       </button>
     </header>
 
@@ -25,9 +25,13 @@
       <!-- Create / Edit form -->
       @if (showForm()) {
         <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-          <h2 class="text-base font-bold text-gray-900 mb-4">
-            {{ isEditMode ? 'Edit Banner' : 'Upload New Banner' }}
-          </h2>
+          <div class="flex items-start justify-between mb-5">
+            <div>
+              <h2 class="text-base font-bold text-gray-900">{{ isEditMode ? 'Edit banner' : 'Add a banner' }}</h2>
+              <p class="text-xs text-gray-500 mt-0.5">Pick a spot on the home page, add a photo and a few words. The preview on the right shows what shoppers will see.</p>
+            </div>
+            <button type="button" (click)="closeForm()" class="text-sm text-gray-500 hover:text-gray-800">Close</button>
+          </div>
 
           @if (formError()) {
             <div class="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
@@ -35,153 +39,352 @@
             </div>
           }
 
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Image upload -->
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">
-                Banner Image
-                @if (!isEditMode) { <span class="text-red-500">*</span> }
-                @if (isEditMode) { <span class="text-xs text-gray-400 font-normal">(leave empty to keep current)</span> }
-              </label>
+          <div class="grid grid-cols-1 xl:grid-cols-5 gap-6">
+            <!-- ── Steps ─────────────────────────────────────────────────── -->
+            <div class="xl:col-span-3 space-y-6">
 
-              <!-- Show existing image in edit mode when no new image selected -->
-              @if (isEditMode && existingImageUrl() && !imagePreview()) {
-                <div class="relative rounded-xl overflow-hidden border border-gray-200 mb-3">
-                  <img [src]="existingImageUrl()" alt="Current banner" class="w-full h-40 object-cover"/>
-                  <div class="absolute bottom-0 left-0 right-0 bg-black/40 text-white text-xs text-center py-1">Current image</div>
-                </div>
-              }
+              <!-- 1. Where -->
+              <section>
+                <h3 class="text-sm font-semibold text-gray-800 mb-1">
+                  <span class="inline-flex w-5 h-5 mr-1.5 items-center justify-center rounded-full bg-gray-900 text-white text-[11px]">1</span>
+                  Where on the home page
+                </h3>
+                <p class="text-xs text-gray-500 mb-3">Click a spot. This is a small map of the home page, top to bottom.</p>
 
-              @if (!imagePreview()) {
-                <label
-                  class="flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-6 cursor-pointer transition-colors"
-                  [class.border-blue-400]="dragOver()"
-                  [class.bg-blue-50]="dragOver()"
-                  [class.border-gray-200]="!dragOver()"
-                  (dragover)="onDragOver($event)"
-                  (dragleave)="onDragLeave()"
-                  (drop)="onDrop($event)"
-                >
-                  <input type="file" class="hidden" accept="image/*" (change)="onFileSelect($event)"/>
-                  <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mb-2">
-                    <svg class="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
-                    </svg>
+                <div class="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-1.5" role="radiogroup" aria-label="Spot on the home page">
+                  <!-- Top picture -->
+                  <button type="button" role="radio" [attr.aria-checked]="slot() === 'HERO'" (click)="selectSlot('HERO')"
+                    class="w-full h-16 rounded-md border text-left px-3 transition"
+                    [class]="slotClass('HERO')">
+                    <span class="block text-xs font-semibold">{{ meta('HERO').label }}</span>
+                    <span class="block text-[11px] opacity-80">{{ occupancy('HERO') }}</span>
+                  </button>
+                  <!-- Two tall pictures -->
+                  <div class="grid grid-cols-2 gap-1.5">
+                    @for (s of ['SPLIT_LEFT', 'SPLIT_RIGHT']; track s) {
+                      <button type="button" role="radio" [attr.aria-checked]="slot() === s" (click)="selectSlot(s)"
+                        class="h-16 rounded-md border text-left px-3 transition" [class]="slotClass(s)">
+                        <span class="block text-xs font-semibold">{{ meta(s).label }}</span>
+                        <span class="block text-[11px] opacity-80">{{ occupancy(s) }}</span>
+                      </button>
+                    }
                   </div>
-                  <p class="text-sm font-medium text-gray-700">{{ isEditMode ? 'Click to replace image' : 'Click to upload or drag and drop' }}</p>
-                  <p class="text-xs text-gray-400 mt-1">PNG, JPG (recommended: 1200×400px)</p>
-                </label>
-              } @else {
-                <div class="relative rounded-xl overflow-hidden border border-gray-200">
-                  <img [src]="imagePreview()" alt="Preview" class="w-full h-40 object-cover"/>
-                  <button
-                    type="button"
-                    (click)="removeImage()"
-                    class="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 text-sm"
-                  >×</button>
+                  <!-- Four small tiles -->
+                  <div class="grid grid-cols-2 gap-1.5">
+                    @for (s of ['GRID_1', 'GRID_2', 'GRID_3', 'GRID_4']; track s) {
+                      <button type="button" role="radio" [attr.aria-checked]="slot() === s" (click)="selectSlot(s)"
+                        class="h-11 rounded-md border text-left px-3 transition" [class]="slotClass(s)">
+                        <span class="block text-xs font-semibold">{{ meta(s).label }}</span>
+                        <span class="block text-[11px] opacity-80 truncate">{{ occupancy(s) }}</span>
+                      </button>
+                    }
+                  </div>
+                  <!-- Design-your-own row -->
+                  <div class="grid grid-cols-2 gap-1.5">
+                    <div class="h-12 rounded-md border border-dashed border-gray-300 bg-white px-3 flex items-center text-[11px] text-gray-400">
+                      “Design your own” text (fixed)
+                    </div>
+                    <button type="button" role="radio" [attr.aria-checked]="slot() === 'CUSTOM_PROMO'" (click)="selectSlot('CUSTOM_PROMO')"
+                      class="h-12 rounded-md border text-left px-3 transition" [class]="slotClass('CUSTOM_PROMO')">
+                      <span class="block text-xs font-semibold">{{ meta('CUSTOM_PROMO').label }}</span>
+                      <span class="block text-[11px] opacity-80 truncate">{{ occupancy('CUSTOM_PROMO') }}</span>
+                    </button>
+                  </div>
+                  <p class="text-[11px] text-gray-400 pt-1">Products, the story band and the footer follow below and are managed elsewhere.</p>
                 </div>
+
+                <div class="mt-3 rounded-lg bg-blue-50 px-3.5 py-3 text-xs text-blue-900 space-y-1">
+                  <p><strong>{{ meta(slot()).label }}.</strong> {{ meta(slot()).where }}</p>
+                  <p>{{ meta(slot()).shows }}</p>
+                </div>
+
+                @if (occupant(); as other) {
+                  <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs text-amber-800 flex items-start justify-between gap-3">
+                    <p>
+                      This spot already shows <strong>{{ other.promotionTitle || 'an untitled banner' }}</strong>.
+                      Only one banner fits here, so the one with the lower Order is the one shoppers see.
+                    </p>
+                    <button type="button" (click)="openEditForm(other)" class="whitespace-nowrap font-semibold underline">Edit that one instead</button>
+                  </div>
+                }
+              </section>
+
+              <!-- 2. Picture -->
+              <section>
+                <h3 class="text-sm font-semibold text-gray-800 mb-1">
+                  <span class="inline-flex w-5 h-5 mr-1.5 items-center justify-center rounded-full bg-gray-900 text-white text-[11px]">2</span>
+                  The picture
+                  @if (!isEditMode) { <span class="text-red-500">*</span> }
+                </h3>
+                <p class="text-xs text-gray-500 mb-3">{{ meta(slot()).imageHint }}</p>
+
+                @if (!imagePreview()) {
+                  <label
+                    class="flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-6 cursor-pointer transition-colors"
+                    [class.border-blue-400]="dragOver()"
+                    [class.bg-blue-50]="dragOver()"
+                    [class.border-gray-200]="!dragOver()"
+                    (dragover)="onDragOver($event)"
+                    (dragleave)="onDragLeave()"
+                    (drop)="onDrop($event)"
+                  >
+                    <input type="file" class="hidden" accept="image/*" (change)="onFileSelect($event)"/>
+                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mb-2">
+                      <svg class="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                      </svg>
+                    </div>
+                    <p class="text-sm font-medium text-gray-700">
+                      {{ isEditMode && existingImageUrl() ? 'Choose a new photo to replace the current one' : 'Click to choose a photo, or drag one here' }}
+                    </p>
+                    <p class="text-xs text-gray-400 mt-1">JPG or PNG{{ isEditMode && existingImageUrl() ? ' · leave as is to keep the current photo' : '' }}</p>
+                  </label>
+                } @else {
+                  <div class="flex items-center gap-3 rounded-xl border border-gray-200 p-3">
+                    <img [src]="imagePreview()" alt="Chosen photo" class="w-24 h-16 rounded-md object-cover bg-gray-100"/>
+                    <div class="flex-1 text-sm text-gray-700">New photo chosen. Check the preview on the right.</div>
+                    <button type="button" (click)="removeImage()" class="text-sm text-red-600 hover:underline">Remove</button>
+                  </div>
+                }
+              </section>
+
+              <!-- 3. Words -->
+              <section>
+                <h3 class="text-sm font-semibold text-gray-800 mb-1">
+                  <span class="inline-flex w-5 h-5 mr-1.5 items-center justify-center rounded-full bg-gray-900 text-white text-[11px]">3</span>
+                  Words on the picture
+                </h3>
+                <p class="text-xs text-gray-500 mb-3">{{ wordsHint() }}</p>
+                <div class="space-y-3">
+                  <div>
+                    <label class="block text-xs text-gray-500 mb-1">Headline</label>
+                    <input
+                      type="text"
+                      [ngModel]="promotionTitle()"
+                      (ngModelChange)="promotionTitle.set($event)"
+                      [placeholder]="meta(slot()).titlePlaceholder"
+                      maxlength="80"
+                      class="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300 placeholder-gray-300"
+                    />
+                  </div>
+                  @if (usesDetails()) {
+                    <div>
+                      <label class="block text-xs text-gray-500 mb-1">Short line under the headline</label>
+                      <textarea
+                        [ngModel]="promotionDetails()"
+                        (ngModelChange)="promotionDetails.set($event)"
+                        [placeholder]="meta(slot()).detailsPlaceholder"
+                        rows="2"
+                        maxlength="200"
+                        class="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300 placeholder-gray-300 resize-none"
+                      ></textarea>
+                    </div>
+                  }
+                </div>
+              </section>
+
+              <!-- 4. Button -->
+              <section>
+                <h3 class="text-sm font-semibold text-gray-800 mb-1">
+                  <span class="inline-flex w-5 h-5 mr-1.5 items-center justify-center rounded-full bg-gray-900 text-white text-[11px]">4</span>
+                  Button
+                  <span class="text-xs font-normal text-gray-400 ml-1">optional</span>
+                </h3>
+                <p class="text-xs text-gray-500 mb-3">{{ meta(slot()).buttonHint }}</p>
+
+                <div class="rounded-lg border border-gray-200 p-3.5 space-y-3">
+                  <div>
+                    <label class="block text-xs text-gray-500 mb-1">Where the button takes the shopper</label>
+                    <select
+                      [ngModel]="linkKind()"
+                      (ngModelChange)="onLinkKindChange($event)"
+                      class="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+                    >
+                      @for (opt of linkOptions; track opt.value) {
+                        <option [value]="opt.value">{{ opt.label }}</option>
+                      }
+                    </select>
+                  </div>
+
+                  @if (linkKind() === 'CATEGORY') {
+                    <div>
+                      <label class="block text-xs text-gray-500 mb-1">Which collection</label>
+                      <select
+                        [ngModel]="linkCategoryId()"
+                        (ngModelChange)="linkCategoryId.set($event)"
+                        class="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+                      >
+                        @if (categories().length === 0) {
+                          <option [ngValue]="null">No collections yet — add one first</option>
+                        }
+                        @for (cat of categories(); track cat.id) {
+                          <option [ngValue]="cat.id">{{ cat.name }}</option>
+                        }
+                      </select>
+                    </div>
+                  }
+
+                  @if (linkKind() === 'CUSTOM') {
+                    <div>
+                      <label class="block text-xs text-gray-500 mb-1">Link</label>
+                      <input
+                        type="text"
+                        [ngModel]="customLink()"
+                        (ngModelChange)="customLink.set($event)"
+                        placeholder="/shop"
+                        class="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                      <p class="mt-1 text-xs text-gray-400">A page on your own site, starting with a slash. For example <code>/contact</code>.</p>
+                    </div>
+                  }
+
+                  @if (linkKind() !== 'NONE') {
+                    <div>
+                      <label class="block text-xs text-gray-500 mb-1">Words on the button</label>
+                      <input
+                        type="text"
+                        [ngModel]="ctaLabel()"
+                        (ngModelChange)="ctaLabel.set($event)"
+                        placeholder="SHOP NOW"
+                        maxlength="60"
+                        class="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                    </div>
+                  }
+
+                  <div class="rounded-md bg-gray-50 px-3 py-2">
+                    @if (hasButton()) {
+                      <p class="text-xs text-gray-600">
+                        A button reading <span class="font-semibold text-gray-800">{{ ctaLabel() }}</span> appears on the banner. {{ linkPreview() }}
+                      </p>
+                    } @else {
+                      <p class="text-xs text-gray-500">{{ linkPreview() }}</p>
+                    }
+                    @if (linkKind() !== 'NONE' && !ctaLabel().trim()) {
+                      <p class="mt-1 text-xs text-amber-600">Add the words for the button, otherwise it stays hidden.</p>
+                    }
+                  </div>
+                </div>
+              </section>
+
+              <!-- 5. When -->
+              <section>
+                <h3 class="text-sm font-semibold text-gray-800 mb-1">
+                  <span class="inline-flex w-5 h-5 mr-1.5 items-center justify-center rounded-full bg-gray-900 text-white text-[11px]">5</span>
+                  When to show it
+                  <span class="text-xs font-normal text-gray-400 ml-1">optional</span>
+                </h3>
+                <p class="text-xs text-gray-500 mb-3">Leave both empty and the banner shows all the time. Set dates for something like an Eid sale.</p>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs text-gray-500 mb-1">Show from</label>
+                    <input type="date" [ngModel]="fromDate()" (ngModelChange)="fromDate.set($event)"
+                      class="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300"/>
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-500 mb-1">Show until</label>
+                    <input type="date" [ngModel]="toDate()" (ngModelChange)="toDate.set($event)"
+                      class="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300"/>
+                  </div>
+                </div>
+                <p class="mt-2 text-xs" [class.text-gray-500]="!scheduleWarning()" [class.text-amber-600]="scheduleWarning()">{{ scheduleText() }}</p>
+              </section>
+
+              <!-- Order: only meaningful when several banners share a spot -->
+              @if (slot() === 'HERO' || occupant()) {
+                <section>
+                  <h3 class="text-sm font-semibold text-gray-800 mb-1">
+                    {{ slot() === 'HERO' ? 'Slide order' : 'Order' }}
+                  </h3>
+                  <p class="text-xs text-gray-500 mb-2">
+                    {{ slot() === 'HERO'
+                      ? 'Top-of-page banners take turns as a slideshow. Lower numbers play first.'
+                      : 'Only one banner fits in this spot. The one with the lowest number is shown.' }}
+                  </p>
+                  <input type="number" min="0" [ngModel]="sortOrder()" (ngModelChange)="sortOrder.set($event)"
+                    class="w-32 px-3.5 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300"/>
+                </section>
               }
             </div>
 
-            <!-- Metadata fields -->
-            <div class="space-y-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1.5">Promotion Title</label>
-                <input
-                  type="text"
-                  [ngModel]="promotionTitle()"
-                  (ngModelChange)="promotionTitle.set($event)"
-                  placeholder="e.g. Summer Sale"
-                  class="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300 placeholder-gray-300"
-                />
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1.5">Promotion Details</label>
-                <textarea
-                  [ngModel]="promotionDetails()"
-                  (ngModelChange)="promotionDetails.set($event)"
-                  placeholder="e.g. Up to 50% off on all items"
-                  rows="2"
-                  class="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300 placeholder-gray-300 resize-none"
-                ></textarea>
-              </div>
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1.5">From Date</label>
-                  <input
-                    type="date"
-                    [ngModel]="fromDate()"
-                    (ngModelChange)="fromDate.set($event)"
-                    class="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300"
-                  />
+            <!-- ── Live preview ──────────────────────────────────────────── -->
+            <div class="xl:col-span-2">
+              <div class="xl:sticky xl:top-0 space-y-3">
+                <div class="flex items-baseline justify-between">
+                  <h3 class="text-sm font-semibold text-gray-800">Preview</h3>
+                  <span class="text-[11px] text-gray-400">Roughly how it looks on a computer screen</span>
                 </div>
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1.5">To Date</label>
-                  <input
-                    type="date"
-                    [ngModel]="toDate()"
-                    (ngModelChange)="toDate.set($event)"
-                    class="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300"
-                  />
-                </div>
-              </div>
 
-              <!-- Landing-page placement -->
-              <div class="pt-3 mt-1 border-t border-gray-100">
-                <label class="block text-sm font-medium text-gray-700 mb-1.5">Where it appears</label>
-                <select
-                  [ngModel]="slot()"
-                  (ngModelChange)="slot.set($event)"
-                  class="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300"
-                >
-                  @for (o of slotOptions; track o.value) {
-                    <option [value]="o.value">{{ o.label }}</option>
+                <div class="rounded-xl overflow-hidden border border-gray-200 bg-neutral-900 relative"
+                  [style.aspect-ratio]="meta(slot()).aspect">
+
+                  @if (slot() === 'CUSTOM_PROMO') {
+                    <!-- Grey text panel beside the photo, like the storefront -->
+                    <div class="absolute inset-0 grid grid-cols-2">
+                      <div class="bg-neutral-100 flex flex-col justify-center px-5 py-6">
+                        <p class="text-[13px] font-semibold uppercase leading-tight tracking-tight text-neutral-900">{{ promotionTitle() || 'Customize your apparel, your way.' }}</p>
+                        <p class="mt-2 text-[10px] leading-relaxed text-neutral-600 line-clamp-4">{{ promotionDetails() || 'Design your own t-shirts, hoodies and more in our online studio — no minimum order, even a single piece.' }}</p>
+                        <span class="mt-3 inline-flex w-fit rounded-full bg-neutral-900 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-white">{{ ctaLabel() || 'Try it now' }}</span>
+                      </div>
+                      <div class="relative bg-neutral-800">
+                        @if (previewImage()) {
+                          <img [src]="previewImage()" alt="" class="absolute inset-0 h-full w-full object-cover"/>
+                        } @else {
+                          <div class="absolute inset-0 flex items-center justify-center text-[11px] text-white/50 px-4 text-center">Your photo appears here</div>
+                        }
+                      </div>
+                    </div>
+                  } @else {
+                    @if (previewImage()) {
+                      <img [src]="previewImage()" alt="" class="absolute inset-0 h-full w-full object-cover"/>
+                    } @else {
+                      <!-- Kept at the top edge so it never sits under the words. -->
+                      <div class="absolute inset-x-0 top-3 text-center text-[11px] text-white/50 px-4">Your photo appears here</div>
+                    }
+
+                    @if (slot() === 'HERO') {
+                      <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/35 to-black/10"></div>
+                      <div class="absolute inset-x-0 bottom-0 p-5">
+                        <p class="text-[9px] font-semibold uppercase tracking-[0.35em] text-white/80">{{ promotionTitle() || 'Headline' }}</p>
+                        <p class="mt-1.5 text-xl font-semibold leading-tight text-white" [class.text-white/40]="!promotionTitle()">{{ promotionTitle() || 'Your headline here' }}</p>
+                        <p class="mt-1.5 text-[11px] text-white/85" [class.text-white/40]="!promotionDetails()">{{ promotionDetails() || 'Your short line here' }}</p>
+                        <div class="mt-3 flex items-center gap-2">
+                          <span class="rounded-full bg-white px-3 py-1.5 text-[9px] font-semibold text-black">{{ hasButton() ? ctaLabel() : 'Shop the collection' }}</span>
+                          <span class="rounded-full border border-white/50 px-3 py-1.5 text-[9px] font-medium text-white">Custom design</span>
+                        </div>
+                      </div>
+                    } @else if (slot() === 'SPLIT_LEFT' || slot() === 'SPLIT_RIGHT') {
+                      <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/10"></div>
+                      <div class="absolute inset-0 flex flex-col items-center justify-center px-4 text-center">
+                        <p class="text-lg font-semibold uppercase leading-tight tracking-[0.12em] text-white drop-shadow" [class.text-white/40]="!promotionTitle()">{{ promotionTitle() || 'Your headline' }}</p>
+                        @if (promotionDetails()) { <p class="mt-1.5 text-[10px] text-white/80">{{ promotionDetails() }}</p> }
+                        @if (ctaLabel().trim()) {
+                          <span class="mt-4 rounded-full border border-white/70 px-4 py-1.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-white">{{ ctaLabel() }}</span>
+                        }
+                      </div>
+                    } @else {
+                      <!-- Grid tile: a single pill in the middle -->
+                      <div class="absolute inset-0 bg-black/15"></div>
+                      <div class="absolute inset-0 flex items-center justify-center">
+                        <span class="rounded-full border border-white/80 bg-black/20 px-4 py-1.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-white"
+                          [class.text-white/50]="!(ctaLabel().trim() || promotionTitle().trim())">
+                          {{ ctaLabel().trim() || promotionTitle().trim() || 'Add a headline or button words' }}
+                        </span>
+                      </div>
+                    }
                   }
-                </select>
-                <p class="mt-1.5 text-xs text-gray-400">{{ selectedSlotHint }}</p>
-              </div>
-
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1.5">Button text</label>
-                  <input
-                    type="text"
-                    [ngModel]="ctaLabel()"
-                    (ngModelChange)="ctaLabel.set($event)"
-                    placeholder="SHOP NOW"
-                    maxlength="60"
-                    class="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300"
-                  />
                 </div>
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1.5">Order</label>
-                  <input
-                    type="number"
-                    min="0"
-                    [ngModel]="sortOrder()"
-                    (ngModelChange)="sortOrder.set($event)"
-                    class="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300"
-                  />
-                </div>
-              </div>
 
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1.5">Button link</label>
-                <input
-                  type="text"
-                  [ngModel]="ctaLink()"
-                  (ngModelChange)="ctaLink.set($event)"
-                  placeholder="/shop?category=2"
-                  class="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300"
-                />
-                <p class="mt-1.5 text-xs text-gray-400">
-                  Leave the text or link empty to hide the button. Examples: <code>/shop</code>, <code>/shop?category=2</code>, <code>/custom-design</code>
-                </p>
+                <ul class="text-xs text-gray-500 space-y-1">
+                  <li>• Spot: <span class="text-gray-800">{{ meta(slot()).label }}</span></li>
+                  <li>• Clicking it: <span class="text-gray-800">{{ clickText() }}</span></li>
+                  <li>• {{ scheduleText() }}</li>
+                </ul>
               </div>
             </div>
           </div>
 
-          <div class="flex justify-end gap-3 mt-5 pt-4 border-t border-gray-100">
+          <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
             <button
               type="button"
               (click)="closeForm()"
@@ -191,17 +394,9 @@
               type="button"
               (click)="onSave()"
               [disabled]="isSaving()"
-              class="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              class="px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-60"
             >
-              @if (isSaving()) {
-                <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-                </svg>
-                Saving...
-              } @else {
-                {{ isEditMode ? 'Save Changes' : 'Upload Banner' }}
-              }
+              {{ isSaving() ? 'Saving…' : (isEditMode ? 'Save changes' : 'Add banner') }}
             </button>
           </div>
         </div>
@@ -274,10 +469,10 @@
                   }
                   @if (banner.ctaLabel && banner.ctaLink) {
                     <p class="text-xs text-gray-500 mt-2">
-                      Button: <span class="font-medium">{{ banner.ctaLabel }}</span> → <code class="text-gray-400">{{ banner.ctaLink }}</code>
+                      Button <span class="font-medium">{{ banner.ctaLabel }}</span> → {{ describeLink(banner.ctaLink) }}
                     </p>
                   } @else {
-                    <p class="text-xs text-gray-400 mt-2 italic">No button (set text and link to show one)</p>
+                    <p class="text-xs text-gray-400 mt-2 italic">No button</p>
                   }
                   @if (banner.fromDate || banner.toDate) {
                     <p class="text-xs text-gray-400 mt-1">

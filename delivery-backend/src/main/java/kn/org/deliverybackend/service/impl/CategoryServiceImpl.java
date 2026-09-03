@@ -75,6 +75,7 @@ public class CategoryServiceImpl implements CategoryService {
     private void applyHomeSectionFields(Category category, CategoryRequestDTO dto, Long selfId) {
         category.setShowOnHome(Boolean.TRUE.equals(dto.getShowOnHome()));
         category.setHomeSortOrder(dto.getHomeSortOrder() != null ? dto.getHomeSortOrder() : 0);
+        category.setDiscountExcluded(Boolean.TRUE.equals(dto.getDiscountExcluded()));
 
         String requested = dto.getSlug() != null && !dto.getSlug().isBlank()
                 ? dto.getSlug()

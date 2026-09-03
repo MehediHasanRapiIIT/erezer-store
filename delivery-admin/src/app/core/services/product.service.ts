@@ -64,6 +64,7 @@ export class ProductService {
     if (dto.customSizeEnabled != null)   formData.append('customSizeEnabled', String(dto.customSizeEnabled));
     if (dto.customSizeSurcharge != null) formData.append('customSizeSurcharge', String(dto.customSizeSurcharge));
     if (dto.customSizeNote != null)      formData.append('customSizeNote', dto.customSizeNote);
+    if (dto.discountExcluded != null)    formData.append('discountExcluded', String(dto.discountExcluded));
     if (image) {
       formData.append('image', image);
     }

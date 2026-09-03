@@ -3,11 +3,13 @@ package kn.org.deliverybackend.service.impl;
 import kn.org.deliverybackend.dto.discount.DiscountRequestDTO;
 import kn.org.deliverybackend.dto.discount.DiscountResponseDTO;
 import kn.org.deliverybackend.entity.Discount;
+import kn.org.deliverybackend.entity.StoreSettings;
 import kn.org.deliverybackend.enumeration.DiscountScope;
 import kn.org.deliverybackend.enumeration.DiscountType;
 import kn.org.deliverybackend.exception.InvalidStockOperationException;
 import kn.org.deliverybackend.exception.ResourceNotFoundException;
 import kn.org.deliverybackend.repository.DiscountRepository;
+import kn.org.deliverybackend.repository.StoreSettingsRepository;
 import kn.org.deliverybackend.service.DiscountService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,11 @@ public class DiscountServiceImpl implements DiscountService {
     private static final BigDecimal HUNDRED = new BigDecimal("100");
 
     private final DiscountRepository discountRepository;
+    /**
+     * Read directly rather than through StoreSettingsService: that service seeds
+     * and back-fills defaults on read, and pricing must not write.
+     */
+    private final StoreSettingsRepository storeSettingsRepository;
 
     // ── Admin CRUD ─────────────────────────────────────────────────────────────
 
@@ -103,11 +110,40 @@ public class DiscountServiceImpl implements DiscountService {
     @Override
     @Transactional(readOnly = true)
     public List<Discount> activeDiscounts() {
+        StoreSettings settings = storeSettingsRepository.findById(StoreSettings.SINGLETON_ID).orElse(null);
+        // Master switch off: no automatic discount applies anywhere, and the
+        // storefront's activePublic() list goes empty so no "was ৳X" price is
+        // advertised either. Rules keep their rows and come back untouched.
+        if (isOff(settings == null ? null : settings.getDiscountsEnabled())) {
+            return List.of();
+        }
         LocalDateTime now = LocalDateTime.now();
         return discountRepository.findActive().stream()
                 .filter(d -> d.getValidFrom() == null || !now.isBefore(d.getValidFrom()))
                 .filter(d -> d.getValidTo() == null || !now.isAfter(d.getValidTo()))
+                .filter(d -> scopeEnabled(settings, d))
                 .toList();
+    }
+
+    /** Whether the admin has suspended the whole scope this discount belongs to. */
+    private static boolean scopeEnabled(StoreSettings settings, Discount discount) {
+        if (settings == null) return true;
+        DiscountScope scope = DiscountScope.parse(discount.getScope()).orElse(null);
+        if (scope == null) return false;
+        return switch (scope) {
+            case GLOBAL -> !isOff(settings.getDiscountsGlobalEnabled());
+            case CATEGORY -> !isOff(settings.getDiscountsCategoryEnabled());
+            case PRODUCT -> !isOff(settings.getDiscountsProductEnabled());
+        };
+    }
+
+    /**
+     * A switch counts as off only when it is explicitly false. Null means the
+     * row predates this feature, and those shops were discounting, so null
+     * has to keep meaning on.
+     */
+    private static boolean isOff(Boolean flag) {
+        return Boolean.FALSE.equals(flag);
     }
 
     @Override

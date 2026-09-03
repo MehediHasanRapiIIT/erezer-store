@@ -45,4 +45,12 @@ public class Category extends AbstractBaseEntity<Long> {
     /** Ordering among home sections, lowest first. */
     @Column(name = "home_sort_order")
     private Integer homeSortOrder;
+
+    /**
+     * True to keep every product in this category at full price: the discount
+     * engine ignores every automatic discount for them, including store-wide
+     * ones. Null means not excluded.
+     */
+    @Column(name = "discount_excluded")
+    private Boolean discountExcluded;
 }

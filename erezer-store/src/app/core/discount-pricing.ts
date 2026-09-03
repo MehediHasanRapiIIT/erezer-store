@@ -68,12 +68,28 @@ export function baseProductPrice(price: number, discountPrice: number | null | u
   return discountPrice != null && discountPrice > 0 ? discountPrice : price;
 }
 
+/**
+ * True when no automatic discount may touch this product, because the admin
+ * excluded the product itself or the whole category it sits in. Mirrors the
+ * guard at the top of the backend DiscountEngine.
+ *
+ * A product's own sale price is not affected: that is set on the product and is
+ * already folded into the base price.
+ */
+export function isDiscountExcluded(
+  product: { discountExcluded?: boolean | null; categoryDiscountExcluded?: boolean | null } | null | undefined,
+): boolean {
+  return product?.discountExcluded === true || product?.categoryDiscountExcluded === true;
+}
+
 /** Effective per-unit price after automatic discounts (display only). */
 export function effectiveUnitPrice(
   basePrice: number,
   productId: number,
   categoryId: number,
   discounts: ApiActiveDiscount[],
+  excluded = false,
 ): number {
+  if (excluded) return basePrice;
   return basePrice - lineDiscount(productId, categoryId, basePrice, discounts);
 }

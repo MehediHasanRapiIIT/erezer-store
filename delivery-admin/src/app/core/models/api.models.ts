@@ -43,6 +43,8 @@ export interface ProductRequest {
   customSizeEnabled?: boolean;
   customSizeSurcharge?: number | null;
   customSizeNote?: string | null;
+  /** Keep this product at full price, ignoring every automatic discount. */
+  discountExcluded?: boolean;
 }
 
 export interface ProductResponse {
@@ -72,6 +74,10 @@ export interface ProductResponse {
   customSizeEnabled: boolean | null;
   customSizeSurcharge: number | null;
   customSizeNote: string | null;
+  /** The admin excluded this product itself from automatic discounts. */
+  discountExcluded: boolean | null;
+  /** Its category is excluded, which keeps it at full price too. Read-only. */
+  categoryDiscountExcluded: boolean | null;
 }
 
 // --- Stock ---
@@ -121,6 +127,8 @@ export interface CategoryRequest {
   showOnHome?: boolean;
   /** Ordering among home sections, lowest first. */
   homeSortOrder?: number;
+  /** Keep every product in this category at full price. */
+  discountExcluded?: boolean;
 }
 
 export interface CategoryResponse {
@@ -132,6 +140,7 @@ export interface CategoryResponse {
   slug?: string | null;
   showOnHome?: boolean;
   homeSortOrder?: number;
+  discountExcluded?: boolean;
 }
 
 // --- Banners ---

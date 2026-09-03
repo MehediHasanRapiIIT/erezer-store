@@ -16,4 +16,5 @@ public class CategoryResponseDTO {
     private String slug;
     private Boolean showOnHome;
     private Integer homeSortOrder;
+    private Boolean discountExcluded;
 }

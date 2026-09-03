@@ -154,7 +154,8 @@ export class EcommerceStore {
       // Effective price = base price (sale-or-regular) reduced by any automatic
       // discount. Uses the SAME base rule as the product page so they agree.
       price:       this.discountsStore.effectivePrice(
-                     baseProductPrice(api.price, api.discountPrice), api.id, api.categoryId),
+                     baseProductPrice(api.price, api.discountPrice), api.id, api.categoryId,
+                     this.discountsStore.isExcluded(api)),
       image:       api.imageUrl,
       category:    api.categoryName?.trim() || 'Erezer',
       sizes:       ['One Size'],

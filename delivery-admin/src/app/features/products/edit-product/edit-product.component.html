@@ -277,6 +277,16 @@
                     <input type="checkbox" [ngModel]="isFeatured()" (ngModelChange)="isFeatured.set($event)" class="accent-blue-600"/>
                     <span class="text-sm text-gray-700">Show in <strong>Featured products</strong> on the home page</span>
                   </label>
+                  <label class="mt-3 flex items-start gap-2 cursor-pointer">
+                    <input type="checkbox" [ngModel]="discountExcluded()" (ngModelChange)="discountExcluded.set($event)" class="mt-0.5 accent-blue-600"/>
+                    <span class="text-sm text-gray-700">
+                      <strong>Never discount</strong> this product
+                      <span class="block text-xs text-gray-500">
+                        Keeps it at full price, ignoring every automatic discount including store-wide ones.
+                        Its own sale price still applies.
+                      </span>
+                    </span>
+                  </label>
                 </div>
               </div>
             </div>

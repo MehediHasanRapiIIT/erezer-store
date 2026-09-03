@@ -103,6 +103,11 @@ export interface ApiProduct {
   isAvailable: boolean;
   isNewArrival?: boolean | null;
 
+  /** The admin excluded this product from automatic discounts. */
+  discountExcluded?: boolean | null;
+  /** The admin excluded this product's whole category. Read-only here. */
+  categoryDiscountExcluded?: boolean | null;
+
   // Phase 3 — clothing brand fields
   brand?: string | null;
   gender?: string | null;

@@ -32,4 +32,13 @@ public class StoreSettingsDTO {
     private Boolean paymentCodEnabled;
     private Boolean paymentBkashEnabled;
     private Boolean paymentCardEnabled;
+
+    /**
+     * Automatic-discount switches. Null means enabled, so an older client that
+     * does not send them cannot silently switch discounting off.
+     */
+    private Boolean discountsEnabled;
+    private Boolean discountsGlobalEnabled;
+    private Boolean discountsCategoryEnabled;
+    private Boolean discountsProductEnabled;
 }

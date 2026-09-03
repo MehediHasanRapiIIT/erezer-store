@@ -1,8 +1,10 @@
 package kn.org.deliverybackend.service.impl;
 
 import kn.org.deliverybackend.entity.Discount;
+import kn.org.deliverybackend.entity.Product;
 import kn.org.deliverybackend.enumeration.DiscountScope;
 import kn.org.deliverybackend.enumeration.DiscountType;
+import kn.org.deliverybackend.repository.CategoryRepository;
 import kn.org.deliverybackend.service.DiscountService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -18,9 +20,14 @@ import java.util.List;
  *
  * <p>Resolution rules (per line):
  * <ol>
+ *   <li>If the product, or the category it belongs to, is excluded from
+ *       automatic discounts, the line is left at full price. An exclusion beats
+ *       every rule, including a store-wide one.</li>
  *   <li>Gather active discounts that apply: GLOBAL always; CATEGORY when its
  *       {@code targetId} equals the line's category; PRODUCT when its
- *       {@code targetId} equals the line's product.</li>
+ *       {@code targetId} equals the line's product. The switches an admin can
+ *       flip are applied upstream, in {@code DiscountService.activeDiscounts()},
+ *       so a suspended rule never reaches this method.</li>
  *   <li>Sort by {@code priority} descending (tie-break: larger value, then id),
  *       and take the highest-priority discount as the <em>anchor</em>.</li>
  *   <li>If the anchor is <b>not stackable</b>, only the anchor applies (exclusive).
@@ -30,7 +37,11 @@ import java.util.List;
  *       discount never exceeds the line subtotal.</li>
  * </ol>
  *
- * Centralised here so the checkout quote ({@code CheckoutQuoteServiceImpl}) and
+ * <p>Note that a product's own sale price is not a discount in this sense: it is
+ * set on the product row and folded into the unit price by {@code PricingSupport}
+ * before this method is reached. Excluding a product here keeps its sale price.
+ *
+ * <p>Centralised here so the checkout quote ({@code CheckoutQuoteServiceImpl}) and
  * order placement ({@code OrderServiceImpl}) compute identical numbers.
  */
 @Component
@@ -40,14 +51,24 @@ public class DiscountEngine {
     private static final BigDecimal HUNDRED = new BigDecimal("100");
 
     private final DiscountService discountService;
+    private final CategoryRepository categoryRepository;
 
     /**
+     * @param product      the line's product; the whole entity rather than its id
+     *                     so the exclusion flag cannot be forgotten by a caller
+     * @param lineSubtotal quantity × unit price for the line
      * @return the discount amount (>= 0, <= lineSubtotal) for one order line.
      */
-    public BigDecimal discountForLine(Long productId, Long categoryId, BigDecimal lineSubtotal) {
-        if (lineSubtotal == null || lineSubtotal.compareTo(BigDecimal.ZERO) <= 0) {
+    public BigDecimal discountForLine(Product product, BigDecimal lineSubtotal) {
+        if (product == null || lineSubtotal == null || lineSubtotal.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO;
         }
+        if (isExcluded(product)) {
+            return BigDecimal.ZERO;
+        }
+
+        Long productId = product.getId();
+        Long categoryId = product.getCategoryId();
 
         List<Discount> candidates = new ArrayList<>();
         for (Discount d : discountService.activeDiscounts()) {
@@ -90,6 +111,25 @@ public class DiscountEngine {
         // Total discount = original − remaining, capped at the line subtotal.
         BigDecimal discount = lineSubtotal.subtract(remaining);
         return discount.max(BigDecimal.ZERO).min(lineSubtotal).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Whether the admin has kept this line at full price, either by excluding
+     * the product itself or the whole category it sits in.
+     */
+    private boolean isExcluded(Product product) {
+        if (Boolean.TRUE.equals(product.getDiscountExcluded())) {
+            return true;
+        }
+        Long categoryId = product.getCategoryId();
+        if (categoryId == null) {
+            return false;
+        }
+        // One lookup per line. Within a checkout transaction Hibernate serves
+        // repeats of the same category from its first-level cache.
+        return categoryRepository.findById(categoryId)
+                .map(c -> Boolean.TRUE.equals(c.getDiscountExcluded()))
+                .orElse(false);
     }
 
     private boolean applies(Discount d, Long productId, Long categoryId) {

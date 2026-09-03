@@ -31,5 +31,8 @@ public class CategoryDTO {
 
     private Integer homeSortOrder;
 
+    /** True when the admin has excluded this category from automatic discounts. */
+    private Boolean discountExcluded;
+
     private LocalDateTime createdAt;
 }

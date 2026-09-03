@@ -39,6 +39,8 @@ export class EditProductComponent implements OnInit {
   isAvailable    = signal(true);
   isNewArrival   = signal(false);
   isFeatured     = signal(false);
+  /** Keep this product at full price, ignoring every automatic discount. */
+  discountExcluded = signal(false);
   // Clothing / catalog attributes
   unit            = signal('');
   lowStockThreshold = signal<number | null>(null);
@@ -79,6 +81,7 @@ export class EditProductComponent implements OnInit {
         this.isAvailable.set(p.isAvailable);
         this.isNewArrival.set(!!p.isNewArrival);
         this.isFeatured.set(!!p.isFeatured);
+        this.discountExcluded.set(!!p.discountExcluded);
         this.unit.set(p.unit ?? '');
         this.lowStockThreshold.set(p.lowStockThreshold ?? null);
         this.brand.set(p.brand ?? '');
@@ -126,6 +129,7 @@ export class EditProductComponent implements OnInit {
       isAvailable: this.isAvailable(),
       isNewArrival: this.isNewArrival(),
       isFeatured: this.isFeatured(),
+      discountExcluded: this.discountExcluded(),
       unit: this.unit().trim() || undefined,
       lowStockThreshold: this.lowStockThreshold() ?? undefined,
       brand: this.brand().trim() || undefined,

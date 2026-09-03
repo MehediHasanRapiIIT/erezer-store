@@ -149,6 +149,11 @@ public class ProductServiceImpl implements ProductService {
         if (productRequestDTO.getCustomSizeSurcharge() != null) product.setCustomSizeSurcharge(productRequestDTO.getCustomSizeSurcharge());
         if (productRequestDTO.getCustomSizeNote() != null)      product.setCustomSizeNote(productRequestDTO.getCustomSizeNote());
 
+        // Exclude from automatic discounts (null leaves the existing value untouched).
+        if (productRequestDTO.getDiscountExcluded() != null) {
+            product.setDiscountExcluded(productRequestDTO.getDiscountExcluded());
+        }
+
         return toEnrichedResponseDTO(productRepository.save(product));
     }
 
@@ -157,10 +162,15 @@ public class ProductServiceImpl implements ProductService {
         dto.setStockStatus(inventoryService.computeStatus(product));
         dto.setSku(product.getSku());
         dto.setUnit(product.getUnit());
-        // Enrich with category name
+        // Enrich with the category's name and its discount exclusion, so a
+        // storefront card knows the product is at full price without having to
+        // fetch the category separately.
+        dto.setCategoryDiscountExcluded(false);
         if (product.getCategoryId() != null) {
-            categoryRepository.findById(product.getCategoryId())
-                    .ifPresent(cat -> dto.setCategoryName(cat.getName()));
+            categoryRepository.findById(product.getCategoryId()).ifPresent(cat -> {
+                dto.setCategoryName(cat.getName());
+                dto.setCategoryDiscountExcluded(Boolean.TRUE.equals(cat.getDiscountExcluded()));
+            });
         }
         return dto;
     }

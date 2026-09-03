@@ -32,4 +32,7 @@ public class CategoryRequestDTO {
 
     /** Ordering among home sections, lowest first. */
     private Integer homeSortOrder;
+
+    /** True to keep this category's products at full price. */
+    private Boolean discountExcluded;
 }

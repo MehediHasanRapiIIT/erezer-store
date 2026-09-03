@@ -58,7 +58,8 @@ export class RecentlyViewedComponent implements OnInit {
   /** Effective price (sale + automatic discount), consistent with cards/PDP. */
   protected effectivePrice(p: ApiProduct): number {
     return this.discounts.effectivePrice(
-      baseProductPrice(p.price, p.discountPrice), p.id, p.categoryId);
+      baseProductPrice(p.price, p.discountPrice), p.id, p.categoryId,
+      this.discounts.isExcluded(p));
   }
 
   /** Recompute the id list (excluding the current PDP) whenever inputs change. */

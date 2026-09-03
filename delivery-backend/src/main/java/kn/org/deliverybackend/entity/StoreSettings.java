@@ -79,4 +79,26 @@ public class StoreSettings extends AbstractBaseEntity<Long> {
 
     @Column(name = "payment_card_enabled")
     private Boolean paymentCardEnabled;
+
+    // ── Automatic-discount switches. Null on legacy rows → treated as enabled,
+    //    so a database seeded before this feature keeps discounting as it did.
+    //    These govern the `discount` table only: a product's own sale price,
+    //    coupons, flash sales and bundle offers are separate mechanisms with
+    //    their own screens.
+
+    /** Master switch: false suspends every automatic discount. */
+    @Column(name = "discounts_enabled")
+    private Boolean discountsEnabled;
+
+    /** False suspends discounts whose scope is GLOBAL. */
+    @Column(name = "discounts_global_enabled")
+    private Boolean discountsGlobalEnabled;
+
+    /** False suspends discounts whose scope is CATEGORY. */
+    @Column(name = "discounts_category_enabled")
+    private Boolean discountsCategoryEnabled;
+
+    /** False suspends discounts whose scope is PRODUCT. */
+    @Column(name = "discounts_product_enabled")
+    private Boolean discountsProductEnabled;
 }
