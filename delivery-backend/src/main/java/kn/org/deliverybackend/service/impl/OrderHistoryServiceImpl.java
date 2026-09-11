@@ -32,6 +32,11 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import kn.org.deliverybackend.exception.InvalidRequestException;
+import kn.org.deliverybackend.reporting.BusinessCalendar;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+
 @Service
 @RequiredArgsConstructor
 public class OrderHistoryServiceImpl implements OrderHistoryService {
@@ -46,6 +51,7 @@ public class OrderHistoryServiceImpl implements OrderHistoryService {
     private final OrderMapper orderMapper;
     private final OrderItemMapper orderItemMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final BusinessCalendar calendar;
 
     @Override
     @Transactional(readOnly = true)
@@ -94,21 +100,46 @@ public class OrderHistoryServiceImpl implements OrderHistoryService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<OrderDTO> getOrdersPaged(int page, int size, String status, String excludeStatus, String fromDate, String toDate) {
-        PageRequest pageable = PageRequest.of(page, size);
+    public Page<OrderDTO> getOrdersPaged(int page, int size, String status, String excludeStatus,
+                                         String fromDate, String toDate, String q, String payment) {
+        PageRequest pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100));
         String statusParam = (status != null && !status.isBlank() && !status.equalsIgnoreCase("ALL"))
                 ? status.toUpperCase() : null;
         // Active list hides finished orders (e.g. DELIVERED) which live in history.
         String excludeParam = (excludeStatus != null && !excludeStatus.isBlank())
                 ? excludeStatus.toUpperCase() : null;
+        String paymentParam = (payment != null && !payment.isBlank() && !payment.equalsIgnoreCase("ALL"))
+                ? payment.trim().toUpperCase() : null;
+        // "Cash" also covers COD, the code some early orders were saved with.
+        String paymentAlias = "CASH".equals(paymentParam) ? "COD" : null;
 
-        // Pass ISO date strings directly; null means no filter
-        String from = (fromDate != null && !fromDate.isBlank()) ? fromDate : null;
-        // End of day for toDate
-        String to = (toDate != null && !toDate.isBlank()) ? toDate + " 23:59:59" : null;
+        // Dates are shop days (Asia/Dhaka). Orders are stored in UTC, so each
+        // day becomes its UTC window, and the end is exclusive.
+        LocalDate firstDay = parseDay(fromDate);
+        LocalDate lastDay = parseDay(toDate);
+        String fromUtc = firstDay == null ? null : calendar.toUtcSql(firstDay);
+        String toUtc = lastDay == null ? null : calendar.toUtcSql(lastDay.plusDays(1));
 
-        return orderRepository.findOrdersFiltered(statusParam, excludeParam, from, to, pageable)
+        // Order numbers are shown as "#1A2B3C4D"; the # is only decoration.
+        String search = q == null ? "" : q.trim();
+        if (search.startsWith("#")) search = search.substring(1).trim();
+        String pattern = search.isEmpty() ? null
+                : "%" + search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+
+        return orderRepository.findOrdersFiltered(statusParam, excludeParam, paymentParam, paymentAlias,
+                        fromUtc, toUtc, pattern, pageable)
                 .map(this::toOrderDTOWithItems);
+    }
+
+    /** "2026-09-12" (or a longer ISO date-time, of which the day is used); null when blank. */
+    private static LocalDate parseDay(String value) {
+        if (value == null || value.isBlank()) return null;
+        String day = value.trim();
+        try {
+            return LocalDate.parse(day.length() > 10 ? day.substring(0, 10) : day);
+        } catch (DateTimeParseException e) {
+            throw new InvalidRequestException("Dates must look like 2026-09-12.");
+        }
     }
 
     @Override

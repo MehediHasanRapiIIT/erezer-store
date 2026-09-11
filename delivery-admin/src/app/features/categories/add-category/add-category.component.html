@@ -187,11 +187,15 @@
                   Keeps every product in it at full price, ignoring automatic discounts including store-wide
                   ones. Each product's own sale price still applies.
                 </p>
+                @if (!perms.can('discounts.switches')) {
+                  <p class="text-xs text-gray-400">Needs the “Turn discounts on or off” permission.</p>
+                }
               </div>
               <button
                 type="button"
                 (click)="discountExcluded.set(!discountExcluded())"
-                class="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300"
+                [disabled]="!perms.can('discounts.switches')"
+                class="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-60 disabled:cursor-not-allowed"
                 [class.bg-blue-600]="discountExcluded()"
                 [class.bg-gray-200]="!discountExcluded()"
                 [attr.aria-checked]="discountExcluded()"

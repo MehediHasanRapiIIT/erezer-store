@@ -1,5 +1,7 @@
 package kn.org.deliverybackend.controller;
 
+import kn.org.deliverybackend.access.Perm;
+import kn.org.deliverybackend.access.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import kn.org.deliverybackend.dto.report.PeriodReportDTO;
 import kn.org.deliverybackend.dto.report.RevenuePointDTO;
@@ -24,6 +26,7 @@ import java.util.List;
  * Admin reporting. Dates are business-local calendar dates (Asia/Dhaka by
  * default) and {@code to} is inclusive.
  */
+@RequiresPermission({Perm.REPORTS_VIEW, Perm.FINANCE_REVENUE})
 @RestController
 @RequestMapping("/admin/reports")
 @RequiredArgsConstructor

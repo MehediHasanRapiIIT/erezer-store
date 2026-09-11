@@ -207,8 +207,9 @@ public class ReportServiceImpl implements ReportService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<CustomerLifetimeValueDTO> customerLtv(int limit, int offset) {
-        return reportRepository.customerLifetimeValue(capped(limit), Math.max(0, offset))
+    public List<CustomerLifetimeValueDTO> customerLtv(int limit, int offset, String q) {
+        return reportRepository.customerLifetimeValue(capped(limit), Math.max(0, offset),
+                        kn.org.deliverybackend.util.SearchText.likePattern(q))
                 .stream()
                 .map(r -> {
                     long count = num(r, 4).longValue();
@@ -233,6 +234,12 @@ public class ReportServiceImpl implements ReportService {
     @Transactional(readOnly = true)
     public long totalCustomersWithOrders() {
         return reportRepository.countCustomersWithOrders();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long customerCount(String q) {
+        return reportRepository.countCustomers(kn.org.deliverybackend.util.SearchText.likePattern(q));
     }
 
     // ── engine ──────────────────────────────────────────────────────────────

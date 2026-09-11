@@ -1,5 +1,7 @@
 package kn.org.deliverybackend.controller;
 
+import kn.org.deliverybackend.access.Perm;
+import kn.org.deliverybackend.access.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import kn.org.deliverybackend.dto.newsletter.NewsletterCampaignDTO;
@@ -28,14 +30,17 @@ public class AdminNewsletterController {
 
     // ── subscribers ────────────────────────────────────────────────────────────
 
+    @RequiresPermission(Perm.NEWSLETTER_SUBSCRIBERS)
     @GetMapping("/subscribers")
     public ResponseEntity<Page<NewsletterSubscriberDTO>> listSubscribers(
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
-        return ResponseEntity.ok(newsletterService.list(status, page, size));
+        return ResponseEntity.ok(newsletterService.list(status, q, page, size));
     }
 
+    @RequiresPermission(Perm.NEWSLETTER_SUBSCRIBERS)
     @GetMapping("/subscribers/count")
     public ResponseEntity<Long> activeSubscribers() {
         return ResponseEntity.ok(newsletterService.countActiveSubscribers());
@@ -43,24 +48,29 @@ public class AdminNewsletterController {
 
     // ── campaigns ──────────────────────────────────────────────────────────────
 
+    @RequiresPermission(Perm.NEWSLETTER_CAMPAIGNS_VIEW)
     @GetMapping("/campaigns")
     public ResponseEntity<Page<NewsletterCampaignDTO>> listCampaigns(
+            @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(campaignService.list(page, size));
+        return ResponseEntity.ok(campaignService.list(q, page, size));
     }
 
+    @RequiresPermission(Perm.NEWSLETTER_CAMPAIGNS_VIEW)
     @GetMapping("/campaigns/{id}")
     public ResponseEntity<NewsletterCampaignDTO> getCampaign(@PathVariable UUID id) {
         return ResponseEntity.ok(campaignService.get(id));
     }
 
+    @RequiresPermission(Perm.NEWSLETTER_CAMPAIGNS_EDIT)
     @PostMapping("/campaigns")
     public ResponseEntity<NewsletterCampaignDTO> createDraft(
             @Valid @RequestBody NewsletterCampaignRequestDTO request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(campaignService.createDraft(request));
     }
 
+    @RequiresPermission(Perm.NEWSLETTER_CAMPAIGNS_EDIT)
     @PutMapping("/campaigns/{id}")
     public ResponseEntity<NewsletterCampaignDTO> updateDraft(
             @PathVariable UUID id,
@@ -68,6 +78,7 @@ public class AdminNewsletterController {
         return ResponseEntity.ok(campaignService.update(id, request));
     }
 
+    @RequiresPermission(Perm.NEWSLETTER_CAMPAIGNS_SEND)
     @PostMapping("/campaigns/{id}/send")
     public ResponseEntity<NewsletterCampaignDTO> send(
             @PathVariable UUID id,
@@ -79,6 +90,7 @@ public class AdminNewsletterController {
         return ResponseEntity.accepted().body(campaignService.send(id, identity));
     }
 
+    @RequiresPermission(Perm.NEWSLETTER_CAMPAIGNS_EDIT)
     @DeleteMapping("/campaigns/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         campaignService.delete(id);

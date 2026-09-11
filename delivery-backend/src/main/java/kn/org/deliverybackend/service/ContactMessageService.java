@@ -11,7 +11,8 @@ public interface ContactMessageService {
 
     ContactMessageDTO submit(ContactMessageRequestDTO request);
 
-    Page<ContactMessageDTO> list(String status, int page, int size);
+    /** The support inbox, newest first; {@code q} searches name, email, subject and message. */
+    Page<ContactMessageDTO> list(String status, String q, int page, int size);
 
     ContactMessageDTO get(UUID id);
 

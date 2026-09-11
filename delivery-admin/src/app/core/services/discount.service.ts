@@ -55,4 +55,21 @@ export class DiscountService {
   delete(id: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/admin/discounts/${id}`);
   }
+
+  getSwitches(): Observable<DiscountSwitches> {
+    return this.http.get<DiscountSwitches>(`${this.base}/admin/discounts/switches`);
+  }
+
+  /** Sends only the switches being changed; the rest stay as they are. */
+  updateSwitches(change: Partial<DiscountSwitches>): Observable<DiscountSwitches> {
+    return this.http.put<DiscountSwitches>(`${this.base}/admin/discounts/switches`, change);
+  }
+}
+
+/** The discount on/off switches. Null means on, as for settings saved before the switches existed. */
+export interface DiscountSwitches {
+  discountsEnabled: boolean | null;
+  discountsGlobalEnabled: boolean | null;
+  discountsCategoryEnabled: boolean | null;
+  discountsProductEnabled: boolean | null;
 }

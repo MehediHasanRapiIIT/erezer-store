@@ -29,9 +29,11 @@ export class SupportService {
   private http = inject(HttpClient);
   private base = environment.apiBaseUrl;
 
-  list(status?: string, page = 0, size = 30): Observable<PageResponse<ContactMessage>> {
+  /** One page of messages, newest first. `q` searches name, email, subject and message. */
+  list(status?: string, page = 0, size = 30, q?: string): Observable<PageResponse<ContactMessage>> {
     const params: Record<string, string> = { page: String(page), size: String(size) };
     if (status && status !== 'ALL') params['status'] = status;
+    if (q?.trim()) params['q'] = q.trim();
     return this.http.get<PageResponse<ContactMessage>>(
       `${this.base}/admin/support/messages`, { params });
   }

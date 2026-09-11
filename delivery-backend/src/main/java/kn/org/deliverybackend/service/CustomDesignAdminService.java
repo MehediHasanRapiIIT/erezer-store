@@ -28,7 +28,8 @@ public interface CustomDesignAdminService {
     void deleteLogo(UUID id);
 
     // ── Quote requests ──────────────────────────────────────────────────────
-    Page<CustomOrderSummaryDTO> listOrders(String status, int page, int size, boolean history);
+    /** {@code q} searches reference, customer name, phone, email and item; blank means everything. */
+    Page<CustomOrderSummaryDTO> listOrders(String status, String q, int page, int size, boolean history);
 
     CustomOrderDTO getOrder(UUID id);
 

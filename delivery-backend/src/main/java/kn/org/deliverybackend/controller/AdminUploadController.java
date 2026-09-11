@@ -1,5 +1,7 @@
 package kn.org.deliverybackend.controller;
 
+import kn.org.deliverybackend.access.Perm;
+import kn.org.deliverybackend.access.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import kn.org.deliverybackend.service.FileStorageService;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,7 @@ public class AdminUploadController {
 
     private final FileStorageService fileStorageService;
 
+    @RequiresPermission(value = {Perm.CATEGORIES_CREATE, Perm.CATEGORIES_EDIT, Perm.BUNDLES_CREATE, Perm.BUNDLES_EDIT, Perm.SETTINGS_HOMEPAGE, Perm.SETTINGS_FOOTER}, mode = RequiresPermission.Mode.ANY)
     @PostMapping(value = "/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, String>> uploadImage(@RequestPart("file") MultipartFile file) {
         String url = fileStorageService.uploadFile(file);

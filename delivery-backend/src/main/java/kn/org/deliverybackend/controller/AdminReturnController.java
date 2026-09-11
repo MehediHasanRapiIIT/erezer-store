@@ -1,5 +1,7 @@
 package kn.org.deliverybackend.controller;
 
+import kn.org.deliverybackend.access.Perm;
+import kn.org.deliverybackend.access.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import kn.org.deliverybackend.dto.returns.ReturnDecisionDTO;
@@ -22,19 +24,23 @@ public class AdminReturnController {
 
     private final ReturnService returnService;
 
+    @RequiresPermission(Perm.RETURNS_VIEW)
     @GetMapping
     public ResponseEntity<Page<ReturnRequestDTO>> list(
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(returnService.listForAdmin(status, page, size));
+        return ResponseEntity.ok(returnService.listForAdmin(status, q, page, size));
     }
 
+    @RequiresPermission(Perm.RETURNS_VIEW)
     @GetMapping("/{returnId}")
     public ResponseEntity<ReturnRequestDTO> get(@PathVariable UUID returnId) {
         return ResponseEntity.ok(returnService.getForAdmin(returnId));
     }
 
+    @RequiresPermission(Perm.RETURNS_DECIDE)
     @PostMapping("/{returnId}/approve")
     public ResponseEntity<ReturnRequestDTO> approve(
             @PathVariable UUID returnId,
@@ -43,6 +49,7 @@ public class AdminReturnController {
         return ResponseEntity.ok(returnService.approve(returnId, decision, identityOf(jwt)));
     }
 
+    @RequiresPermission(Perm.RETURNS_DECIDE)
     @PostMapping("/{returnId}/reject")
     public ResponseEntity<ReturnRequestDTO> reject(
             @PathVariable UUID returnId,
@@ -51,6 +58,7 @@ public class AdminReturnController {
         return ResponseEntity.ok(returnService.reject(returnId, decision, identityOf(jwt)));
     }
 
+    @RequiresPermission(Perm.RETURNS_PICKUP)
     @PostMapping("/{returnId}/picked-up")
     public ResponseEntity<ReturnRequestDTO> markPickedUp(
             @PathVariable UUID returnId,
@@ -58,6 +66,7 @@ public class AdminReturnController {
         return ResponseEntity.ok(returnService.markPickedUp(returnId, identityOf(jwt)));
     }
 
+    @RequiresPermission(Perm.RETURNS_REFUND)
     @PostMapping("/{returnId}/refund")
     public ResponseEntity<ReturnRequestDTO> markRefunded(
             @PathVariable UUID returnId,

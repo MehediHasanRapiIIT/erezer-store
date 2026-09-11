@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, of, switchMap } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -17,6 +17,8 @@ import { SeoService } from '../core/seo.service';
  * category can never shadow /shop, /cart and friends. An unknown slug is not an
  * error page: it redirects home, because this route also catches genuine typos
  * that used to hit the wildcard.
+ *
+ * Products come from the server a page at a time; "Load more" fetches the next.
  */
 @Component({
   selector: 'app-collection-page',
@@ -37,7 +39,7 @@ import { SeoService } from '../core/seo.service';
           {{ category()?.name || 'Collection' }}
         </h1>
         <p class="app-muted mt-4 text-base">
-          {{ loading() ? 'Loading…' : (products().length + ' ' + (products().length === 1 ? 'product' : 'products')) }}
+          {{ loading() ? 'Loading…' : (total() + ' ' + (total() === 1 ? 'product' : 'products')) }}
         </p>
       </section>
 
@@ -52,6 +54,14 @@ import { SeoService } from '../core/seo.service';
             <app-product-card [product]="store.toStoreProduct(product)" [appReveal]="i % 10" />
           }
         </section>
+        @if (products().length < total()) {
+          <div class="mt-10 flex flex-col items-center gap-3">
+            <p class="app-muted text-sm tabular-nums">Showing {{ products().length }} of {{ total() }}</p>
+            <button type="button" (click)="loadMore()" [disabled]="loadingMore()" class="btn-secondary px-8">
+              {{ loadingMore() ? 'Loading…' : 'Load more' }}
+            </button>
+          </div>
+        }
       }
     }
   `,
@@ -63,10 +73,17 @@ export class CollectionPage {
   private readonly seo = inject(SeoService);
   protected readonly store = inject(EcommerceStore);
 
+  /** Products per page; "Load more" fetches the next page from the server. */
+  private readonly pageSize = 20;
+
   protected readonly category = signal<ApiCategory | null>(null);
   protected readonly products = signal<ApiProduct[]>([]);
+  /** How many products the collection has, as counted by the server. */
+  protected readonly total = signal(0);
   protected readonly loading = signal(true);
+  protected readonly loadingMore = signal(false);
   protected readonly notFound = signal(false);
+  private page = 0;
 
   constructor() {
     // paramMap rather than a snapshot: Angular reuses this component when
@@ -94,12 +111,32 @@ export class CollectionPage {
         this.category.set(category);
         this.seo.update({ title: category.name, description: `Shop the ${category.name} collection from EREZER.` });
         this.api
-          .getProductsByCategory(category.id)
-          .pipe(catchError(() => of([] as ApiProduct[])))
-          .subscribe((items) => {
-            this.products.set(items);
+          .browseProducts({ categoryId: category.id, page: 0, size: this.pageSize })
+          .pipe(catchError(() => of(null)))
+          .subscribe((page) => {
+            this.page = 0;
+            this.products.set(page?.content ?? []);
+            this.total.set(page?.totalElements ?? 0);
             this.loading.set(false);
           });
+      });
+  }
+
+  protected loadMore(): void {
+    const category = this.category();
+    if (!category || this.loadingMore()) return;
+    const next = this.page + 1;
+    this.loadingMore.set(true);
+    this.api
+      .browseProducts({ categoryId: category.id, page: next, size: this.pageSize })
+      .pipe(catchError(() => of(null)))
+      .subscribe((page) => {
+        this.loadingMore.set(false);
+        // Ignore an answer for a collection the visitor has already left.
+        if (!page || this.category()?.id !== category.id) return;
+        this.page = next;
+        this.products.update((list) => [...list, ...page.content]);
+        this.total.set(page.totalElements);
       });
   }
 }

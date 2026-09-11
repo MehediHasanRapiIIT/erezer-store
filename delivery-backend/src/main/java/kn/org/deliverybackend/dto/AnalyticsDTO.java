@@ -11,7 +11,7 @@ import java.util.List;
 @AllArgsConstructor
 public class AnalyticsDTO {
     // Core KPIs
-    private double totalRevenue;
+    private Double totalRevenue;
     private long totalOrders;
     private long activeRiders;
     private long cancelledOrders;
@@ -21,7 +21,7 @@ public class AnalyticsDTO {
     // Derived KPIs
     private double completionRate;      // completedOrders / totalOrders * 100
     private double cancellationRate;    // cancelledOrders / totalOrders * 100
-    private double avgOrderValue;       // totalRevenue / totalOrders
+    private Double avgOrderValue;       // totalRevenue / totalOrders
 
     // Inventory health
     private int stockCriticalLow;
@@ -41,6 +41,16 @@ public class AnalyticsDTO {
     private List<TopProduct> topProducts;
     private List<RiderStat> topRiders;
 
+    /** Leaves out every money figure, for staff without "See money totals". Counts stay. */
+    public AnalyticsDTO withoutRevenue() {
+        totalRevenue = null;
+        avgOrderValue = null;
+        if (ordersByPayment != null) ordersByPayment.forEach(p -> p.setRevenue(null));
+        if (dailyOrders != null) dailyOrders.forEach(day -> day.setRevenue(null));
+        if (topCategories != null) topCategories.forEach(c -> c.setRevenue(null));
+        return this;
+    }
+
     @Data @NoArgsConstructor @AllArgsConstructor
     public static class OrderStatusCount {
         private String status;
@@ -51,20 +61,20 @@ public class AnalyticsDTO {
     public static class PaymentMethodCount {
         private String method;
         private long count;
-        private double revenue;
+        private Double revenue;
     }
 
     @Data @NoArgsConstructor @AllArgsConstructor
     public static class DailyOrderCount {
         private String date;   // yyyy-MM-dd
         private long count;
-        private double revenue;
+        private Double revenue;
     }
 
     @Data @NoArgsConstructor @AllArgsConstructor
     public static class CategoryRevenue {
         private String categoryName;
-        private double revenue;
+        private Double revenue;
         private long orderCount;
     }
 

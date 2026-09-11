@@ -1,27 +1,40 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { catchError, of } from 'rxjs';
+import { Subject, catchError, debounceTime, distinctUntilChanged, map, of } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
+import { PagerComponent } from '../../shared/pager/pager.component';
 import {
   ReturnDecisionPayload,
   ReturnRequestResponse,
   ReturnService,
   ReturnStatus,
 } from '../../core/services/return.service';
+import { PermissionService } from '../../core/services/permission.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 
+/**
+ * The Returns page. Search, the status filter and paging are all done by the
+ * server, so a search covers every return, not just the page on screen.
+ */
 @Component({
   selector: 'app-returns',
   standalone: true,
-  imports: [FormsModule, SidebarComponent],
+  imports: [FormsModule, SidebarComponent, PagerComponent],
   template: `
     <div class="flex h-screen bg-gray-50 overflow-hidden">
       <app-sidebar />
 
       <div class="flex-1 flex flex-col overflow-hidden">
-        <header class="bg-white border-b border-gray-200 px-6 h-14 flex items-center justify-between flex-shrink-0">
+        <header class="bg-white border-b border-gray-200 px-6 h-14 flex items-center justify-between gap-4 flex-shrink-0">
           <h1 class="text-lg font-bold text-gray-900">Returns</h1>
-          <div class="flex items-center gap-2 text-sm">
+          <div class="flex items-center gap-2 text-sm min-w-0">
+            <input
+              type="search"
+              [ngModel]="search()"
+              (ngModelChange)="onSearch($event)"
+              placeholder="Search by customer email, order or reason…"
+              aria-label="Search returns"
+              class="w-56 md:w-80 min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-300 placeholder-gray-400" />
             <label class="text-gray-500">Filter:</label>
             <select
               [ngModel]="statusFilter()"
@@ -43,7 +56,7 @@ import { parseApiError } from '../../core/utils/api-error.util';
             <!-- List -->
             <section class="bg-white rounded-xl border border-gray-200 overflow-hidden h-fit">
               <header class="border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs uppercase text-gray-400">
-                {{ returns().length }} return(s)
+                {{ total() }} return(s)
               </header>
               <ul class="divide-y divide-gray-50">
                 @if (loading()) {
@@ -66,10 +79,17 @@ import { parseApiError } from '../../core/utils/api-error.util';
                   </li>
                 } @empty {
                   @if (!loading()) {
-                    <li class="px-4 py-6 text-center text-sm text-gray-400">No return requests yet.</li>
+                    <li class="px-4 py-6 text-center text-sm text-gray-400">
+                      {{ searching() ? 'No returns match your search.' : 'No return requests yet.' }}
+                    </li>
                   }
                 }
               </ul>
+              @if (total() > 0) {
+                <div class="border-t border-gray-100">
+                  <app-pager [page]="page()" [size]="pageSize" [total]="total()" [disabled]="loading()" (pageChange)="goToPage($event)" />
+                </div>
+              }
             </section>
 
             <!-- Detail -->
@@ -130,6 +150,7 @@ import { parseApiError } from '../../core/utils/api-error.util';
                       Admin notes (sent to customer)
                       <textarea
                         [(ngModel)]="decisionNotes"
+                        [disabled]="!perms.canAny('returns.decide', 'returns.refund')"
                         rows="2"
                         maxlength="2000"
                         class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"></textarea>
@@ -141,14 +162,19 @@ import { parseApiError } from '../../core/utils/api-error.util';
                         step="0.01"
                         min="0"
                         [(ngModel)]="decisionAmount"
+                        [disabled]="!perms.canAny('returns.decide', 'returns.refund')"
                         class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
                     </label>
+                    @if (!perms.canAny('returns.decide', 'returns.refund')) {
+                      <p class="text-xs text-gray-400">Needs the “Approve or reject returns” or “Refund returns” permission.</p>
+                    }
 
                     @if (decisionError()) {
                       <p class="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{{ decisionError() }}</p>
                     }
 
                     <div class="flex flex-wrap gap-2">
+                      @if (perms.can('returns.decide')) {
                       <button (click)="approve(r)" [disabled]="acting() || r.status !== 'REQUESTED'"
                         class="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50">
                         Approve
@@ -157,14 +183,19 @@ import { parseApiError } from '../../core/utils/api-error.util';
                         class="px-3 py-1.5 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg disabled:opacity-50">
                         Reject
                       </button>
+                      }
+                      @if (perms.can('returns.pickup')) {
                       <button (click)="markPickedUp(r)" [disabled]="acting() || r.status !== 'APPROVED'"
                         class="px-3 py-1.5 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-lg disabled:opacity-50">
                         Mark picked up
                       </button>
+                      }
+                      @if (perms.can('returns.refund')) {
                       <button (click)="refund(r)" [disabled]="acting() || r.status !== 'PICKED_UP'"
                         class="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg disabled:opacity-50">
                         Mark refunded
                       </button>
+                      }
                     </div>
                   </div>
                 </div>
@@ -178,8 +209,11 @@ import { parseApiError } from '../../core/utils/api-error.util';
     </div>
   `,
 })
-export class ReturnsComponent implements OnInit {
+export class ReturnsComponent implements OnInit, OnDestroy {
   private readonly api = inject(ReturnService);
+  protected readonly perms = inject(PermissionService);
+
+  protected readonly pageSize = 20;
 
   readonly returns       = signal<ReturnRequestResponse[]>([]);
   readonly selected      = signal<ReturnRequestResponse | null>(null);
@@ -187,33 +221,70 @@ export class ReturnsComponent implements OnInit {
   readonly acting        = signal(false);
   readonly decisionError = signal<string>('');
   readonly statusFilter  = signal<string>('ALL');
+  /** Zero-based page on screen, and the number of returns across all pages. */
+  readonly page          = signal(0);
+  readonly total         = signal(0);
+  /** Typed search text, sent to the server after a short pause. */
+  readonly search        = signal('');
+  protected readonly searching = computed(() => this.search().trim().length > 0);
+
+  private readonly searchSubject = new Subject<string>();
+  /** Numbers each request, so an answer that arrives after a newer one is ignored. */
+  private latestRequest = 0;
 
   protected decisionNotes  = '';
   protected decisionAmount: number | null = null;
 
   ngOnInit(): void {
-    this.reload();
+    this.loadPage(0);
+    // Typing searches all returns after a short pause, from the first page.
+    this.searchSubject.pipe(map((q) => q.trim()), debounceTime(300), distinctUntilChanged())
+      .subscribe(() => this.loadPage(0));
+  }
+
+  ngOnDestroy(): void {
+    this.searchSubject.complete();
+  }
+
+  protected onSearch(q: string): void {
+    this.search.set(q);
+    this.searchSubject.next(q);
   }
 
   protected setStatusFilter(status: string): void {
     this.statusFilter.set(status);
-    this.reload();
+    this.loadPage(0);
   }
 
-  protected reload(): void {
+  protected goToPage(page: number): void {
+    this.loadPage(page);
+  }
+
+  /** One page from the server, for the current search and status filter. */
+  private loadPage(page: number): void {
+    const request = ++this.latestRequest;
     this.loading.set(true);
-    this.api.list(this.statusFilter()).pipe(catchError(() => of(null))).subscribe((page) => {
-      this.loading.set(false);
-      if (page) {
-        this.returns.set(page.content);
+    this.api.list(this.statusFilter(), page, this.pageSize, this.search())
+      .pipe(catchError(() => of(null)))
+      .subscribe((res) => {
+        if (request !== this.latestRequest) return;
+        this.loading.set(false);
+        if (!res) return;
+        // The last row of this page went away (e.g. after an action): show the page before it.
+        if (res.content.length === 0 && page > 0) {
+          this.loadPage(Math.min(page - 1, Math.max(res.totalPages - 1, 0)));
+          return;
+        }
+        this.returns.set(res.content);
+        this.page.set(res.number);
+        this.total.set(res.totalElements);
         // Refresh selected from the latest list snapshot.
         const sel = this.selected();
         if (sel) {
-          const fresh = page.content.find((r) => r.id === sel.id);
+          const fresh = res.content.find((r) => r.id === sel.id);
           if (fresh) this.selected.set(fresh);
         }
-      }
-    });
+      });
   }
 
   protected select(r: ReturnRequestResponse): void {
@@ -250,6 +321,8 @@ export class ReturnsComponent implements OnInit {
       if (updated) {
         this.selected.set(updated);
         this.returns.update((list) => list.map((x) => x.id === updated.id ? updated : x));
+        // Stay on this page; the row may have left the current filter.
+        this.loadPage(this.page());
       }
     });
   }

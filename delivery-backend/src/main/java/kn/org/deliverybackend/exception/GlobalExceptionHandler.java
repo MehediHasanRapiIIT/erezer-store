@@ -88,6 +88,43 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
     }
 
+    /** A business rule refused the request; the message says which, in plain words. */
+    @ExceptionHandler(InvalidRequestException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidRequest(InvalidRequestException ex) {
+        log.info("Request refused by a rule: {}", ex.getMessage());
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", "invalid_request");
+        body.put("message", ex.getMessage());
+        body.put("timestamp", LocalDateTime.now());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    /** A service we depend on (e.g. Keycloak) failed; nothing in our database was changed for it. */
+    @ExceptionHandler(ExternalServiceException.class)
+    public ResponseEntity<Map<String, Object>> handleExternalService(ExternalServiceException ex) {
+        log.warn("External service failed: {}", ex.getMessage());
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", "external_service");
+        body.put("message", ex.getMessage());
+        body.put("timestamp", LocalDateTime.now());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(body);
+    }
+
+    /**
+     * A staff member lacks a permission. Kept apart from the generic 403 so the
+     * admin panel gets the missing keys and can say exactly what is missing.
+     */
+    @ExceptionHandler(PermissionDeniedException.class)
+    public ResponseEntity<Map<String, Object>> handlePermissionDenied(PermissionDeniedException ex) {
+        log.info("Permission denied: {}", ex.getMessage());
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", "forbidden");
+        body.put("message", ex.getMessage());
+        body.put("missingPermissions", ex.getMissing());
+        body.put("timestamp", LocalDateTime.now());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
     @ExceptionHandler(ForbiddenAccessException.class)
     public ResponseEntity<Map<String, Object>> handleForbiddenAccess(
             ForbiddenAccessException ex) {
@@ -162,6 +199,33 @@ public class GlobalExceptionHandler {
         }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(RegistrationResponse.error(ex.getMessage()));
+    }
+
+    /**
+     * A malformed request is the caller's mistake, not a server fault: an id
+     * in the wrong format, a missing required parameter, or a body that
+     * can't be read. Without this they fell through to the 500 below.
+     */
+    @ExceptionHandler({
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class,
+            org.springframework.web.bind.MissingServletRequestParameterException.class,
+            org.springframework.http.converter.HttpMessageNotReadableException.class})
+    public ResponseEntity<Map<String, Object>> handleMalformedRequest(Exception ex) {
+        String message;
+        if (ex instanceof org.springframework.web.method.annotation.MethodArgumentTypeMismatchException m) {
+            String expected = m.getRequiredType() == null ? "another format" : m.getRequiredType().getSimpleName();
+            message = "'" + m.getName() + "' has the wrong format (expected " + expected + ").";
+        } else if (ex instanceof org.springframework.web.bind.MissingServletRequestParameterException m) {
+            message = "Missing the required parameter '" + m.getParameterName() + "'.";
+        } else {
+            message = "The request body couldn't be read.";
+        }
+        log.info("Malformed request: {}", ex.getMessage());
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", "bad_request");
+        body.put("message", message);
+        body.put("timestamp", LocalDateTime.now());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
     @ExceptionHandler(Exception.class)

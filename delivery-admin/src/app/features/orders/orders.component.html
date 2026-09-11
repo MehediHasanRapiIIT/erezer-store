@@ -103,7 +103,7 @@
             <input
               type="text"
               [ngModel]="searchQuery()"
-              (ngModelChange)="searchQuery.set($event)"
+              (ngModelChange)="onSearchChange($event)"
               placeholder="Search by Order ID, Customer Name or Phone number..."
               class="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300 placeholder-gray-400"
             />
@@ -154,7 +154,7 @@
           <div class="relative">
             <select
               [ngModel]="filterPayment()"
-              (ngModelChange)="filterPayment.set($event)"
+              (ngModelChange)="onPaymentFilterChange($event)"
               class="appearance-none pl-3 pr-8 py-1.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300 bg-white text-gray-700 cursor-pointer"
             >
               <option value="ALL">Payment: All</option>
@@ -201,7 +201,7 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-50">
-              @for (order of filtered(); track order.id) {
+              @for (order of orders(); track order.id) {
                 <tr class="hover:bg-gray-50 transition-colors cursor-pointer" (click)="viewOrder(order)">
                   <td class="px-5 py-3.5">
                     <span class="font-mono text-xs font-semibold text-gray-700">{{ shortId(order.id) }}</span>

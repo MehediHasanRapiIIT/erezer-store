@@ -24,23 +24,37 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     @Query("SELECT o FROM Order o WHERE o.deleted = false ORDER BY o.createdAt DESC")
     List<Order> findAllOrders();
 
-    @Query(value = "SELECT * FROM orders o WHERE o.deleted = false " +
+    /**
+     * Filters for the admin order list; each is left out when its parameter is
+     * null. {@code q} is a "%text%" pattern matched against the order id, the
+     * customer's name, phone and email (as recorded on the order or on their
+     * profile) and the delivery address. Dates are a UTC window [fromUtc, toUtc).
+     */
+    String ADMIN_ORDER_FILTERS =
             "AND (:status IS NULL OR o.order_status = :status) " +
             "AND (:excludeStatus IS NULL OR o.order_status <> :excludeStatus) " +
-            "AND (:fromDate IS NULL OR o.created_at >= CAST(:fromDate AS timestamp)) " +
-            "AND (:toDate IS NULL OR o.created_at <= CAST(:toDate AS timestamp)) " +
-            "ORDER BY o.created_at DESC",
-            countQuery = "SELECT COUNT(*) FROM orders o WHERE o.deleted = false " +
-                    "AND (:status IS NULL OR o.order_status = :status) " +
-                    "AND (:excludeStatus IS NULL OR o.order_status <> :excludeStatus) " +
-                    "AND (:fromDate IS NULL OR o.created_at >= CAST(:fromDate AS timestamp)) " +
-                    "AND (:toDate IS NULL OR o.created_at <= CAST(:toDate AS timestamp))",
+            "AND (:payment IS NULL OR o.payment_method = :payment OR o.payment_method = :paymentAlias) " +
+            "AND (:fromUtc IS NULL OR o.created_at >= CAST(:fromUtc AS timestamp)) " +
+            "AND (:toUtc IS NULL OR o.created_at < CAST(:toUtc AS timestamp)) " +
+            "AND (:q IS NULL OR CAST(o.id AS text) ILIKE :q OR o.customer_name ILIKE :q " +
+            "  OR o.customer_phone ILIKE :q OR o.customer_email ILIKE :q OR o.delivery_address ILIKE :q " +
+            "  OR o.client_id IN (SELECT u.id FROM users u WHERE " +
+            "    TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) ILIKE :q " +
+            "    OR u.phone_number ILIKE :q OR u.email ILIKE :q)) ";
+
+    /** The admin order list, newest first; the id breaks ties so pages never overlap. */
+    @Query(value = "SELECT * FROM orders o WHERE o.deleted = false " + ADMIN_ORDER_FILTERS
+            + "ORDER BY o.created_at DESC, o.id",
+            countQuery = "SELECT COUNT(*) FROM orders o WHERE o.deleted = false " + ADMIN_ORDER_FILTERS,
             nativeQuery = true)
     Page<Order> findOrdersFiltered(
             @Param("status") String status,
             @Param("excludeStatus") String excludeStatus,
-            @Param("fromDate") String fromDate,
-            @Param("toDate") String toDate,
+            @Param("payment") String payment,
+            @Param("paymentAlias") String paymentAlias,
+            @Param("fromUtc") String fromUtc,
+            @Param("toUtc") String toUtc,
+            @Param("q") String q,
             Pageable pageable);
 
     @Query(value = "SELECT o FROM Order o WHERE o.deleted = false ORDER BY o.createdAt DESC",

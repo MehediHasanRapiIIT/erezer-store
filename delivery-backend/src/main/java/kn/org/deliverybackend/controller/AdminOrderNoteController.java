@@ -1,5 +1,7 @@
 package kn.org.deliverybackend.controller;
 
+import kn.org.deliverybackend.access.Perm;
+import kn.org.deliverybackend.access.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import kn.org.deliverybackend.dto.ordernote.OrderNoteDTO;
@@ -23,11 +25,13 @@ public class AdminOrderNoteController {
 
     private final OrderNoteService orderNoteService;
 
+    @RequiresPermission(Perm.ORDERS_NOTES_VIEW)
     @GetMapping
     public ResponseEntity<List<OrderNoteDTO>> list(@PathVariable UUID orderId) {
         return ResponseEntity.ok(orderNoteService.list(orderId));
     }
 
+    @RequiresPermission(Perm.ORDERS_NOTES_ADD)
     @PostMapping
     public ResponseEntity<OrderNoteDTO> create(
             @PathVariable UUID orderId,
@@ -42,6 +46,7 @@ public class AdminOrderNoteController {
                 .body(orderNoteService.add(orderId, request, author));
     }
 
+    @RequiresPermission(Perm.ORDERS_NOTES_DELETE)
     @DeleteMapping("/{noteId}")
     public ResponseEntity<Void> delete(
             @PathVariable UUID orderId,

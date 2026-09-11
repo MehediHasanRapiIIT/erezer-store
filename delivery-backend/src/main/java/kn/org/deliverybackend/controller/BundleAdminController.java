@@ -1,5 +1,7 @@
 package kn.org.deliverybackend.controller;
 
+import kn.org.deliverybackend.access.Perm;
+import kn.org.deliverybackend.access.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import kn.org.deliverybackend.dto.bundle.BundleOfferRequestDTO;
@@ -21,27 +23,32 @@ public class BundleAdminController {
 
     private final BundleService bundleService;
 
+    @RequiresPermission(Perm.BUNDLES_VIEW)
     @GetMapping
     public ResponseEntity<List<BundleOfferResponseDTO>> list() {
         return ResponseEntity.ok(bundleService.listAll());
     }
 
+    @RequiresPermission(Perm.BUNDLES_VIEW)
     @GetMapping("/{id}")
     public ResponseEntity<BundleOfferResponseDTO> get(@PathVariable UUID id) {
         return ResponseEntity.ok(bundleService.get(id));
     }
 
+    @RequiresPermission(Perm.BUNDLES_CREATE)
     @PostMapping
     public ResponseEntity<BundleOfferResponseDTO> create(@Valid @RequestBody BundleOfferRequestDTO request) {
         return ResponseEntity.ok(bundleService.create(request));
     }
 
+    @RequiresPermission(Perm.BUNDLES_EDIT)
     @PutMapping("/{id}")
     public ResponseEntity<BundleOfferResponseDTO> update(@PathVariable UUID id,
                                                          @Valid @RequestBody BundleOfferRequestDTO request) {
         return ResponseEntity.ok(bundleService.update(id, request));
     }
 
+    @RequiresPermission(Perm.BUNDLES_DELETE)
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         bundleService.delete(id);

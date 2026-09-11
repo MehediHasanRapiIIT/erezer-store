@@ -77,27 +77,48 @@ public class InventoryServiceImpl implements InventoryService {
     @Transactional(readOnly = true)
     public List<StockResponseDTO> getAllStockDetails() {
         return productRepository.findAll().stream()
-                .map(product -> {
-                    // Use findByProductId (read-only) — don't auto-create in a read-only tx
-                    Inventory inventory = inventoryRepository.findByProductId(product.getId())
-                            .orElse(null);
-                    if (inventory == null) {
-                        // Product has no inventory row yet — show product's cached stock value
-                        StockStatus status = computeStatusFromQty(product.getStockQuantity(), product.getLowStockThreshold());
-                        return new StockResponseDTO(
-                                product.getId(),
-                                product.getName(),
-                                product.getSku(),
-                                product.getImageUrl(),
-                                product.getUnit() != null ? product.getUnit() : "units",
-                                product.getStockQuantity(),
-                                status,
-                                product.getLowStockThreshold()
-                        );
-                    }
-                    return toStockResponseDTO(product, inventory);
-                })
+                .map(this::toStockRow)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<StockResponseDTO> stockPage(String q, int page, int size) {
+        return productRepository.searchForInventory(kn.org.deliverybackend.util.SearchText.likePattern(q),
+                        org.springframework.data.domain.PageRequest.of(Math.max(page, 0),
+                                kn.org.deliverybackend.util.SearchText.pageSize(size)))
+                .map(this::toStockRow);
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public List<StockResponseDTO> lowStock() {
+        return productRepository.findAll().stream()
+                .filter(product -> !Boolean.TRUE.equals(product.getDeleted()))
+                .map(this::toStockRow)
+                .filter(row -> row.getStockStatus() != StockStatus.IN_STOCK)
+                .collect(Collectors.toList());
+    }
+
+    /** One product's stock row: from its inventory record, or its cached stock when it has none yet. */
+    private StockResponseDTO toStockRow(Product product) {
+        // Use findByProductId (read-only) — don't auto-create in a read-only tx
+        Inventory inventory = inventoryRepository.findByProductId(product.getId()).orElse(null);
+        if (inventory == null) {
+            // Product has no inventory row yet — show product's cached stock value
+            StockStatus status = computeStatusFromQty(product.getStockQuantity(), product.getLowStockThreshold());
+            return new StockResponseDTO(
+                    product.getId(),
+                    product.getName(),
+                    product.getSku(),
+                    product.getImageUrl(),
+                    product.getUnit() != null ? product.getUnit() : "units",
+                    product.getStockQuantity(),
+                    status,
+                    product.getLowStockThreshold()
+            );
+        }
+        return toStockResponseDTO(product, inventory);
     }
 
     @Override

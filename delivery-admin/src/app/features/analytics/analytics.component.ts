@@ -3,6 +3,9 @@ import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
+import { HiddenMoneyComponent } from '../../shared/hidden-money/hidden-money.component';
+import { PermissionService } from '../../core/services/permission.service';
+import { ACCESS } from '../../core/access/admin-pages';
 import { environment } from '../../../environments/environment';
 import { parseApiError } from '../../core/utils/api-error.util';
 import { addDays, businessToday, formatTaka, formatTakaCompact, parseIsoDate } from '../../core/utils/business-date.util';
@@ -12,23 +15,24 @@ const PAYMENT_LABELS: Record<string, string> = {
   ROCKET: 'Rocket', CARD: 'Card', UNKNOWN: 'Not recorded',
 };
 
-interface DailyOrder { date: string; count: number; revenue: number; }
-interface CategoryRevenue { categoryName: string; revenue: number; orderCount: number; }
+// Money fields are null for staff without "finance.revenue" (See money totals).
+interface DailyOrder { date: string; count: number; revenue: number | null; }
+interface CategoryRevenue { categoryName: string; revenue: number | null; orderCount: number; }
 
 interface AnalyticsData {
-  totalRevenue: number;
+  totalRevenue: number | null;
   totalOrders: number;
   cancelledOrders: number;
   completedOrders: number;
   pendingOrders: number;
   completionRate: number;
   cancellationRate: number;
-  avgOrderValue: number;
+  avgOrderValue: number | null;
   stockCriticalLow: number;
   stockOutOfStock: number;
   stockReorderPending: number;
   ordersByStatus: { status: string; count: number }[];
-  ordersByPayment: { method: string; count: number; revenue: number }[];
+  ordersByPayment: { method: string; count: number; revenue: number | null }[];
   dailyOrders: DailyOrder[];
   topCategories: CategoryRevenue[];
   topProducts: { id: number; name: string; imageUrl: string; price: number; stockQuantity: number; stockStatus: string }[];
@@ -37,12 +41,14 @@ interface AnalyticsData {
 @Component({
   selector: 'app-analytics',
   standalone: true,
-  imports: [SidebarComponent, RouterLink, FormsModule],
+  imports: [SidebarComponent, RouterLink, FormsModule, HiddenMoneyComponent],
   templateUrl: './analytics.component.html',
 })
 export class AnalyticsComponent implements OnInit {
   private http = inject(HttpClient);
   private baseUrl = environment.apiBaseUrl;
+  protected readonly perms = inject(PermissionService);
+  protected readonly access = ACCESS;
 
   data = signal<AnalyticsData | null>(null);
   isLoading = signal(true);
@@ -120,11 +126,11 @@ export class AnalyticsComponent implements OnInit {
     return fromDate === toDate ? fromDate : `${fromDate} → ${toDate}`;
   }
 
-  formatRevenue(amount: number): string {
+  formatRevenue(amount: number | null): string {
     return formatTakaCompact(amount);
   }
 
-  formatTakaExact(amount: number): string {
+  formatTakaExact(amount: number | null): string {
     return formatTaka(amount, 2);
   }
 
@@ -136,7 +142,8 @@ export class AnalyticsComponent implements OnInit {
   exportCsv(): void {
     const d = this.data();
     if (!d) return;
-    const rows: (string | number)[][] = [
+    // Hidden money figures (null) are written as empty cells, never as 0.
+    const rows: (string | number | null)[][] = [
       ['Erezer analytics', this.rangeLabel(), 'Asia/Dhaka'],
       [],
       ['Net revenue', d.totalRevenue], ['Placed orders', d.totalOrders], ['Delivered orders', d.completedOrders],
@@ -144,16 +151,16 @@ export class AnalyticsComponent implements OnInit {
       ['Delivery rate %', d.completionRate], ['Cancellation rate %', d.cancellationRate], ['Average order value', d.avgOrderValue],
       [],
       ['Date', 'Valid orders', 'Net revenue'],
-      ...d.dailyOrders.map(o => [o.date, o.count, o.revenue] as (string | number)[]),
+      ...d.dailyOrders.map(o => [o.date, o.count, o.revenue] as (string | number | null)[]),
       [],
       ['Status', 'Orders'],
       ...d.ordersByStatus.map(s => [s.status, s.count] as (string | number)[]),
       [],
       ['Payment method', 'Valid orders', 'Net revenue'],
-      ...d.ordersByPayment.map(p => [this.paymentLabel(p.method), p.count, p.revenue] as (string | number)[]),
+      ...d.ordersByPayment.map(p => [this.paymentLabel(p.method), p.count, p.revenue] as (string | number | null)[]),
       [],
       ['Category', 'Sales value', 'Orders'],
-      ...d.topCategories.map(c => [c.categoryName, c.revenue, c.orderCount] as (string | number)[]),
+      ...d.topCategories.map(c => [c.categoryName, c.revenue, c.orderCount] as (string | number | null)[]),
     ];
     const csv = rows.map(r => r.map(c => {
       const s = String(c ?? '');
@@ -181,7 +188,25 @@ export class AnalyticsComponent implements OnInit {
   maxCategoryRevenue(): number {
     const d = this.data();
     if (!d || d.topCategories.length === 0) return 1;
-    return Math.max(...d.topCategories.map(c => c.revenue), 1);
+    return Math.max(...d.topCategories.map(c => c.revenue ?? 0), 1);
+  }
+
+  /** Bar width for a payment row: share of revenue, or of orders when revenue is hidden. */
+  paymentShare(pm: { count: number; revenue: number | null }): number {
+    const d = this.data();
+    if (!d) return 0;
+    if (d.totalRevenue !== null && pm.revenue !== null) {
+      return d.totalRevenue > 0 ? (pm.revenue / d.totalRevenue) * 100 : 0;
+    }
+    const orders = d.ordersByPayment.reduce((s, p) => s + p.count, 0);
+    return orders > 0 ? (pm.count / orders) * 100 : 0;
+  }
+
+  /** Bar width for a category row: against the top revenue, or the top order count when revenue is hidden. */
+  categoryShare(cat: CategoryRevenue): number {
+    if (cat.revenue !== null) return (cat.revenue / this.maxCategoryRevenue()) * 100;
+    const maxOrders = Math.max(...(this.data()?.topCategories ?? []).map(c => c.orderCount), 1);
+    return (cat.orderCount / maxOrders) * 100;
   }
 
   stockBadgeClass(status: string): string {

@@ -214,6 +214,11 @@ services:
       # --- Keycloak: public issuer to validate, internal URL to fetch keys ---
       KEYCLOAK_ISSUER_URI: ${PUBLIC_KEYCLOAK_URL:-http://localhost:9090}/realms/${KEYCLOAK_REALM:-delivery-admin}
       KEYCLOAK_JWK_SET_URI: http://keycloak:9090/realms/${KEYCLOAK_REALM:-delivery-admin}/protocol/openid-connect/certs
+      # --- Keycloak: staff logins managed from the Staff page (deploy/keycloak_setup.py) ---
+      KEYCLOAK_ADMIN_SERVER_URL: http://keycloak:9090
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-delivery-admin}
+      KEYCLOAK_ADMIN_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID:-erezer-backend-admin}
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-}
 
       # --- MinIO: upload through the internal endpoint, hand back public URLs ---
       MINIO_URL: http://minio:9000

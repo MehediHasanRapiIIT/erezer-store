@@ -13,7 +13,8 @@ public interface NewsletterService {
     void unsubscribeByToken(String token);
 
     /** Admin paginated list, optionally filtered by status (SUBSCRIBED / UNSUBSCRIBED). */
-    Page<NewsletterSubscriberDTO> list(String status, int page, int size);
+    /** Subscribers, newest first; {@code q} searches the email. */
+    Page<NewsletterSubscriberDTO> list(String status, String q, int page, int size);
 
     long countActiveSubscribers();
 }

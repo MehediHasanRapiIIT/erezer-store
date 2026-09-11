@@ -1,5 +1,7 @@
 package kn.org.deliverybackend.controller;
 
+import kn.org.deliverybackend.access.Perm;
+import kn.org.deliverybackend.access.RequiresPermission;
 import kn.org.deliverybackend.dto.PromotionalBannerDTO;
 import kn.org.deliverybackend.dto.request.banner.BannerContentDTO;
 import kn.org.deliverybackend.enumeration.BannerSlot;
@@ -28,6 +30,7 @@ public class BannerController {
         return ResponseEntity.ok(bannerService.getAllBanners());
     }
 
+    @RequiresPermission(Perm.BANNERS_CREATE)
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<PromotionalBannerDTO> uploadBanner(
             @RequestParam("image") MultipartFile image,
@@ -54,6 +57,7 @@ public class BannerController {
                 .orElseGet(() -> ResponseEntity.badRequest().build());
     }
 
+    @RequiresPermission(Perm.BANNERS_EDIT)
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<PromotionalBannerDTO> updateBanner(
             @PathVariable UUID id,
@@ -100,6 +104,7 @@ public class BannerController {
         }
     }
 
+    @RequiresPermission(Perm.BANNERS_DELETE)
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteBanner(@PathVariable UUID id) {
         bannerService.deleteBanner(id);

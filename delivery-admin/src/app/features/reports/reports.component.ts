@@ -1,6 +1,7 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
+import { PermissionService } from '../../core/services/permission.service';
 import {
   PaymentSplit, PeriodMetrics, PeriodReport, PeriodType, ReportBucket, ReportService,
 } from '../../core/services/report.service';
@@ -64,14 +65,16 @@ const STATUS_ORDER = ['PLACED', 'ACCEPTED', 'IN_PRODUCTION', 'PROCESSING', 'SHIP
             <p class="text-[11px] text-gray-400 leading-none">Asia/Dhaka · week starts Sunday · fiscal year July–June · amounts in ৳ (BDT)</p>
           </div>
           <div class="no-print flex items-center gap-2">
-            <button type="button" (click)="exportCsv()" [disabled]="!report()"
-              class="px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-              Export CSV
-            </button>
-            <button type="button" (click)="print()" [disabled]="!report()"
-              class="px-3 py-1.5 text-sm font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">
-              Print
-            </button>
+            @if (perms.can('reports.export')) {
+              <button type="button" (click)="exportCsv()" [disabled]="!report()"
+                class="px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                Export CSV
+              </button>
+              <button type="button" (click)="print()" [disabled]="!report()"
+                class="px-3 py-1.5 text-sm font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">
+                Print
+              </button>
+            }
           </div>
         </header>
 
@@ -400,6 +403,7 @@ const STATUS_ORDER = ['PLACED', 'ACCEPTED', 'IN_PRODUCTION', 'PROCESSING', 'SHIP
 })
 export class ReportsComponent implements OnInit {
   private reportService = inject(ReportService);
+  protected readonly perms = inject(PermissionService);
 
   readonly tabs: Tab[] = [
     { type: 'DAY', label: 'Daily', hint: 'One calendar day, midnight to midnight Dhaka time' },

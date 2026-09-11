@@ -84,8 +84,10 @@ public class NewsletterCampaignServiceImpl implements NewsletterCampaignService 
 
     @Override
     @Transactional(readOnly = true)
-    public Page<NewsletterCampaignDTO> list(int page, int size) {
-        return repository.findAllForAdmin(PageRequest.of(page, size)).map(this::toDTO);
+    public Page<NewsletterCampaignDTO> list(String q, int page, int size) {
+        return repository.findAllForAdmin(kn.org.deliverybackend.util.SearchText.likePattern(q),
+                        PageRequest.of(Math.max(page, 0), kn.org.deliverybackend.util.SearchText.pageSize(size)))
+                .map(this::toDTO);
     }
 
     @Override

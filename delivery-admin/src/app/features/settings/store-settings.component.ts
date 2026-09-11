@@ -12,6 +12,7 @@ import {
   StoreSettingsService,
 } from '../../core/services/store-settings.service';
 import { UploadService } from '../../core/services/upload.service';
+import { PermissionService } from '../../core/services/permission.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 
 /** Preset icons selectable for "Our promise" footer items. */
@@ -55,10 +56,12 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
       <div class="flex-1 flex flex-col overflow-hidden">
         <header class="bg-white border-b border-gray-200 px-6 h-14 flex items-center justify-between flex-shrink-0">
           <h1 class="text-lg font-bold text-gray-900">Store settings</h1>
-          <button (click)="save()" [disabled]="saving() || loading()"
-            class="px-3 py-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50">
-            {{ saving() ? 'Saving…' : 'Save changes' }}
-          </button>
+          @if (perms.canAny('settings.store', 'settings.homepage', 'settings.footer', 'settings.sizechart', 'settings.payments')) {
+            <button (click)="save()" [disabled]="saving() || loading()"
+              class="px-3 py-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50">
+              {{ saving() ? 'Saving…' : 'Save changes' }}
+            </button>
+          }
         </header>
 
         <main class="flex-1 overflow-y-auto p-6">
@@ -78,6 +81,10 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
             <section class="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
               <h2 class="text-base font-semibold">Return &amp; exchange policy</h2>
               <p class="text-xs text-gray-500">Shown on every product page.</p>
+              @if (!perms.can('settings.store')) {
+                <p class="text-xs text-gray-400">Needs the “Edit policies and support contacts” permission.</p>
+              }
+              <fieldset [disabled]="!perms.can('settings.store')" class="min-w-0 space-y-3 disabled:opacity-60">
               <textarea [(ngModel)]="model.returnPolicyText" rows="4"
                 placeholder="Tell us within 3 days of delivery…"
                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"></textarea>
@@ -86,11 +93,16 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                 <input type="number" min="0" [(ngModel)]="model.exchangeWindowDays"
                   class="mt-1 w-32 rounded-lg border border-gray-200 px-3 py-2 text-sm" />
               </label>
+              </fieldset>
             </section>
 
             <!-- Support contact -->
             <section class="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
               <h2 class="text-base font-semibold">Customer support</h2>
+              @if (!perms.can('settings.store')) {
+                <p class="text-xs text-gray-400">Needs the “Edit policies and support contacts” permission.</p>
+              }
+              <fieldset [disabled]="!perms.can('settings.store')" class="min-w-0 disabled:opacity-60">
               <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <label class="text-xs font-medium text-gray-600">
                   Phone
@@ -108,12 +120,17 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                     class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
                 </label>
               </div>
+              </fieldset>
             </section>
 
             <!-- Payment methods -->
             <section class="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
               <h2 class="text-base font-semibold">Payment methods</h2>
               <p class="text-xs text-gray-500">Choose which options customers can pick at checkout. At least one must stay on.</p>
+              @if (!perms.can('settings.payments')) {
+                <p class="text-xs text-gray-400">Needs the “Turn payment methods on or off” permission.</p>
+              }
+              <fieldset [disabled]="!perms.can('settings.payments')" class="min-w-0 disabled:opacity-60">
               <div class="space-y-2">
                 <label class="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2.5 text-sm">
                   <input type="checkbox" [(ngModel)]="model.paymentCodEnabled" class="h-4 w-4" />
@@ -128,6 +145,7 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                   <span class="font-medium text-gray-800">Card</span>
                 </label>
               </div>
+              </fieldset>
             </section>
 
             <!-- Size chart -->
@@ -136,15 +154,21 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                 <div>
                   <h2 class="text-base font-semibold">Size chart</h2>
                   <p class="text-xs text-gray-500">Each measurement holds both cm and inch.</p>
+                  @if (!perms.can('settings.sizechart')) {
+                    <p class="text-xs text-gray-400">Needs the “Edit the size chart” permission.</p>
+                  }
                 </div>
+                @if (perms.can('settings.sizechart')) {
                 <div class="flex gap-2">
                   <button type="button" (click)="addColumn()"
                     class="px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50">+ Column</button>
                   <button type="button" (click)="addRow()"
                     class="px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50">+ Size row</button>
                 </div>
+                }
               </div>
 
+              <fieldset [disabled]="!perms.can('settings.sizechart')" class="min-w-0 disabled:opacity-60">
               <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                   <thead>
@@ -155,10 +179,12 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                           <div class="flex items-center gap-1">
                             <input [(ngModel)]="chart.columns[$index]"
                               class="w-28 rounded border border-gray-200 px-2 py-1 text-xs" />
+                            @if (perms.can('settings.sizechart')) {
                             <button type="button" (click)="removeColumn($index)"
                               class="act-btn-icon" title="Remove column">
                               <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                             </button>
+                            }
                           </div>
                         </th>
                       }
@@ -185,10 +211,12 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                           </td>
                         }
                         <td class="px-2 py-2 text-right">
+                          @if (perms.can('settings.sizechart')) {
                           <button type="button" (click)="removeRow(ri)" class="act-btn act-btn-delete" title="Remove row">
                             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
                             Remove
                           </button>
+                          }
                         </td>
                       </tr>
                     } @empty {
@@ -198,6 +226,7 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                   </tbody>
                 </table>
               </div>
+              </fieldset>
             </section>
 
             <!-- Brand story (landing "Our story" band) -->
@@ -205,7 +234,11 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
               <div>
                 <h2 class="text-base font-semibold">Brand story</h2>
                 <p class="text-xs text-gray-500">The "Our story" band on the home page.</p>
+                @if (!perms.can('settings.homepage')) {
+                  <p class="text-xs text-gray-400">Needs the “Edit home page content” permission.</p>
+                }
               </div>
+              <fieldset [disabled]="!perms.can('settings.homepage')" class="min-w-0 space-y-3 disabled:opacity-60">
               <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label class="text-xs font-medium text-gray-600">
                   Eyebrow
@@ -246,21 +279,26 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
               <div class="space-y-2">
                 <div class="flex items-center justify-between">
                   <p class="text-xs font-medium text-gray-600">Gallery images (URLs)</p>
+                  @if (perms.can('settings.homepage')) {
                   <button type="button" (click)="addBrandImage()"
                     class="px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50">+ Image</button>
+                  }
                 </div>
                 @for (img of brand.images; track $index; let i = $index) {
                   <div class="flex items-center gap-2">
                     <input [(ngModel)]="brand.images[i]" placeholder="https://…"
                       class="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono" />
+                    @if (perms.can('settings.homepage')) {
                     <button type="button" (click)="removeBrandImage(i)" class="act-btn-icon shrink-0" title="Remove image">
                       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
                     </button>
+                    }
                   </div>
                 } @empty {
                   <p class="text-xs text-gray-400">No images yet.</p>
                 }
               </div>
+              </fieldset>
             </section>
 
             <!-- Highlights band -->
@@ -269,10 +307,16 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                 <div>
                   <h2 class="text-base font-semibold">Home highlights</h2>
                   <p class="text-xs text-gray-500">The stat band under "Shop by category" on the home page.</p>
+                  @if (!perms.can('settings.homepage')) {
+                    <p class="text-xs text-gray-400">Needs the “Edit home page content” permission.</p>
+                  }
                 </div>
+                @if (perms.can('settings.homepage')) {
                 <button type="button" (click)="addHighlight()"
                   class="px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50">+ Highlight</button>
+                }
               </div>
+              <fieldset [disabled]="!perms.can('settings.homepage')" class="min-w-0 disabled:opacity-60">
               <div class="space-y-2">
                 @for (h of highlights; track $index; let hi = $index) {
                   <div class="flex flex-wrap items-center gap-2 rounded-lg border border-gray-100 bg-gray-50/60 p-2">
@@ -287,12 +331,15 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                       class="w-40 rounded border border-gray-200 px-2 py-1 text-xs" />
                     <input [(ngModel)]="h.description" placeholder="Description"
                       class="flex-1 rounded border border-gray-200 px-2 py-1 text-xs" />
-                    <button type="button" (click)="removeHighlight(hi)" class="text-red-400 hover:text-red-600" title="Remove">×</button>
+                    @if (perms.can('settings.homepage')) {
+                      <button type="button" (click)="removeHighlight(hi)" class="text-red-400 hover:text-red-600" title="Remove">×</button>
+                    }
                   </div>
                 } @empty {
                   <p class="text-xs text-gray-400">No highlights yet.</p>
                 }
               </div>
+              </fieldset>
             </section>
 
             <!-- Footer -->
@@ -301,10 +348,16 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                 <div>
                   <h2 class="text-base font-semibold">Footer</h2>
                   <p class="text-xs text-gray-500">Shown on every storefront page.</p>
+                  @if (!perms.can('settings.footer')) {
+                    <p class="text-xs text-gray-400">Needs the “Edit the footer” permission.</p>
+                  }
                 </div>
+                @if (perms.can('settings.footer')) {
                 <button type="button" (click)="addFooterColumn()"
                   class="px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50">+ Column</button>
+                }
               </div>
+              <fieldset [disabled]="!perms.can('settings.footer')" class="min-w-0 space-y-3 disabled:opacity-60">
               <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label class="text-xs font-medium text-gray-600">
                   Brand name
@@ -324,9 +377,11 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                     <div class="flex items-center gap-2">
                       <input [(ngModel)]="col.title" placeholder="Column title"
                         class="flex-1 rounded border border-gray-200 px-2 py-1 text-xs font-semibold" />
+                      @if (perms.can('settings.footer')) {
                       <button type="button" (click)="removeFooterColumn(ci)" class="act-btn-icon shrink-0" title="Delete column">
                         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
                       </button>
+                      }
                     </div>
                     @for (link of col.links; track $index; let li = $index) {
                       <div class="flex items-center gap-1">
@@ -334,11 +389,15 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                           class="w-28 rounded border border-gray-200 px-2 py-1 text-xs" />
                         <input [(ngModel)]="link.url" placeholder="/path or https://…"
                           class="flex-1 rounded border border-gray-200 px-2 py-1 text-xs" />
-                        <button type="button" (click)="removeFooterLink(ci, li)" class="text-red-400 hover:text-red-600" title="Remove">×</button>
+                        @if (perms.can('settings.footer')) {
+                          <button type="button" (click)="removeFooterLink(ci, li)" class="text-red-400 hover:text-red-600" title="Remove">×</button>
+                        }
                       </div>
                     }
+                    @if (perms.can('settings.footer')) {
                     <button type="button" (click)="addFooterLink(ci)"
                       class="text-xs font-medium text-blue-600 hover:underline">+ Link</button>
+                    }
                   </div>
                 } @empty {
                   <p class="text-xs text-gray-400">No columns yet.</p>
@@ -352,8 +411,10 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                     <p class="text-sm font-semibold text-gray-800">Our promise</p>
                     <p class="text-xs text-gray-500">Feature strip at the top of the footer.</p>
                   </div>
+                  @if (perms.can('settings.footer')) {
                   <button type="button" (click)="addPromise()"
                     class="px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50">+ Promise</button>
+                  }
                 </div>
                 @for (p of footer.promises; track $index; let pi = $index) {
                   <div class="flex flex-wrap items-center gap-2 rounded-lg border border-gray-100 bg-gray-50/60 p-2">
@@ -367,7 +428,9 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                       class="w-48 rounded border border-gray-200 px-2 py-1 text-xs font-medium" />
                     <input [(ngModel)]="p.description" placeholder="Short description"
                       class="flex-1 rounded border border-gray-200 px-2 py-1 text-xs" />
-                    <button type="button" (click)="removePromise(pi)" class="text-red-400 hover:text-red-600" title="Remove">×</button>
+                    @if (perms.can('settings.footer')) {
+                      <button type="button" (click)="removePromise(pi)" class="text-red-400 hover:text-red-600" title="Remove">×</button>
+                    }
                   </div>
                 } @empty {
                   <p class="text-xs text-gray-400">No promise items yet.</p>
@@ -381,8 +444,10 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                     <p class="text-sm font-semibold text-gray-800">Our outlets</p>
                     <p class="text-xs text-gray-500">Store locations with photo, name, address and phone.</p>
                   </div>
+                  @if (perms.can('settings.footer')) {
                   <button type="button" (click)="addOutlet()"
                     class="px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50">+ Outlet</button>
+                  }
                 </div>
                 <div class="grid gap-3 sm:grid-cols-2">
                   @for (o of footer.outlets; track $index; let oi = $index) {
@@ -398,6 +463,7 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                         <div class="flex-1 space-y-1">
                           <input [(ngModel)]="o.name" placeholder="Outlet name (e.g. Mirpur 12)"
                             class="w-full rounded border border-gray-200 px-2 py-1 text-xs font-semibold" />
+                          @if (perms.can('settings.footer')) {
                           <label class="block">
                             <span class="text-[11px] text-blue-600 underline cursor-pointer">
                               {{ uploadingOutlet() === oi ? 'Uploading…' : 'Upload image' }}
@@ -406,11 +472,14 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                               [disabled]="uploadingOutlet() === oi"
                               (change)="onOutletImage($event, oi)" />
                           </label>
+                          }
                         </div>
+                        @if (perms.can('settings.footer')) {
                         <button type="button" (click)="removeOutlet(oi)" class="act-btn act-btn-delete shrink-0" title="Delete outlet">
                           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
                           Delete
                         </button>
+                        }
                       </div>
                       <input [(ngModel)]="o.address" placeholder="Address"
                         class="w-full rounded border border-gray-200 px-2 py-1 text-xs" />
@@ -435,6 +504,7 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                     class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
                 </label>
               </div>
+              </fieldset>
             </section>
 
             <!-- Marquee trust strip -->
@@ -443,28 +513,37 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                 <div>
                   <h2 class="text-base font-semibold">Trust strip (marquee)</h2>
                   <p class="text-xs text-gray-500">Scrolling phrases under the featured products.</p>
+                  @if (!perms.can('settings.homepage')) {
+                    <p class="text-xs text-gray-400">Needs the “Edit home page content” permission.</p>
+                  }
                 </div>
                 <div class="flex items-center gap-3">
                   <label class="flex items-center gap-2 text-xs font-medium text-gray-600">
-                    <input type="checkbox" [(ngModel)]="marquee.enabled" /> Enabled
+                    <input type="checkbox" [(ngModel)]="marquee.enabled" [disabled]="!perms.can('settings.homepage')" /> Enabled
                   </label>
+                  @if (perms.can('settings.homepage')) {
                   <button type="button" (click)="addMarqueeItem()"
                     class="px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50">+ Phrase</button>
+                  }
                 </div>
               </div>
+              <fieldset [disabled]="!perms.can('settings.homepage')" class="min-w-0 disabled:opacity-60">
               <div class="space-y-2">
                 @for (item of marquee.items; track $index; let i = $index) {
                   <div class="flex items-center gap-2">
                     <input [(ngModel)]="marquee.items[i]" placeholder="Free shipping over ৳2000"
                       class="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                    @if (perms.can('settings.homepage')) {
                     <button type="button" (click)="removeMarqueeItem(i)" class="act-btn-icon shrink-0" title="Remove phrase">
                       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
                     </button>
+                    }
                   </div>
                 } @empty {
                   <p class="text-xs text-gray-400">No phrases yet.</p>
                 }
               </div>
+              </fieldset>
             </section>
           </div>
         </main>
@@ -475,6 +554,7 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
 export class StoreSettingsComponent implements OnInit {
   private readonly api = inject(StoreSettingsService);
   private readonly uploads = inject(UploadService);
+  protected readonly perms = inject(PermissionService);
 
   protected readonly promiseIcons = PROMISE_ICONS;
   protected readonly highlightIcons = HIGHLIGHT_ICONS;
@@ -500,8 +580,8 @@ export class StoreSettingsComponent implements OnInit {
     paymentCodEnabled: true,
     paymentBkashEnabled: true,
     paymentCardEnabled: true,
-    // Discount switches are owned by the Discounts screen. They are carried
-    // here so saving this form round-trips them instead of resetting them.
+    // Discount switches are owned by the Discounts screen, which has its own
+    // endpoint; the settings save ignores them. Carried only to fit the type.
     discountsEnabled: true,
     discountsGlobalEnabled: true,
     discountsCategoryEnabled: true,
@@ -659,13 +739,18 @@ export class StoreSettingsComponent implements OnInit {
     this.saving.set(true);
     this.errorMessage.set('');
     this.savedMessage.set('');
+    // The server refuses a save that changes a section without its permission,
+    // so a read-only section goes back exactly as loaded, not the normalised
+    // working copy. Policy, support and payment fields sit on `model` itself
+    // and cannot change while their inputs are disabled.
+    const homepage = this.perms.can('settings.homepage');
     const payload: StoreSettings = {
       ...this.model,
-      sizeChart: this.chart,
-      brandStory: this.brand,
-      footer: this.footer,
-      marquee: this.marquee,
-      highlights: this.highlights,
+      sizeChart: this.perms.can('settings.sizechart') ? this.chart : this.model.sizeChart,
+      brandStory: homepage ? this.brand : this.model.brandStory,
+      footer: this.perms.can('settings.footer') ? this.footer : this.model.footer,
+      marquee: homepage ? this.marquee : this.model.marquee,
+      highlights: homepage ? this.highlights : this.model.highlights,
     };
     this.api.update(payload).pipe(catchError((err) => {
       this.errorMessage.set(parseApiError(err));

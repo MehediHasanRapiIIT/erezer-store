@@ -14,6 +14,7 @@ import kn.org.deliverybackend.dto.settings.MarqueeDTO;
 import kn.org.deliverybackend.dto.settings.SizeChartCellDTO;
 import kn.org.deliverybackend.dto.settings.SizeChartDTO;
 import kn.org.deliverybackend.dto.settings.SizeChartRowDTO;
+import kn.org.deliverybackend.dto.discount.DiscountSwitchesDTO;
 import kn.org.deliverybackend.dto.settings.StoreSettingsDTO;
 import kn.org.deliverybackend.entity.StoreSettings;
 import kn.org.deliverybackend.repository.StoreSettingsRepository;
@@ -89,15 +90,29 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
         settings.setPaymentCodEnabled(request.getPaymentCodEnabled() == null || request.getPaymentCodEnabled());
         settings.setPaymentBkashEnabled(request.getPaymentBkashEnabled() == null || request.getPaymentBkashEnabled());
         settings.setPaymentCardEnabled(request.getPaymentCardEnabled() == null || request.getPaymentCardEnabled());
-        // Discount switches: null in request → default enabled, so a client that
-        // does not know about this feature cannot switch discounting off by
-        // omitting the fields.
-        settings.setDiscountsEnabled(request.getDiscountsEnabled() == null || request.getDiscountsEnabled());
-        settings.setDiscountsGlobalEnabled(request.getDiscountsGlobalEnabled() == null || request.getDiscountsGlobalEnabled());
-        settings.setDiscountsCategoryEnabled(request.getDiscountsCategoryEnabled() == null || request.getDiscountsCategoryEnabled());
-        settings.setDiscountsProductEnabled(request.getDiscountsProductEnabled() == null || request.getDiscountsProductEnabled());
+        // The discount switches are not saved here: they have their own
+        // endpoint and permission (updateDiscountSwitches), so saving the
+        // settings page can never turn discounting on or off.
 
         return toDTO(repository.save(settings));
+    }
+
+    @Override
+    @Transactional
+    public DiscountSwitchesDTO getDiscountSwitches() {
+        return DiscountSwitchesDTO.from(get());
+    }
+
+    @Override
+    @Transactional
+    public DiscountSwitchesDTO updateDiscountSwitches(DiscountSwitchesDTO change) {
+        StoreSettings settings = repository.findById(StoreSettings.SINGLETON_ID)
+                .orElseGet(this::seedDefaults);
+        if (change.discountsEnabled() != null) settings.setDiscountsEnabled(change.discountsEnabled());
+        if (change.discountsGlobalEnabled() != null) settings.setDiscountsGlobalEnabled(change.discountsGlobalEnabled());
+        if (change.discountsCategoryEnabled() != null) settings.setDiscountsCategoryEnabled(change.discountsCategoryEnabled());
+        if (change.discountsProductEnabled() != null) settings.setDiscountsProductEnabled(change.discountsProductEnabled());
+        return DiscountSwitchesDTO.from(toDTO(repository.save(settings)));
     }
 
     // ── helpers ────────────────────────────────────────────────────────────────

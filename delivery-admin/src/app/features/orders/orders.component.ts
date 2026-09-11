@@ -1,16 +1,23 @@
 import { Component, signal, computed, inject, OnDestroy, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import { OrderService, OrderStatus } from '../../core/services/order.service';
 import { OrderResponse, OrderSummary } from '../../core/models/api.models';
 import { parseApiError } from '../../core/utils/api-error.util';
+import { addDays, businessToday } from '../../core/utils/business-date.util';
 
 const ALL_STATUSES: OrderStatus[] = [
   'PLACED', 'ACCEPTED', 'IN_PRODUCTION', 'PROCESSING', 'SHIPPED',
   'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED', 'RETURNED',
 ];
 
+/**
+ * The Orders page. Search, status, payment and date filters and paging are
+ * all done by the server, so a search covers every order, not just the page
+ * on screen. Dates are shop days in Dhaka.
+ */
 @Component({
   selector: 'app-orders',
   standalone: true,
@@ -36,6 +43,8 @@ export class OrdersComponent implements OnInit, OnDestroy {
   filterPayment = signal<string>('ALL');
   filterDate = signal<string>('ALL');
   searchQuery = signal('');
+  /** Typed search text, sent to the server after a short pause. */
+  private searchSubject = new Subject<string>();
 
   // Pagination
   currentPage = signal(0);
@@ -47,23 +56,8 @@ export class OrdersComponent implements OnInit, OnDestroy {
   isLoading = signal(true);
   errorMessage = signal('');
 
-  // Client-side search filter on current page
-  filtered = computed(() => {
-    const q = this.searchQuery().toLowerCase();
-    const pay = this.filterPayment();
-    let list = this.orders();
-
-    if (q) list = list.filter(o =>
-      o.id.toLowerCase().includes(q) ||
-      (o.customerName ?? '').toLowerCase().includes(q) ||
-      (o.customerPhone ?? '').toLowerCase().includes(q) ||
-      o.deliveryAddress.toLowerCase().includes(q)
-    );
-
-    if (pay !== 'ALL') list = list.filter(o => o.paymentMethod === pay);
-
-    return list;
-  });
+  /** Numbers each request, so an answer that arrives after a newer one is ignored. */
+  private latestRequest = 0;
 
   showingFrom = computed(() => this.currentPage() * this.pageSize + 1);
   showingTo = computed(() => Math.min((this.currentPage() + 1) * this.pageSize, this.totalElements()));
@@ -85,10 +79,12 @@ export class OrdersComponent implements OnInit, OnDestroy {
     this.loadPage(0);
     this.loadSummary();
     this.startPolling();
+    this.searchSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe(() => this.loadPage(0));
   }
 
   ngOnDestroy(): void {
     if (this.poll) clearInterval(this.poll);
+    this.searchSubject.complete();
   }
 
   /** Silently re-fetch the current page + summary every POLL_MS (visible tabs only). */
@@ -109,6 +105,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
   }
 
   loadPage(page: number, silent = false): void {
+    const request = ++this.latestRequest;
     if (!silent) this.isLoading.set(true);
     this.errorMessage.set('');
     const history = this.tab() === 'history';
@@ -116,8 +113,10 @@ export class OrdersComponent implements OnInit, OnDestroy {
     const status = history ? 'DELIVERED' : (this.filterStatus() !== 'ALL' ? this.filterStatus() : undefined);
     const excludeStatus = history ? undefined : 'DELIVERED';
     const { fromDate, toDate } = this.getDateRange(this.filterDate());
-    this.orderService.getOrdersPaged(page, this.pageSize, status, fromDate, toDate, excludeStatus).subscribe({
+    this.orderService.getOrdersPaged(page, this.pageSize, status, fromDate, toDate, excludeStatus,
+      this.searchQuery().trim(), this.filterPayment()).subscribe({
       next: (data) => {
+        if (request !== this.latestRequest) return;
         this.orders.set(data.content);
         this.currentPage.set(data.number);
         this.totalElements.set(data.totalElements);
@@ -125,6 +124,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
         this.isLoading.set(false);
       },
       error: (err) => {
+        if (request !== this.latestRequest) return;
         // A failed background poll shouldn't wipe the table or flash an error.
         if (!silent) this.errorMessage.set(parseApiError(err));
         this.isLoading.set(false);
@@ -132,25 +132,16 @@ export class OrdersComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** Shop days in Dhaka, both inclusive; the server turns them into UTC windows. */
   private getDateRange(filter: string): { fromDate?: string; toDate?: string } {
-    const today = new Date();
-    const fmt = (d: Date) => d.toISOString().split('T')[0]; // yyyy-MM-dd
-
-    if (filter === 'TODAY') {
-      return { fromDate: fmt(today), toDate: fmt(today) };
-    }
+    const today = businessToday();
+    if (filter === 'TODAY') return { fromDate: today, toDate: today };
     if (filter === 'YESTERDAY') {
-      const y = new Date(today); y.setDate(today.getDate() - 1);
-      return { fromDate: fmt(y), toDate: fmt(y) };
+      const yesterday = addDays(today, -1);
+      return { fromDate: yesterday, toDate: yesterday };
     }
-    if (filter === 'LAST_7') {
-      const d = new Date(today); d.setDate(today.getDate() - 7);
-      return { fromDate: fmt(d), toDate: fmt(today) };
-    }
-    if (filter === 'LAST_30') {
-      const d = new Date(today); d.setDate(today.getDate() - 30);
-      return { fromDate: fmt(d), toDate: fmt(today) };
-    }
+    if (filter === 'LAST_7') return { fromDate: addDays(today, -6), toDate: today };
+    if (filter === 'LAST_30') return { fromDate: addDays(today, -29), toDate: today };
     return {};
   }
 
@@ -161,8 +152,18 @@ export class OrdersComponent implements OnInit, OnDestroy {
     this.loadPage(0);
   }
 
+  onSearchChange(query: string): void {
+    this.searchQuery.set(query);
+    this.searchSubject.next(query);
+  }
+
   onStatusFilterChange(status: string): void {
     this.filterStatus.set(status);
+    this.loadPage(0);
+  }
+
+  onPaymentFilterChange(payment: string): void {
+    this.filterPayment.set(payment);
     this.loadPage(0);
   }
 

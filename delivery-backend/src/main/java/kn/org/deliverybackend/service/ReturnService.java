@@ -24,7 +24,8 @@ public interface ReturnService {
 
     // ── Admin ──────────────────────────────────────────────────────────────────
 
-    org.springframework.data.domain.Page<ReturnRequestDTO> listForAdmin(String status, int page, int size);
+    /** The admin returns list, newest first; {@code q} searches customer email, reason, order and return numbers. */
+    org.springframework.data.domain.Page<ReturnRequestDTO> listForAdmin(String status, String q, int page, int size);
 
     ReturnRequestDTO getForAdmin(UUID returnId);
 

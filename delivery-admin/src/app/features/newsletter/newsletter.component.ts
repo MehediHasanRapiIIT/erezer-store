@@ -1,8 +1,9 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { catchError, of } from 'rxjs';
+import { EMPTY, Subject, catchError, debounceTime, distinctUntilChanged, map, of } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
+import { PagerComponent } from '../../shared/pager/pager.component';
 import {
   AdminNewsletterService,
   CampaignAudience,
@@ -11,14 +12,20 @@ import {
   NewsletterCampaign,
   NewsletterSubscriber,
 } from '../../core/services/newsletter.service';
+import { PermissionService } from '../../core/services/permission.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 
 type Tab = 'subscribers' | 'campaigns' | 'compose';
 
+/**
+ * The Newsletter page. The Subscribers and Campaigns lists each have their own
+ * server-side search and paging, so a search covers every row, not just the
+ * page on screen.
+ */
 @Component({
   selector: 'app-newsletter',
   standalone: true,
-  imports: [DatePipe, DecimalPipe, FormsModule, SidebarComponent],
+  imports: [DatePipe, DecimalPipe, FormsModule, SidebarComponent, PagerComponent],
   template: `
     <div class="flex h-screen bg-gray-50 overflow-hidden">
       <app-sidebar />
@@ -33,16 +40,18 @@ type Tab = 'subscribers' | 'campaigns' | 'compose';
 
         <nav class="bg-white border-b border-gray-200 px-6 flex gap-1">
           @for (t of tabs; track t.id) {
-            <button
-              (click)="setTab(t.id)"
-              class="px-4 py-2 text-sm font-medium border-b-2 transition"
-              [class.border-blue-500]="tab() === t.id"
-              [class.text-blue-600]="tab() === t.id"
-              [class.border-transparent]="tab() !== t.id"
-              [class.text-gray-500]="tab() !== t.id"
-              [class.hover:text-gray-800]="tab() !== t.id">
-              {{ t.label }}
-            </button>
+            @if (canTab(t.id)) {
+              <button
+                (click)="setTab(t.id)"
+                class="px-4 py-2 text-sm font-medium border-b-2 transition"
+                [class.border-blue-500]="tab() === t.id"
+                [class.text-blue-600]="tab() === t.id"
+                [class.border-transparent]="tab() !== t.id"
+                [class.text-gray-500]="tab() !== t.id"
+                [class.hover:text-gray-800]="tab() !== t.id">
+                {{ t.label }}
+              </button>
+            }
           }
         </nav>
 
@@ -58,14 +67,19 @@ type Tab = 'subscribers' | 'campaigns' | 'compose';
               <!-- ── Subscribers ─────────────────────────────────────────── -->
               @case ('subscribers') {
                 <section class="rounded-xl border border-gray-200 bg-white overflow-hidden">
-                  <header class="border-b border-gray-100 bg-gray-50 px-4 py-2 flex items-center justify-between text-xs uppercase text-gray-400">
-                    <span>{{ subscribers().length }} row(s)</span>
-                    <select [ngModel]="subFilter()" (ngModelChange)="setSubFilter($event)"
-                      class="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs uppercase text-gray-500">
-                      <option value="ALL">All</option>
-                      <option value="SUBSCRIBED">Subscribed</option>
-                      <option value="UNSUBSCRIBED">Unsubscribed</option>
-                    </select>
+                  <header class="border-b border-gray-100 bg-gray-50 px-4 py-2 flex items-center justify-between gap-3 text-xs uppercase text-gray-400">
+                    <span>{{ subTotal() }} row(s)</span>
+                    <div class="flex items-center gap-2 min-w-0">
+                      <input type="search" [ngModel]="subSearch()" (ngModelChange)="onSubSearch($event)"
+                        placeholder="Search by email…" aria-label="Search subscribers"
+                        class="w-56 min-w-0 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs normal-case text-gray-700 outline-none focus:ring-2 focus:ring-blue-300 placeholder-gray-400" />
+                      <select [ngModel]="subFilter()" (ngModelChange)="setSubFilter($event)"
+                        class="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs uppercase text-gray-500">
+                        <option value="ALL">All</option>
+                        <option value="SUBSCRIBED">Subscribed</option>
+                        <option value="UNSUBSCRIBED">Unsubscribed</option>
+                      </select>
+                    </div>
                   </header>
                   <table class="w-full text-sm">
                     <thead>
@@ -92,16 +106,29 @@ type Tab = 'subscribers' | 'campaigns' | 'compose';
                           <td class="px-4 py-2 text-xs text-gray-500">{{ s.unsubscribedAt | date: 'mediumDate' }}</td>
                         </tr>
                       } @empty {
-                        <tr><td colspan="5" class="px-4 py-6 text-center text-gray-400">No subscribers yet.</td></tr>
+                        <tr><td colspan="5" class="px-4 py-6 text-center text-gray-400">
+                          {{ subLoading() ? 'Loading…' : subSearching() ? 'No subscribers match your search.' : 'No subscribers yet.' }}
+                        </td></tr>
                       }
                     </tbody>
                   </table>
+                  @if (subTotal() > 0) {
+                    <div class="border-t border-gray-100">
+                      <app-pager [page]="subPage()" [size]="subPageSize" [total]="subTotal()" [disabled]="subLoading()" (pageChange)="goToSubPage($event)" />
+                    </div>
+                  }
                 </section>
               }
 
               <!-- ── Campaigns ──────────────────────────────────────────── -->
               @case ('campaigns') {
                 <section class="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                  <header class="border-b border-gray-100 bg-gray-50 px-4 py-2 flex items-center justify-between gap-3 text-xs uppercase text-gray-400">
+                    <span>{{ campTotal() }} campaign(s)</span>
+                    <input type="search" [ngModel]="campSearch()" (ngModelChange)="onCampSearch($event)"
+                      placeholder="Search by subject…" aria-label="Search campaigns"
+                      class="w-56 min-w-0 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs normal-case text-gray-700 outline-none focus:ring-2 focus:ring-blue-300 placeholder-gray-400" />
+                  </header>
                   <table class="w-full text-sm">
                     <thead>
                       <tr class="border-b border-gray-100 bg-gray-50 text-xs uppercase text-gray-400">
@@ -129,10 +156,13 @@ type Tab = 'subscribers' | 'campaigns' | 'compose';
                           <td class="px-4 py-2">
                             @if (c.status === 'DRAFT' || c.status === 'FAILED') {
                               <div class="flex items-center justify-end gap-2">
+                                @if (perms.can('newsletter.campaigns.send')) {
                                 <button (click)="send(c)" [disabled]="acting()" class="act-btn act-btn-send" title="Send">
                                   <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/></svg>
                                   Send
                                 </button>
+                                }
+                                @if (perms.can('newsletter.campaigns.edit')) {
                                 <button (click)="loadIntoCompose(c)" class="act-btn act-btn-edit" title="Edit">
                                   <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>
                                   Edit
@@ -141,15 +171,29 @@ type Tab = 'subscribers' | 'campaigns' | 'compose';
                                   <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
                                   Delete
                                 </button>
+                                }
                               </div>
                             }
                           </td>
                         </tr>
                       } @empty {
-                        <tr><td colspan="7" class="px-4 py-6 text-center text-gray-400">No campaigns yet — compose one in the Compose tab.</td></tr>
+                        <tr><td colspan="7" class="px-4 py-6 text-center text-gray-400">
+                          @if (campLoading()) {
+                            Loading…
+                          } @else if (campSearching()) {
+                            No campaigns match your search.
+                          } @else {
+                            No campaigns yet{{ perms.can('newsletter.campaigns.edit') ? ' — compose one in the Compose tab' : '' }}.
+                          }
+                        </td></tr>
                       }
                     </tbody>
                   </table>
+                  @if (campTotal() > 0) {
+                    <div class="border-t border-gray-100">
+                      <app-pager [page]="campPage()" [size]="campPageSize" [total]="campTotal()" [disabled]="campLoading()" (pageChange)="goToCampPage($event)" />
+                    </div>
+                  }
                 </section>
               }
 
@@ -202,8 +246,9 @@ type Tab = 'subscribers' | 'campaigns' | 'compose';
     </div>
   `,
 })
-export class NewsletterComponent implements OnInit {
+export class NewsletterComponent implements OnInit, OnDestroy {
   private readonly api = inject(AdminNewsletterService);
+  protected readonly perms = inject(PermissionService);
 
   protected readonly tabs: { id: Tab; label: string }[] = [
     { id: 'subscribers', label: 'Subscribers' },
@@ -215,11 +260,32 @@ export class NewsletterComponent implements OnInit {
   readonly subscribers   = signal<NewsletterSubscriber[]>([]);
   readonly campaigns     = signal<NewsletterCampaign[]>([]);
   readonly activeCount   = signal<number | null>(null);
-  readonly loading       = signal(false);
   readonly acting        = signal(false);
   readonly error         = signal<string>('');
   readonly subFilter     = signal<string>('ALL');
   readonly editingId     = signal<string | null>(null);
+
+  // Subscribers list: zero-based page, total rows, typed search.
+  protected readonly subPageSize = 50;
+  readonly subPage       = signal(0);
+  readonly subTotal      = signal(0);
+  readonly subLoading    = signal(false);
+  readonly subSearch     = signal('');
+  protected readonly subSearching = computed(() => this.subSearch().trim().length > 0);
+  private readonly subSearch$ = new Subject<string>();
+  /** Numbers each subscribers request, so an answer that arrives after a newer one is ignored. */
+  private subRequest = 0;
+
+  // Campaigns list: zero-based page, total rows, typed search.
+  protected readonly campPageSize = 20;
+  readonly campPage      = signal(0);
+  readonly campTotal     = signal(0);
+  readonly campLoading   = signal(false);
+  readonly campSearch    = signal('');
+  protected readonly campSearching = computed(() => this.campSearch().trim().length > 0);
+  private readonly campSearch$ = new Subject<string>();
+  /** Numbers each campaigns request, so an answer that arrives after a newer one is ignored. */
+  private campRequest = 0;
 
   protected form: CampaignRequest & { audience: CampaignAudience } = {
     subject: '',
@@ -228,7 +294,27 @@ export class NewsletterComponent implements OnInit {
   };
 
   ngOnInit(): void {
+    // Open on the first tab this person may use.
+    const first = this.tabs.find((t) => this.canTab(t.id));
+    if (first) this.tab.set(first.id);
     this.reload();
+
+    // Typing searches the whole list after a short pause, from the first page.
+    this.subSearch$.pipe(map((q) => q.trim()), debounceTime(300), distinctUntilChanged())
+      .subscribe(() => this.loadSubscribers(0));
+    this.campSearch$.pipe(map((q) => q.trim()), debounceTime(300), distinctUntilChanged())
+      .subscribe(() => this.loadCampaigns(0));
+  }
+
+  ngOnDestroy(): void {
+    this.subSearch$.complete();
+    this.campSearch$.complete();
+  }
+
+  protected canTab(t: Tab): boolean {
+    return t === 'subscribers' ? this.perms.can('newsletter.subscribers')
+         : t === 'campaigns'   ? this.perms.can('newsletter.campaigns.view')
+         :                       this.perms.can('newsletter.campaigns.edit');
   }
 
   protected setTab(t: Tab): void {
@@ -238,28 +324,78 @@ export class NewsletterComponent implements OnInit {
 
   protected setSubFilter(status: string): void {
     this.subFilter.set(status);
-    this.loadSubscribers();
+    this.loadSubscribers(0);
+  }
+
+  protected onSubSearch(q: string): void {
+    this.subSearch.set(q);
+    this.subSearch$.next(q);
+  }
+
+  protected onCampSearch(q: string): void {
+    this.campSearch.set(q);
+    this.campSearch$.next(q);
+  }
+
+  protected goToSubPage(page: number): void {
+    this.loadSubscribers(page);
+  }
+
+  protected goToCampPage(page: number): void {
+    this.loadCampaigns(page);
   }
 
   private reload(): void {
-    this.loadSubscribers();
-    this.loadCampaigns();
-    this.api.activeCount().pipe(catchError(() => of(null)))
-      .subscribe((n) => { if (n !== null) this.activeCount.set(n); });
+    if (this.perms.can('newsletter.subscribers')) {
+      this.loadSubscribers(0);
+      this.api.activeCount().pipe(catchError(() => of(null)))
+        .subscribe((n) => { if (n !== null) this.activeCount.set(n); });
+    }
+    if (this.perms.can('newsletter.campaigns.view')) this.loadCampaigns(0);
   }
 
-  private loadSubscribers(): void {
-    this.loading.set(true);
-    this.api.listSubscribers(this.subFilter()).pipe(catchError(() => of(null)))
-      .subscribe((page) => {
-        this.loading.set(false);
-        if (page) this.subscribers.set(page.content);
+  /** One page of subscribers, for the current search and status filter. */
+  private loadSubscribers(page: number): void {
+    if (!this.perms.can('newsletter.subscribers')) return;
+    const request = ++this.subRequest;
+    this.subLoading.set(true);
+    this.api.listSubscribers(this.subFilter(), page, this.subPageSize, this.subSearch())
+      .pipe(catchError(() => of(null)))
+      .subscribe((res) => {
+        if (request !== this.subRequest) return;
+        this.subLoading.set(false);
+        if (!res) return;
+        // This page is now empty (its last row went away): show the page before it.
+        if (res.content.length === 0 && page > 0) {
+          this.loadSubscribers(Math.min(page - 1, Math.max(res.totalPages - 1, 0)));
+          return;
+        }
+        this.subscribers.set(res.content);
+        this.subPage.set(res.number);
+        this.subTotal.set(res.totalElements);
       });
   }
 
-  private loadCampaigns(): void {
-    this.api.listCampaigns().pipe(catchError(() => of(null)))
-      .subscribe((page) => { if (page) this.campaigns.set(page.content); });
+  /** One page of campaigns, for the current search. */
+  private loadCampaigns(page: number): void {
+    if (!this.perms.can('newsletter.campaigns.view')) return;
+    const request = ++this.campRequest;
+    this.campLoading.set(true);
+    this.api.listCampaigns(page, this.campPageSize, this.campSearch())
+      .pipe(catchError(() => of(null)))
+      .subscribe((res) => {
+        if (request !== this.campRequest) return;
+        this.campLoading.set(false);
+        if (!res) return;
+        // This page is now empty (e.g. its last draft was deleted): show the page before it.
+        if (res.content.length === 0 && page > 0) {
+          this.loadCampaigns(Math.min(page - 1, Math.max(res.totalPages - 1, 0)));
+          return;
+        }
+        this.campaigns.set(res.content);
+        this.campPage.set(res.number);
+        this.campTotal.set(res.totalElements);
+      });
   }
 
   // ── compose / draft ──────────────────────────────────────────────────────
@@ -285,9 +421,12 @@ export class NewsletterComponent implements OnInit {
     })).subscribe((saved) => {
       this.acting.set(false);
       if (saved) {
-        this.loadCampaigns();
         this.cancelEdit();
-        this.setTab('campaigns');
+        if (this.perms.can('newsletter.campaigns.view')) {
+          // A new draft is the newest, so it shows on the first page; an edited one stays where it was.
+          this.loadCampaigns(editId ? this.campPage() : 0);
+          this.setTab('campaigns');
+        }
       }
     });
   }
@@ -326,6 +465,7 @@ export class NewsletterComponent implements OnInit {
       if (updated) {
         // Updated row will be in SENDING; user can refresh later to see final count.
         this.campaigns.update((list) => list.map((x) => x.id === updated.id ? updated : x));
+        this.loadCampaigns(this.campPage());
       }
     });
   }
@@ -336,10 +476,11 @@ export class NewsletterComponent implements OnInit {
     this.api.delete(c.id).pipe(catchError((err) => {
       this.error.set(parseApiError(err));
       this.acting.set(false);
-      return of(null);
+      return EMPTY;
     })).subscribe(() => {
       this.acting.set(false);
       this.campaigns.update((list) => list.filter((x) => x.id !== c.id));
+      this.loadCampaigns(this.campPage());
     });
   }
 

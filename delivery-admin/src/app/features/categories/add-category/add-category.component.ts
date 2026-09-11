@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { RouterLink, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { KeyValuePipe } from '@angular/common';
@@ -7,6 +7,7 @@ import { CategoryService } from '../../../core/services/category.service';
 import { UploadService } from '../../../core/services/upload.service';
 import { parseApiError } from '../../../core/utils/api-error.util';
 import { HttpErrorResponse } from '@angular/common/http';
+import { PermissionService } from '../../../core/services/permission.service';
 
 @Component({
   selector: 'app-add-category',
@@ -20,6 +21,8 @@ export class AddCategoryComponent {
     private categoryService: CategoryService,
     private uploadService: UploadService,
   ) {}
+
+  protected readonly perms = inject(PermissionService);
 
   categoryName = signal('');
   isActive     = signal(true);

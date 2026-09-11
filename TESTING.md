@@ -173,6 +173,8 @@ theme caching is off locally.
 | Inventory | Stock quantities, low-stock thresholds |
 | Categories | T-Shirts, Hoodies, Accessories |
 | Orders | Empty until you place one (step 4) |
+| Staff | You, marked "You", as Admin; **+ Add** adds a moderator (see section 9) |
+| Activity log | Every change made in the panel, newest first, with who and when |
 
 ### Mailpit — http://localhost:8025
 
@@ -296,6 +298,90 @@ docker compose exec backend env | sort         # what the backend actually got
 | Backend won't start, schema error | Entity changed without a migration | Write the migration, or `DDL_AUTO=update` to unblock |
 | Frontend calls the old API URL | Stale container or browser cache | `docker compose up -d --force-recreate store` then hard-reload |
 | Changed `.env`, nothing happened | Compose reads it at container creation | `docker compose up -d --force-recreate` |
+
+---
+
+## 9. Staff and permissions
+
+Two roles: an **Admin** can do everything; a **Moderator** can do only what an
+admin ticked for them on the **Staff** page. Changes apply on the person's next
+click. The rules and decisions are in `ACCESS-CONTROL-PLAN.md`.
+
+### One-time setup
+
+The Staff page manages Keycloak logins through a service account. Create it
+(safe to run again), then restart the backend so it reads the new secret:
+
+```bash
+python deploy/keycloak_setup.py
+docker compose up -d backend
+```
+
+Without it, the Staff page lists people but explains that logins can't be
+managed yet. Do the same once on the live server.
+
+### Try it by hand
+
+1. As `admin`, open **Staff → + Add moderator**. The form opens on its own
+   page. Fill in the name, username and email, keep the generated password,
+   tick **See orders**, and save. Copy the password from the card, then
+   choose **Back to staff**.
+2. In a private window, log in as the new moderator. Keycloak asks for a new
+   password first. Afterwards the sidebar shows only **Orders**.
+3. Back as admin, open **Permissions** on their row, tick **See coupons**, and
+   save. The moderator gets Coupons on their next page load.
+4. Untick it again while the moderator is still on the panel. Their next click
+   on Coupons is refused with a "Not allowed" message, and they are moved to a
+   page that explains what's missing.
+5. **Activity log** lists each of those changes, with who did it and when.
+
+A moderator without "See money totals" sees 🔒 Hidden instead of revenue on
+the dashboard, analytics and customers pages.
+
+### Automated check
+
+```bash
+python deploy/verify_access_control.py
+```
+
+This adds two throwaway moderators through the Staff API: one with every
+"see" permission, one with every other permission. It then calls every staff
+endpoint as each of them:
+
+- Endpoints they weren't given must refuse with 403.
+- Endpoints they were given must let them through.
+- Nothing works without a login.
+- The customer-isolation checks from `ACCESS-CONTROL-PLAN.md` run again: one
+  customer can't read another's data.
+
+It never changes real data. Refusals are tested on every endpoint, and a
+refused request never reaches the code that would act. On the "allowed" side
+it only reads, or acts on a record id that doesn't exist. It deletes both
+moderators at the end; the activity log keeps the "Added…" and "Deleted…"
+lines, as it would for anyone. Exit status 0 means everything matched.
+
+### When you add an admin feature
+
+1. **Add a permission** for each new action to
+   `delivery-backend/.../access/Perm.java`: key, area, label in plain words,
+   and an optional description. It is written to the database at startup and
+   appears on the Staff page by itself. Admins get it automatically.
+2. **Mark every new endpoint** with `@RequiresPermission(Perm.X)`, or with
+   `@AdminOnly` or `@AnyStaff`. The build fails until you do
+   (`AdminEndpointCoverageTest`). For a check that depends on the data sent,
+   such as the price inside a product edit, call `StaffAccess.require(Perm.X)`
+   in the controller.
+3. **Admin panel:**
+   - Add the page rule to `ACCESS` and `ADMIN_PAGES` in
+     `core/access/admin-pages.ts`, and the route with `page(...)` in
+     `app.routes.ts`.
+   - Show each button only when `perms.can('x')` is true.
+   - Don't call an endpoint the person can't use.
+4. If the new permission only makes sense with another one (editing usually
+   needs seeing), add that to `features/staff/permission-deps.ts` so the
+   checklist ticks both.
+5. Run `python deploy/verify_access_control.py`. It picks up new endpoints by
+   itself.
 
 ---
 

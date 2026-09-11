@@ -9,15 +9,17 @@
         <h1 class="text-xl font-bold text-gray-900">Product Categories</h1>
         <p class="text-xs text-gray-400">Manage your marketplace taxonomy and toggle visibility.</p>
       </div>
-      <a
-        routerLink="/categories/new"
-        class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
-      >
-        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-        </svg>
-        Add New Category
-      </a>
+      @if (perms.can('categories.create')) {
+        <a
+          routerLink="/categories/new"
+          class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
+        >
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+          </svg>
+          Add New Category
+        </a>
+      }
     </header>
 
     <main class="flex-1 overflow-y-auto p-6">
@@ -40,7 +42,7 @@
             <input
               type="text"
               [ngModel]="searchQuery()"
-              (ngModelChange)="searchQuery.set($event); setPage(1)"
+              (ngModelChange)="onSearchChange($event)"
               placeholder="Search categories..."
               class="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400 placeholder-gray-400"
             />
@@ -83,7 +85,7 @@
         } @else {
 
           <!-- Category rows -->
-          @for (cat of paginated(); track cat.id; let i = $index) {
+          @for (cat of categories(); track cat.id; let i = $index) {
             <div
               class="grid items-center px-5 py-3.5 border-b border-gray-50 hover:bg-gray-50/60 transition-colors"
               style="grid-template-columns: 3rem 1fr 7rem 8rem 8rem;"
@@ -129,7 +131,8 @@
                 <button
                   type="button"
                   (click)="toggleActive(cat)"
-                  class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none"
+                  [disabled]="!perms.can('categories.edit')"
+                  class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                   [class.bg-emerald-500]="cat.isActive"
                   [class.bg-gray-300]="!cat.isActive"
                   [attr.aria-checked]="cat.isActive"
@@ -146,44 +149,48 @@
 
               <!-- Actions -->
               <div class="flex items-center justify-center gap-1">
-                <button
-                  (click)="editCategory(cat.id)"
-                  class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                  title="Edit"
-                >
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                  </svg>
-                </button>
-                @if (deleteConfirmId() === cat.id) {
-                  <div class="flex items-center gap-1">
-                    <button
-                      (click)="deleteCategory(cat.id)"
-                      [disabled]="isDeleting()"
-                      class="px-2 py-1 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded transition-colors disabled:opacity-50"
-                    >{{ isDeleting() ? '...' : 'Yes' }}</button>
-                    <button
-                      (click)="cancelDelete()"
-                      class="px-2 py-1 text-xs font-semibold text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
-                    >No</button>
-                  </div>
-                } @else {
+                @if (perms.can('categories.edit')) {
                   <button
-                    (click)="confirmDelete(cat.id)"
-                    class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Delete"
+                    (click)="editCategory(cat.id)"
+                    class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    title="Edit"
                   >
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                     </svg>
                   </button>
+                }
+                @if (perms.can('categories.delete')) {
+                  @if (deleteConfirmId() === cat.id) {
+                    <div class="flex items-center gap-1">
+                      <button
+                        (click)="deleteCategory(cat.id)"
+                        [disabled]="isDeleting()"
+                        class="px-2 py-1 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded transition-colors disabled:opacity-50"
+                      >{{ isDeleting() ? '...' : 'Yes' }}</button>
+                      <button
+                        (click)="cancelDelete()"
+                        class="px-2 py-1 text-xs font-semibold text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+                      >No</button>
+                    </div>
+                  } @else {
+                    <button
+                      (click)="confirmDelete(cat.id)"
+                      class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Delete"
+                    >
+                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                      </svg>
+                    </button>
+                  }
                 }
               </div>
             </div>
           }
 
           <!-- Empty state -->
-          @if (paginated().length === 0) {
+          @if (categories().length === 0) {
             <div class="py-16 text-center text-gray-400 text-sm">
               No categories found.
             </div>
@@ -192,15 +199,15 @@
         }
 
         <!-- Pagination -->
-        @if (!isLoading() && filtered().length > 0) {
+        @if (!isLoading() && totalElements() > 0) {
           <div class="px-5 py-4 flex items-center justify-between border-t border-gray-100">
             <p class="text-sm text-gray-500">
               Showing
               <span class="font-semibold text-gray-700">{{ (currentPage() - 1) * pageSize + 1 }}</span>
               to
-              <span class="font-semibold text-gray-700">{{ minVal(currentPage() * pageSize, filtered().length) }}</span>
+              <span class="font-semibold text-gray-700">{{ minVal(currentPage() * pageSize, totalElements()) }}</span>
               of
-              <span class="font-semibold text-gray-700">{{ filtered().length }}</span>
+              <span class="font-semibold text-gray-700">{{ totalElements() }}</span>
               categories
             </p>
             <div class="flex items-center gap-1">

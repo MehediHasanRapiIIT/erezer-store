@@ -1,5 +1,7 @@
 package kn.org.deliverybackend.controller;
 
+import kn.org.deliverybackend.access.Perm;
+import kn.org.deliverybackend.access.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import kn.org.deliverybackend.dto.productimage.ProductImageDTO;
@@ -22,11 +24,13 @@ public class AdminProductImageController {
 
     private final ProductImageService imageService;
 
+    @RequiresPermission(value = {Perm.PRODUCTS_VIEW, Perm.PRODUCTS_EDIT, Perm.PRODUCTS_IMAGES}, mode = RequiresPermission.Mode.ANY)
     @GetMapping
     public ResponseEntity<List<ProductImageDTO>> list(@PathVariable Long productId) {
         return ResponseEntity.ok(imageService.listForProduct(productId));
     }
 
+    @RequiresPermission(Perm.PRODUCTS_IMAGES)
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ProductImageDTO> upload(
             @PathVariable Long productId,
@@ -38,6 +42,7 @@ public class AdminProductImageController {
                 .body(imageService.upload(productId, file, altText, sortOrder, isPrimary));
     }
 
+    @RequiresPermission(Perm.PRODUCTS_IMAGES)
     @PutMapping("/{imageId}")
     public ResponseEntity<ProductImageDTO> updateMetadata(
             @PathVariable Long productId,
@@ -46,6 +51,7 @@ public class AdminProductImageController {
         return ResponseEntity.ok(imageService.updateMetadata(productId, imageId, metadata));
     }
 
+    @RequiresPermission(Perm.PRODUCTS_IMAGES)
     @DeleteMapping("/{imageId}")
     public ResponseEntity<Void> delete(@PathVariable Long productId, @PathVariable Long imageId) {
         imageService.delete(productId, imageId);

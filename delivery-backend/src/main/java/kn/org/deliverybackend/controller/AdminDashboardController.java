@@ -1,5 +1,8 @@
 package kn.org.deliverybackend.controller;
 
+import kn.org.deliverybackend.access.Perm;
+import kn.org.deliverybackend.access.StaffAccess;
+import kn.org.deliverybackend.access.RequiresPermission;
 import kn.org.deliverybackend.dto.AnalyticsDTO;
 import kn.org.deliverybackend.dto.DashboardStatsDTO;
 import kn.org.deliverybackend.dto.report.PeriodReportDTO.Bucket;
@@ -55,6 +58,7 @@ public class AdminDashboardController {
     @Value("${app.business.currency:BDT}")
     private String currency;
 
+    @RequiresPermission(Perm.DASHBOARD_VIEW)
     @GetMapping("/stats")
     public ResponseEntity<DashboardStatsDTO> getStats() {
         LocalDate today = calendar.today();
@@ -75,7 +79,7 @@ public class AdminDashboardController {
                 .filter(r -> "ACTIVE".equalsIgnoreCase(r.getStatus())).count();
         InventorySummaryDTO inventory = inventoryService.getSummary();
 
-        return ResponseEntity.ok(DashboardStatsDTO.builder()
+        DashboardStatsDTO stats = DashboardStatsDTO.builder()
                 .totalOrders(allTime.getPlacedOrders())
                 .validOrders(allTime.getOrders())
                 .totalRevenue(allTime.getNetRevenue().doubleValue())
@@ -99,9 +103,11 @@ public class AdminDashboardController {
                 .asOf(AS_OF.format(calendar.now()))
                 .zone(calendar.zone().getId())
                 .currency(currency)
-                .build());
+                .build();
+        return ResponseEntity.ok(StaffAccess.has(Perm.FINANCE_REVENUE) ? stats : stats.withoutRevenue());
     }
 
+    @RequiresPermission(Perm.ANALYTICS_VIEW)
     @GetMapping("/analytics")
     public ResponseEntity<AnalyticsDTO> getAnalytics(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
@@ -170,7 +176,7 @@ public class AdminDashboardController {
 
         InventorySummaryDTO inventory = inventoryService.getSummary();
 
-        return ResponseEntity.ok(new AnalyticsDTO(
+        AnalyticsDTO analytics = new AnalyticsDTO(
                 m.getNetRevenue().doubleValue(),
                 m.getPlacedOrders(),
                 activeRiders,
@@ -183,7 +189,8 @@ public class AdminDashboardController {
                 inventory.getCriticalLow(), inventory.getOutOfStock(), inventory.getReorderPending(),
                 totalRiders, totalRiders - activeRiders, avgRiderRating,
                 byStatus, byPayment, daily, topCategories, topProducts, topRiders
-        ));
+        );
+        return ResponseEntity.ok(StaffAccess.has(Perm.FINANCE_REVENUE) ? analytics : analytics.withoutRevenue());
     }
 
     private PeriodMetrics metrics(ReportPeriod period) {

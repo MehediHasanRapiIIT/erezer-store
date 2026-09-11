@@ -16,10 +16,12 @@
         }
         <div class="flex items-center gap-2.5">
           <div class="text-right hidden sm:block">
-            <p class="text-sm font-semibold text-gray-800 leading-tight">Admin User</p>
-            <p class="text-xs text-gray-400">Super Admin</p>
+            <p class="text-sm font-semibold text-gray-800 leading-tight">{{ perms.me()?.name || 'Signed in' }}</p>
+            <p class="text-xs text-gray-400">{{ perms.roleLabel() }}</p>
           </div>
-          <div class="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-sm">A</div>
+          <div class="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-sm">
+            {{ (perms.me()?.name || 'U').charAt(0).toUpperCase() }}
+          </div>
         </div>
       </div>
     </header>
@@ -33,12 +35,14 @@
           <h1 class="text-2xl font-bold text-gray-900">Overview</h1>
           <p class="text-sm text-gray-500 mt-0.5">Here's how Erezer is doing today, this week and this month. Revenue excludes cancelled and returned orders.</p>
         </div>
+        @if (perms.allows(access.reports)) {
         <a routerLink="/reports" class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-colors">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-6m4 6V7m4 10v-3M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z"/>
           </svg>
           Full reports
         </a>
+        }
       </div>
 
       @if (errorMessage()) {
@@ -59,11 +63,14 @@
             </div>
           </div>
           <p class="text-2xl font-extrabold text-gray-900 mt-2">
-            {{ stats() ? formatRevenue(stats()!.todayRevenue) : '—' }}
+            @if (stats()?.todayRevenue === null) { <app-hidden-money /> } @else { {{ stats() ? formatRevenue(stats()!.todayRevenue) : '—' }} }
           </p>
           <p class="text-xs mt-1 text-gray-400">
-            <span [class]="deltaClass(todayDelta())" class="font-semibold">{{ deltaText(todayDelta()) }}</span>
-            vs yesterday · {{ stats() ? stats()!.todayOrders + ' orders' : '' }}
+            @if (stats()?.todayRevenue !== null) {
+              <span [class]="deltaClass(todayDelta())" class="font-semibold">{{ deltaText(todayDelta()) }}</span>
+              vs yesterday ·
+            }
+            {{ stats() ? stats()!.todayOrders + ' orders' : '' }}
           </p>
         </div>
 
@@ -78,11 +85,14 @@
             </div>
           </div>
           <p class="text-2xl font-extrabold text-gray-900 mt-2">
-            {{ stats() ? formatRevenue(stats()!.weekRevenue) : '—' }}
+            @if (stats()?.weekRevenue === null) { <app-hidden-money /> } @else { {{ stats() ? formatRevenue(stats()!.weekRevenue) : '—' }} }
           </p>
           <p class="text-xs mt-1 text-gray-400">
-            <span [class]="deltaClass(weekDelta())" class="font-semibold">{{ deltaText(weekDelta()) }}</span>
-            vs last week · {{ stats() ? stats()!.weekOrders + ' orders' : '' }}
+            @if (stats()?.weekRevenue !== null) {
+              <span [class]="deltaClass(weekDelta())" class="font-semibold">{{ deltaText(weekDelta()) }}</span>
+              vs last week ·
+            }
+            {{ stats() ? stats()!.weekOrders + ' orders' : '' }}
           </p>
         </div>
 
@@ -97,11 +107,14 @@
             </div>
           </div>
           <p class="text-2xl font-extrabold text-gray-900 mt-2">
-            {{ stats() ? formatRevenue(stats()!.monthRevenue) : '—' }}
+            @if (stats()?.monthRevenue === null) { <app-hidden-money /> } @else { {{ stats() ? formatRevenue(stats()!.monthRevenue) : '—' }} }
           </p>
           <p class="text-xs mt-1 text-gray-400">
-            <span [class]="deltaClass(monthDelta())" class="font-semibold">{{ deltaText(monthDelta()) }}</span>
-            vs last month · {{ stats() ? stats()!.monthOrders + ' orders' : '' }}
+            @if (stats()?.monthRevenue !== null) {
+              <span [class]="deltaClass(monthDelta())" class="font-semibold">{{ deltaText(monthDelta()) }}</span>
+              vs last month ·
+            }
+            {{ stats() ? stats()!.monthOrders + ' orders' : '' }}
           </p>
         </div>
 
@@ -120,7 +133,7 @@
           </p>
           <p class="text-xs text-gray-400 mt-1">
             Awaiting acceptance
-            @if (stats(); as s) {
+            @if (stats() && perms.allows(access.orders)) {
               · <a routerLink="/orders" class="text-emerald-600 hover:underline">open orders</a>
             }
           </p>
@@ -131,7 +144,8 @@
       <!-- Chart + At a glance row -->
       <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
 
-        <!-- Revenue trend chart (2/3) -->
+        <!-- Revenue trend chart (2/3); from /admin/reports, hidden without Reports access -->
+        @if (perms.allows(access.reports)) {
         <div class="xl:col-span-2 bg-white rounded-xl border border-gray-200 p-5">
           <div class="flex items-start justify-between mb-4">
             <div>
@@ -178,12 +192,15 @@
             }
           </svg>
         </div>
+        }
 
-        <!-- At a glance (1/3) -->
-        <div class="bg-white rounded-xl border border-gray-200 p-5">
+        <!-- At a glance (1/3; full width when the trend chart is hidden) -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5" [class]="perms.allows(access.reports) ? '' : 'xl:col-span-3'">
           <div class="flex items-center justify-between mb-4">
             <h2 class="text-base font-bold text-gray-900">At a glance</h2>
-            <a routerLink="/analytics" class="text-xs text-emerald-600 hover:underline font-medium">Analytics</a>
+            @if (perms.allows(access.analytics)) {
+              <a routerLink="/analytics" class="text-xs text-emerald-600 hover:underline font-medium">Analytics</a>
+            }
           </div>
           @if (stats(); as s) {
             <div class="space-y-4">
@@ -208,7 +225,7 @@
                 </div>
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-semibold text-gray-800">All-time revenue</p>
-                  <p class="text-xs text-gray-500 mt-0.5">{{ taka(s.totalRevenue) }} from {{ s.validOrders.toLocaleString() }} valid orders</p>
+                  <p class="text-xs text-gray-500 mt-0.5">@if (s.totalRevenue === null) { <app-hidden-money /> } @else { {{ taka(s.totalRevenue) }} } from {{ s.validOrders.toLocaleString() }} valid orders</p>
                   <p class="text-xs text-gray-400 mt-0.5">{{ s.totalOrders.toLocaleString() }} placed · {{ s.cancelledOrders.toLocaleString() }} cancelled</p>
                 </div>
               </div>
@@ -225,7 +242,9 @@
                     <span class="text-red-600 font-medium">{{ s.outOfStockProducts }}</span> out of stock ·
                     <span class="text-orange-600 font-medium">{{ s.lowStockProducts }}</span> critically low
                   </p>
-                  <a routerLink="/inventory" class="text-xs text-emerald-600 hover:underline">Inventory</a>
+                  @if (perms.allows(access.inventory)) {
+                    <a routerLink="/inventory" class="text-xs text-emerald-600 hover:underline">Inventory</a>
+                  }
                 </div>
               </div>
 
@@ -237,7 +256,8 @@
 
       </div>
 
-      <!-- Best sellers (last 30 days) -->
+      <!-- Best sellers (last 30 days); from /admin/reports, hidden without Reports access -->
+      @if (perms.allows(access.reports)) {
       <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
           <div>
@@ -284,6 +304,7 @@
           </tbody>
         </table>
       </div>
+      }
 
     </main>
   </div>

@@ -1,11 +1,11 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { catchError, of } from 'rxjs';
+import { EMPTY, catchError, of } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
+import { ProductMultiPickerComponent } from '../../shared/product-picker/product-multi-picker.component';
 import { BundleRequest, BundleResponse, BundleService } from '../../core/services/bundle.service';
-import { ProductService } from '../../core/services/product.service';
 import { UploadService } from '../../core/services/upload.service';
-import { ProductResponse } from '../../core/models/api.models';
+import { PermissionService } from '../../core/services/permission.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 
 interface BundleForm {
@@ -41,7 +41,7 @@ const EMPTY_FORM: BundleForm = {
 @Component({
   selector: 'app-bundles',
   standalone: true,
-  imports: [FormsModule, SidebarComponent],
+  imports: [FormsModule, SidebarComponent, ProductMultiPickerComponent],
   template: `
     <div class="flex h-screen bg-gray-50 overflow-hidden">
       <app-sidebar />
@@ -52,10 +52,12 @@ const EMPTY_FORM: BundleForm = {
             <h1 class="text-lg font-bold text-gray-900">Bundle Offers</h1>
             <span class="text-xs text-gray-400">{{ bundles().length }} total</span>
           </div>
-          <button (click)="startCreate()"
-            class="px-3 py-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg">
-            + New bundle
-          </button>
+          @if (perms.can('bundles.create')) {
+            <button (click)="startCreate()"
+              class="px-3 py-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg">
+              + New bundle
+            </button>
+          }
         </header>
 
         <main class="flex-1 overflow-y-auto p-6">
@@ -110,10 +112,14 @@ const EMPTY_FORM: BundleForm = {
                       </td>
                       <td class="px-4 py-2.5">
                         <div class="flex items-center justify-end gap-2">
-                          <button (click)="startEdit(b)"
-                            class="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700">Edit</button>
-                          <button (click)="remove(b)"
-                            class="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:border-red-300 hover:bg-red-50 hover:text-red-600">Delete</button>
+                          @if (perms.can('bundles.edit')) {
+                            <button (click)="startEdit(b)"
+                              class="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700">Edit</button>
+                          }
+                          @if (perms.can('bundles.delete')) {
+                            <button (click)="remove(b)"
+                              class="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:border-red-300 hover:bg-red-50 hover:text-red-600">Delete</button>
+                          }
                         </div>
                       </td>
                     </tr>
@@ -214,53 +220,8 @@ const EMPTY_FORM: BundleForm = {
 
                 <!-- Product picker -->
                 <div class="mt-5">
-                  <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <span class="text-xs font-semibold text-gray-700">
-                      Eligible products <span class="font-normal text-gray-400">({{ form.productIds.length }} selected)</span>
-                    </span>
-                    <div class="flex items-center gap-2">
-                      <button type="button" (click)="selectAllFiltered()"
-                        class="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700">
-                        Select all (filtered)
-                      </button>
-                      <button type="button" (click)="clearSelection()"
-                        class="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:border-red-300 hover:bg-red-50 hover:text-red-600">
-                        Clear
-                      </button>
-                    </div>
-                  </div>
-                  <div class="mb-2 flex flex-col gap-2 sm:flex-row">
-                    <input [ngModel]="productSearch()" (ngModelChange)="onProductSearch($event)"
-                      [ngModelOptions]="{ standalone: true }" placeholder="Search products…"
-                      class="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm" />
-                    <select [ngModel]="categoryFilter()" (ngModelChange)="onCategoryFilter($event)"
-                      [ngModelOptions]="{ standalone: true }"
-                      class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm sm:w-52">
-                      <option value="all">All categories</option>
-                      @for (c of categoryOptions(); track c.id) { <option [value]="c.id">{{ c.name }}</option> }
-                    </select>
-                  </div>
-                  <div class="rounded-lg border border-gray-200 divide-y divide-gray-50">
-                    @for (p of pagedProducts(); track p.id) {
-                      <label class="flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 cursor-pointer">
-                        <input type="checkbox" [checked]="isSelected(p.id)" (change)="toggleProduct(p.id)" />
-                        @if (p.imageUrl) { <img [src]="p.imageUrl" [alt]="p.name" class="h-8 w-8 rounded object-cover" /> }
-                        <span class="flex-1">{{ p.name }}</span>
-                        <span class="text-xs text-gray-400">৳{{ p.price }}</span>
-                      </label>
-                    } @empty {
-                      <p class="px-3 py-4 text-center text-xs text-gray-400">No products match.</p>
-                    }
-                  </div>
-                  @if (totalProductPages() > 1) {
-                    <div class="mt-2 flex items-center justify-between text-xs text-gray-500">
-                      <button type="button" (click)="productGoTo(productPage() - 1)" [disabled]="productPage() === 0"
-                        class="rounded-lg border border-gray-200 px-2.5 py-1 hover:bg-gray-50 disabled:opacity-40">Prev</button>
-                      <span>Page {{ productPage() + 1 }} / {{ totalProductPages() }} · {{ filteredProducts().length }} products</span>
-                      <button type="button" (click)="productGoTo(productPage() + 1)" [disabled]="productPage() >= totalProductPages() - 1"
-                        class="rounded-lg border border-gray-200 px-2.5 py-1 hover:bg-gray-50 disabled:opacity-40">Next</button>
-                    </div>
-                  }
+                  <app-product-multi-picker label="Eligible products" [selected]="form.productIds"
+                    (selectedChange)="form.productIds = $event" />
                 </div>
 
                 <div class="mt-4 flex justify-end gap-2">
@@ -281,18 +242,16 @@ const EMPTY_FORM: BundleForm = {
 })
 export class BundlesComponent implements OnInit {
   private readonly api = inject(BundleService);
-  private readonly productApi = inject(ProductService);
   private readonly uploadApi = inject(UploadService);
+  protected readonly perms = inject(PermissionService);
 
   readonly bundles = signal<BundleResponse[]>([]);
-  readonly products = signal<ProductResponse[]>([]);
   readonly loading = signal(false);
   readonly saving = signal(false);
   readonly uploading = signal(false);
   readonly creating = signal(false);
   readonly editingId = signal<string | null>(null);
   readonly errorMessage = signal<string>('');
-  readonly productSearch = signal<string>('');
 
   protected form: BundleForm = { ...EMPTY_FORM, imageUrls: [], productIds: [] };
 
@@ -303,62 +262,8 @@ export class BundlesComponent implements OnInit {
     return c > b ? c - b : 0;
   });
 
-  readonly productPage = signal(0);
-  readonly categoryFilter = signal<string>('all');
-  private readonly productPageSize = 8;
-
-  /** Categories present among the loaded products (for the picker filter). */
-  protected readonly categoryOptions = computed(() => {
-    const map = new Map<number, string>();
-    for (const p of this.products()) {
-      if (p.categoryId != null) map.set(p.categoryId, p.categoryName ?? ('Category ' + p.categoryId));
-    }
-    return [...map.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-  });
-
-  protected readonly filteredProducts = computed(() => {
-    const q = this.productSearch().trim().toLowerCase();
-    const cat = this.categoryFilter();
-    let list = this.products();
-    if (cat !== 'all') list = list.filter((p) => String(p.categoryId) === cat);
-    if (q) list = list.filter((p) => p.name.toLowerCase().includes(q) || (p.brand ?? '').toLowerCase().includes(q));
-    return list;
-  });
-
-  protected onCategoryFilter(v: string): void {
-    this.categoryFilter.set(v);
-    this.productPage.set(0);
-  }
-
-  protected readonly totalProductPages = computed(() =>
-    Math.max(1, Math.ceil(this.filteredProducts().length / this.productPageSize)));
-
-  protected readonly pagedProducts = computed(() => {
-    const start = this.productPage() * this.productPageSize;
-    return this.filteredProducts().slice(start, start + this.productPageSize);
-  });
-
-  protected onProductSearch(q: string): void {
-    this.productSearch.set(q);
-    this.productPage.set(0);
-  }
-
-  protected productGoTo(p: number): void {
-    if (p < 0 || p >= this.totalProductPages()) return;
-    this.productPage.set(p);
-  }
-
-  protected selectAllFiltered(): void {
-    const ids = new Set(this.form.productIds);
-    for (const p of this.filteredProducts()) ids.add(p.id);
-    this.form.productIds = [...ids];
-  }
-
   ngOnInit(): void {
     this.reload();
-    this.productApi.getProducts()
-      .pipe(catchError(() => of([] as ProductResponse[])))
-      .subscribe((list) => this.products.set(list));
   }
 
   reload(): void {
@@ -373,7 +278,6 @@ export class BundlesComponent implements OnInit {
     this.editingId.set(null);
     this.creating.set(true);
     this.errorMessage.set('');
-    this.productSearch.set('');
     this.form = { ...EMPTY_FORM, imageUrls: [], productIds: [] };
   }
 
@@ -381,7 +285,6 @@ export class BundlesComponent implements OnInit {
     this.creating.set(false);
     this.editingId.set(b.id);
     this.errorMessage.set('');
-    this.productSearch.set('');
     this.form = {
       name: b.name,
       label: b.label ?? '',
@@ -421,21 +324,6 @@ export class BundlesComponent implements OnInit {
 
   protected removeImage(url: string): void {
     this.form.imageUrls = this.form.imageUrls.filter((u) => u !== url);
-  }
-
-  // ── Product selection ───────────────────────────────────────────────────
-  protected isSelected(id: number): boolean {
-    return this.form.productIds.includes(id);
-  }
-
-  protected toggleProduct(id: number): void {
-    this.form.productIds = this.isSelected(id)
-      ? this.form.productIds.filter((x) => x !== id)
-      : [...this.form.productIds, id];
-  }
-
-  protected clearSelection(): void {
-    this.form.productIds = [];
   }
 
   protected save(): void {
@@ -480,7 +368,7 @@ export class BundlesComponent implements OnInit {
   protected remove(b: BundleResponse): void {
     if (!confirm(`Delete bundle "${b.name}"?`)) return;
     this.api.delete(b.id)
-      .pipe(catchError((err) => { this.errorMessage.set(parseApiError(err)); return of(null); }))
+      .pipe(catchError((err) => { this.errorMessage.set(parseApiError(err)); return EMPTY; }))
       .subscribe(() => this.bundles.update((list) => list.filter((x) => x.id !== b.id)));
   }
 }

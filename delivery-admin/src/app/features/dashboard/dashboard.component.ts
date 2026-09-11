@@ -2,7 +2,10 @@ import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { DashboardService, DashboardStats } from '../../core/services/dashboard.service';
 import { ReportService, RevenuePoint, TopProduct } from '../../core/services/report.service';
+import { PermissionService } from '../../core/services/permission.service';
+import { ACCESS } from '../../core/access/admin-pages';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
+import { HiddenMoneyComponent } from '../../shared/hidden-money/hidden-money.component';
 import { parseApiError } from '../../core/utils/api-error.util';
 import {
   addDays, addMonths, businessToday, formatTaka, formatTakaCompact, parseIsoDate, percentChange, weekdayShort,
@@ -21,12 +24,14 @@ interface ChartPoint { x: number; y: number; label: string; revenue: number; ord
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [SidebarComponent, RouterLink],
+  imports: [SidebarComponent, RouterLink, HiddenMoneyComponent],
   templateUrl: './dashboard.component.html',
 })
 export class DashboardComponent implements OnInit {
   private dashboardService = inject(DashboardService);
   private reportService = inject(ReportService);
+  protected readonly perms = inject(PermissionService);
+  protected readonly access = ACCESS;
 
   readonly today = businessToday();
 
@@ -74,17 +79,18 @@ export class DashboardComponent implements OnInit {
   trendTotal = computed(() => this.trend().reduce((s, p) => s + p.revenue, 0));
   trendOrders = computed(() => this.trend().reduce((s, p) => s + p.orderCount, 0));
 
+  // Revenue is null without "finance.revenue"; the template hides these then.
   todayDelta = computed(() => {
     const s = this.stats();
-    return s ? percentChange(s.todayRevenue, s.yesterdayRevenue) : null;
+    return s && s.todayRevenue !== null && s.yesterdayRevenue !== null ? percentChange(s.todayRevenue, s.yesterdayRevenue) : null;
   });
   weekDelta = computed(() => {
     const s = this.stats();
-    return s ? percentChange(s.weekRevenue, s.lastWeekRevenue) : null;
+    return s && s.weekRevenue !== null && s.lastWeekRevenue !== null ? percentChange(s.weekRevenue, s.lastWeekRevenue) : null;
   });
   monthDelta = computed(() => {
     const s = this.stats();
-    return s ? percentChange(s.monthRevenue, s.lastMonthRevenue) : null;
+    return s && s.monthRevenue !== null && s.lastMonthRevenue !== null ? percentChange(s.monthRevenue, s.lastMonthRevenue) : null;
   });
 
   ngOnInit(): void {
@@ -93,12 +99,16 @@ export class DashboardComponent implements OnInit {
       error: (err) => this.errorMessage.set(parseApiError(err)),
     });
 
-    this.loadTrend();
+    // The trend chart and best sellers come from /admin/reports/*, which needs
+    // "reports.view" and "finance.revenue"; without them both cards are hidden.
+    if (this.perms.allows(ACCESS.reports)) {
+      this.loadTrend();
 
-    this.reportService.topProducts(this.bestSellersFrom, this.today, 5).subscribe({
-      next: (rows) => this.bestSellers.set(rows),
-      error: (err) => this.errorMessage.set(parseApiError(err)),
-    });
+      this.reportService.topProducts(this.bestSellersFrom, this.today, 5).subscribe({
+        next: (rows) => this.bestSellers.set(rows),
+        error: (err) => this.errorMessage.set(parseApiError(err)),
+      });
+    }
   }
 
   setTab(tab: Trend): void {
@@ -124,11 +134,11 @@ export class DashboardComponent implements OnInit {
     });
   }
 
-  formatRevenue(amount: number): string {
+  formatRevenue(amount: number | null): string {
     return formatTakaCompact(amount);
   }
 
-  taka(amount: number): string {
+  taka(amount: number | null): string {
     return formatTaka(amount);
   }
 

@@ -1,6 +1,6 @@
 import { ChangeDetectorRef, Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { catchError, of } from 'rxjs';
+import { EMPTY, catchError, of } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import {
   CustomDesignAssetService,
@@ -8,6 +8,7 @@ import {
   CustomDesignItemAdmin,
   CustomDesignLogoAdmin,
 } from '../../core/services/custom-design-asset.service';
+import { PermissionService } from '../../core/services/permission.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 
 type ColorView = 'front' | 'back' | 'leftSleeve' | 'rightSleeve';
@@ -29,9 +30,11 @@ const COLOR_VIEWS: { key: ColorView; label: string }[] = [
       <div class="flex-1 flex flex-col overflow-hidden">
         <header class="bg-white border-b border-gray-200 px-6 h-14 flex items-center justify-between flex-shrink-0">
           <h1 class="text-lg font-bold text-gray-900">Custom design studio</h1>
-          <button (click)="newItem()" class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700">
-            + New garment
-          </button>
+          @if (perms.can('design.items')) {
+            <button (click)="newItem()" class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700">
+              + New garment
+            </button>
+          }
         </header>
 
         <main class="flex-1 overflow-y-auto p-6">
@@ -130,10 +133,12 @@ const COLOR_VIEWS: { key: ColorView; label: string }[] = [
                           <span class="h-5 w-5 rounded-full border border-gray-200" [style.background-color]="c.hex" [title]="c.name"></span>
                         }
                       </div>
-                      <div class="mt-3 flex gap-2 border-t border-gray-100 pt-2">
-                        <button (click)="editItem(it)" class="text-xs font-medium text-blue-600 hover:underline">Edit</button>
-                        <button (click)="deleteItem(it)" class="ml-auto text-xs font-medium text-red-500 hover:text-red-600">Delete</button>
-                      </div>
+                      @if (perms.can('design.items')) {
+                        <div class="mt-3 flex gap-2 border-t border-gray-100 pt-2">
+                          <button (click)="editItem(it)" class="text-xs font-medium text-blue-600 hover:underline">Edit</button>
+                          <button (click)="deleteItem(it)" class="ml-auto text-xs font-medium text-red-500 hover:text-red-600">Delete</button>
+                        </div>
+                      }
                     </article>
                   } @empty {
                     <p class="text-sm text-gray-400">No garments yet.</p>
@@ -146,24 +151,28 @@ const COLOR_VIEWS: { key: ColorView; label: string }[] = [
             <section>
               <h2 class="mb-3 text-sm font-semibold uppercase text-gray-400">Logo library</h2>
               <div class="rounded-xl border border-gray-200 bg-white p-4">
-                <div class="mb-4 flex flex-wrap items-end gap-2">
-                  <label class="text-xs font-semibold uppercase text-gray-400">Name
-                    <input [(ngModel)]="newLogoName" placeholder="Logo name" class="mt-1 block rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-800" />
-                  </label>
-                  <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
-                    <input type="file" accept="image/*" class="hidden" (change)="onLogoFile($event)" />
-                    {{ newLogoUrl ? 'Change image' : 'Choose image' }}
-                  </label>
-                  @if (newLogoUrl) { <img [src]="newLogoUrl" alt="" class="h-10 w-10 rounded object-contain border border-gray-100" /> }
-                  <button (click)="addLogo()" [disabled]="acting() || !newLogoName.trim() || !newLogoUrl"
-                    class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">Add logo</button>
-                </div>
+                @if (perms.can('design.logos')) {
+                  <div class="mb-4 flex flex-wrap items-end gap-2">
+                    <label class="text-xs font-semibold uppercase text-gray-400">Name
+                      <input [(ngModel)]="newLogoName" placeholder="Logo name" class="mt-1 block rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-800" />
+                    </label>
+                    <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
+                      <input type="file" accept="image/*" class="hidden" (change)="onLogoFile($event)" />
+                      {{ newLogoUrl ? 'Change image' : 'Choose image' }}
+                    </label>
+                    @if (newLogoUrl) { <img [src]="newLogoUrl" alt="" class="h-10 w-10 rounded object-contain border border-gray-100" /> }
+                    <button (click)="addLogo()" [disabled]="acting() || !newLogoName.trim() || !newLogoUrl"
+                      class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">Add logo</button>
+                  </div>
+                }
                 <div class="grid grid-cols-3 gap-3 sm:grid-cols-6">
                   @for (logo of logos(); track logo.id) {
                     <figure class="group relative rounded-lg border border-gray-200 p-2 text-center">
                       <img [src]="logo.url" [alt]="logo.name" class="mx-auto h-14 w-14 object-contain" />
                       <figcaption class="mt-1 truncate text-xs text-gray-500">{{ logo.name }}</figcaption>
-                      <button (click)="deleteLogo(logo)" class="absolute right-1 top-1 hidden rounded-full bg-red-500 px-1.5 text-xs text-white group-hover:block">✕</button>
+                      @if (perms.can('design.logos')) {
+                        <button (click)="deleteLogo(logo)" class="absolute right-1 top-1 hidden rounded-full bg-red-500 px-1.5 text-xs text-white group-hover:block">✕</button>
+                      }
                     </figure>
                   } @empty {
                     <p class="col-span-full text-sm text-gray-400">No logos yet.</p>
@@ -179,6 +188,7 @@ const COLOR_VIEWS: { key: ColorView; label: string }[] = [
 })
 export class CustomDesignComponent implements OnInit {
   private readonly api = inject(CustomDesignAssetService);
+  protected readonly perms = inject(PermissionService);
   // This app is zoneless: an HTTP callback that mutates plain (non-signal)
   // state must notify change detection itself, or the view silently never
   // updates. Signals (items, error, ...) do this on their own; the colour
@@ -271,7 +281,7 @@ export class CustomDesignComponent implements OnInit {
 
   protected deleteItem(it: CustomDesignItemAdmin): void {
     if (!it.id || !confirm(`Delete "${it.name}"?`)) return;
-    this.api.deleteItem(it.id).pipe(catchError((err) => { this.error.set(parseApiError(err)); return of(null); }))
+    this.api.deleteItem(it.id).pipe(catchError((err) => { this.error.set(parseApiError(err)); return EMPTY; }))
       .subscribe(() => this.items.update((list) => list.filter((x) => x.id !== it.id)));
   }
 
@@ -301,7 +311,7 @@ export class CustomDesignComponent implements OnInit {
 
   protected deleteLogo(logo: CustomDesignLogoAdmin): void {
     if (!logo.id || !confirm(`Delete "${logo.name}"?`)) return;
-    this.api.deleteLogo(logo.id).pipe(catchError((err) => { this.error.set(parseApiError(err)); return of(null); }))
+    this.api.deleteLogo(logo.id).pipe(catchError((err) => { this.error.set(parseApiError(err)); return EMPTY; }))
       .subscribe(() => this.logos.update((list) => list.filter((x) => x.id !== logo.id)));
   }
 

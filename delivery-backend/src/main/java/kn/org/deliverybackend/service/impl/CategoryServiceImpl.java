@@ -31,10 +31,32 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    public org.springframework.data.domain.Page<CategoryResponseDTO> adminPage(String q, int page, int size) {
+        // A shop keeps a handful of categories, so they are searched here and
+        // only the requested page leaves the server.
+        String text = q == null ? "" : q.trim().toLowerCase(java.util.Locale.ROOT);
+        List<Category> matching = categoryRepository.findAll(org.springframework.data.domain.Sort.by("id")).stream()
+                .filter(c -> !Boolean.TRUE.equals(c.getDeleted()))
+                .filter(c -> text.isEmpty() || contains(c.getName(), text) || contains(c.getSlug(), text))
+                .toList();
+        int safeSize = kn.org.deliverybackend.util.SearchText.pageSize(size);
+        int safePage = Math.max(page, 0);
+        int from = Math.min(safePage * safeSize, matching.size());
+        int to = Math.min(from + safeSize, matching.size());
+        List<CategoryResponseDTO> content = matching.subList(from, to).stream().map(this::toEnrichedDTO).toList();
+        return new org.springframework.data.domain.PageImpl<>(content,
+                org.springframework.data.domain.PageRequest.of(safePage, safeSize), matching.size());
+    }
+
+    private static boolean contains(String value, String lowerText) {
+        return value != null && value.toLowerCase(java.util.Locale.ROOT).contains(lowerText);
+    }
+
+    @Override
     public CategoryResponseDTO getCategoryById(Long id) {
         return categoryRepository.findById(id)
                 .map(this::toEnrichedDTO)
-                .orElseThrow(() -> new RuntimeException("Category not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + id));
     }
 
     @Override
@@ -55,7 +77,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public CategoryResponseDTO updateCategory(Long id, CategoryRequestDTO categoryRequestDTO) {
         Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Category not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + id));
         category.setName(categoryRequestDTO.getName());
         category.setIsActive(categoryRequestDTO.getIsActive());
         category.setImageUrl(categoryRequestDTO.getImageUrl());

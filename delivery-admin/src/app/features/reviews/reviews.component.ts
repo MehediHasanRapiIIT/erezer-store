@@ -1,26 +1,41 @@
-import { Component, signal, computed, inject, OnInit } from '@angular/core';
+import { Component, signal, inject, OnDestroy, OnInit } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import { ReviewService } from '../../core/services/review.service';
 import { ProductService } from '../../core/services/product.service';
 import { PageResponse, ProductResponse, ReviewResponse } from '../../core/models/api.models';
 import { parseApiError } from '../../core/utils/api-error.util';
+import { PermissionService } from '../../core/services/permission.service';
 
+/**
+ * Reviews, one product at a time. The product picker searches on the server,
+ * 20 at a time, instead of downloading every product; the reviews themselves
+ * are paged by the server too.
+ */
 @Component({
   selector: 'app-reviews',
   standalone: true,
   imports: [FormsModule, SidebarComponent, DecimalPipe],
   templateUrl: './reviews.component.html',
 })
-export class ReviewsComponent implements OnInit {
+export class ReviewsComponent implements OnInit, OnDestroy {
   private reviewService = inject(ReviewService);
   private productService = inject(ProductService);
+  protected readonly perms = inject(PermissionService);
 
-  // Product selector
+  // Product picker (server search, 20 at a time)
+  readonly productPageSize = 20;
   products = signal<ProductResponse[]>([]);
-  selectedProductId = signal<number | null>(null);
+  productTotal = signal(0);
+  private productPage = 0;
   productSearch = signal('');
+  private productSearch$ = new Subject<string>();
+  private latestProductRequest = 0;
+  selectedProductId = signal<number | null>(null);
+  /** Kept separately, so the choice survives a search that no longer lists it. */
+  selectedProduct = signal<ProductResponse | null>(null);
 
   // Reviews
   reviews = signal<ReviewResponse[]>([]);
@@ -42,25 +57,48 @@ export class ReviewsComponent implements OnInit {
   totalReviews = signal(0);
   starBreakdown = signal<{ [key: number]: number }>({});
 
-  filteredProducts = computed(() => {
-    const q = this.productSearch().toLowerCase();
-    if (!q) return this.products();
-    return this.products().filter(p => p.name.toLowerCase().includes(q));
-  });
-
-  selectedProduct = computed(() =>
-    this.products().find(p => p.id === this.selectedProductId()) ?? null
-  );
-
   ngOnInit(): void {
-    this.productService.getProducts().subscribe({
-      next: (data) => { this.products.set(data); this.isLoadingProducts.set(false); },
-      error: (err) => { this.errorMessage.set(parseApiError(err)); this.isLoadingProducts.set(false); },
+    this.loadProducts(true);
+    this.productSearch$.pipe(debounceTime(300), distinctUntilChanged()).subscribe(() => this.loadProducts(true));
+  }
+
+  ngOnDestroy(): void {
+    this.productSearch$.complete();
+  }
+
+  onProductSearch(query: string): void {
+    this.productSearch.set(query);
+    this.productSearch$.next(query);
+  }
+
+  canLoadMoreProducts(): boolean {
+    return this.products().length < this.productTotal();
+  }
+
+  /** The first page of matching products (reset), or the next one. */
+  loadProducts(reset: boolean): void {
+    const request = reset ? ++this.latestProductRequest : this.latestProductRequest;
+    const page = reset ? 0 : this.productPage + 1;
+    this.isLoadingProducts.set(true);
+    this.productService.browse(this.productSearch().trim(), page, this.productPageSize).subscribe({
+      next: (data) => {
+        if (request !== this.latestProductRequest) return;
+        this.productPage = page;
+        this.products.update((list) => (reset ? data.content : [...list, ...data.content]));
+        this.productTotal.set(data.totalElements);
+        this.isLoadingProducts.set(false);
+      },
+      error: (err) => {
+        if (request !== this.latestProductRequest) return;
+        this.errorMessage.set(parseApiError(err));
+        this.isLoadingProducts.set(false);
+      },
     });
   }
 
   selectProduct(id: number): void {
     this.selectedProductId.set(id);
+    this.selectedProduct.set(this.products().find((p) => p.id === id) ?? null);
     this.currentPage.set(0);
     this.loadReviews();
     this.loadSummary();
@@ -115,10 +153,12 @@ export class ReviewsComponent implements OnInit {
     this.isDeleting.set(true);
     this.reviewService.deleteReview(productId, reviewId).subscribe({
       next: () => {
-        this.reviews.update(list => list.filter(r => r.reviewId !== reviewId));
-        this.totalElements.update(n => n - 1);
         this.deleteConfirmId.set(null);
         this.isDeleting.set(false);
+        // Reload from the server so the page stays full and the count right.
+        const lastOnPage = this.reviews().length === 1 && this.currentPage() > 0;
+        if (lastOnPage) this.currentPage.update((p) => p - 1);
+        this.loadReviews();
         this.loadSummary();
       },
       error: (err) => {

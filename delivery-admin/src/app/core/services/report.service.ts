@@ -43,8 +43,9 @@ export interface CustomerLifetimeValue {
   customerName: string | null;
   email: string;
   orderCount: number;
-  lifetimeRevenue: number;
-  averageOrderValue: number;
+  /** Null without the "See money totals" permission. */
+  lifetimeRevenue: number | null;
+  averageOrderValue: number | null;
   firstOrderAt: string | null;
   lastOrderAt: string | null;
 }
@@ -181,14 +182,16 @@ export class ReportService {
     });
   }
 
-  customers(limit = 50, offset = 0): Observable<CustomerLifetimeValue[]> {
-    return this.http.get<CustomerLifetimeValue[]>(`${this.base}/admin/customers`, {
-      params: { limit: String(limit), offset: String(offset) }
-    });
+  /** Purchasing customers ranked by lifetime revenue; the server searches name, email and phone. */
+  searchCustomers(q: string, limit = 50, offset = 0): Observable<CustomerLifetimeValue[]> {
+    const params: Record<string, string> = { limit: String(limit), offset: String(offset) };
+    if (q) params['q'] = q;
+    return this.http.get<CustomerLifetimeValue[]>(`${this.base}/admin/customers`, { params });
   }
 
-  customerCount(): Observable<number> {
-    return this.http.get<number>(`${this.base}/admin/customers/count`);
+  /** How many purchasing customers match `q`; all of them when it is blank. */
+  customerCount(q = ''): Observable<number> {
+    return this.http.get<number>(`${this.base}/admin/customers/count`, { params: q ? { q } : {} });
   }
 
   private dateParams(from?: string, to?: string): Record<string, string> {

@@ -1,0 +1,27 @@
+import { Injectable, signal } from '@angular/core';
+
+export interface Notice {
+  id: number;
+  kind: 'error' | 'info';
+  title: string;
+  message: string;
+}
+
+/** Short pop-up messages in the corner of the screen, e.g. when an action is refused. */
+@Injectable({ providedIn: 'root' })
+export class NoticeService {
+  readonly notices = signal<Notice[]>([]);
+  private nextId = 1;
+
+  show(kind: Notice['kind'], title: string, message: string, durationMs = 7000): void {
+    // The same message twice in a row (e.g. two refused requests) shows once.
+    if (this.notices().some((n) => n.title === title && n.message === message)) return;
+    const notice: Notice = { id: this.nextId++, kind, title, message };
+    this.notices.update((list) => [...list, notice]);
+    setTimeout(() => this.dismiss(notice.id), durationMs);
+  }
+
+  dismiss(id: number): void {
+    this.notices.update((list) => list.filter((n) => n.id !== id));
+  }
+}

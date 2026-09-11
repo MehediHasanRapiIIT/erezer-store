@@ -283,6 +283,11 @@ public interface ReportRepository extends JpaRepository<Order, UUID> {
      * [userId, firstName, lastName, email, orderCount, lifetimeRevenue,
      *  firstOrderAt, lastOrderAt].
      */
+    /** A lower-case "%text%" pattern (or null for everyone) on the customer's name, email or phone. */
+    String CUSTOMER_SEARCH = "AND (:q IS NULL " +
+            "  OR LOWER(TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, ''))) LIKE :q ESCAPE '\\' " +
+            "  OR LOWER(u.email) LIKE :q ESCAPE '\\' OR u.phone_number LIKE :q ESCAPE '\\') ";
+
     @Query(value =
             "SELECT u.id AS user_id, u.first_name, u.last_name, u.email, " +
             "       COUNT(o.id) AS order_count, " +
@@ -292,13 +297,23 @@ public interface ReportRepository extends JpaRepository<Order, UUID> {
             "FROM users u " +
             "JOIN orders o ON o.client_id = u.id AND COALESCE(o.deleted, false) = false " +
             "                AND o.order_status NOT IN ('CANCELLED','RETURNED') " +
-            "WHERE COALESCE(u.deleted, false) = false " +
+            "WHERE COALESCE(u.deleted, false) = false " + CUSTOMER_SEARCH +
             "GROUP BY u.id, u.first_name, u.last_name, u.email " +
-            "ORDER BY lifetime_revenue DESC " +
+            // The id breaks ties, so "Load more" never repeats or skips a customer.
+            "ORDER BY lifetime_revenue DESC, u.id " +
             "LIMIT :limit OFFSET :offset",
             nativeQuery = true)
     List<Object[]> customerLifetimeValue(@Param("limit") int limit,
-                                         @Param("offset") int offset);
+                                         @Param("offset") int offset,
+                                         @Param("q") String q);
+
+    /** Purchasing customers matching {@link #CUSTOMER_SEARCH}; the same people the list above shows. */
+    @Query(value =
+            "SELECT COUNT(*) FROM users u WHERE COALESCE(u.deleted, false) = false " + CUSTOMER_SEARCH +
+            "AND EXISTS (SELECT 1 FROM orders o WHERE o.client_id = u.id AND COALESCE(o.deleted, false) = false " +
+            "            AND o.order_status NOT IN ('CANCELLED','RETURNED'))",
+            nativeQuery = true)
+    long countCustomers(@Param("q") String q);
 
     @Query(value =
             "SELECT COUNT(DISTINCT o.client_id) " +

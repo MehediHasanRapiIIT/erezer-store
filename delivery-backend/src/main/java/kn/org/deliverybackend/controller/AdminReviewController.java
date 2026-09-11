@@ -1,5 +1,7 @@
 package kn.org.deliverybackend.controller;
 
+import kn.org.deliverybackend.access.Perm;
+import kn.org.deliverybackend.access.RequiresPermission;
 import kn.org.deliverybackend.dto.response.review.RatingSummaryDTO;
 import kn.org.deliverybackend.dto.response.review.ReviewResponseDTO;
 import kn.org.deliverybackend.service.ReviewService;
@@ -21,6 +23,7 @@ public class AdminReviewController {
     private final ReviewService reviewService;
 
     /** Paginated reviews for a product — admin view */
+    @RequiresPermission(Perm.REVIEWS_VIEW)
     @GetMapping
     public ResponseEntity<Page<ReviewResponseDTO>> getReviews(
             @PathVariable Long productId,
@@ -32,12 +35,14 @@ public class AdminReviewController {
     }
 
     /** Rating summary for a product */
+    @RequiresPermission(Perm.REVIEWS_VIEW)
     @GetMapping("/summary")
     public ResponseEntity<RatingSummaryDTO> getSummary(@PathVariable Long productId) {
         return ResponseEntity.ok(reviewService.getRatingSummary(productId));
     }
 
     /** Admin hard-delete (no userId check) */
+    @RequiresPermission(Perm.REVIEWS_DELETE)
     @DeleteMapping("/{reviewId}")
     public ResponseEntity<Void> deleteReview(
             @PathVariable Long productId,

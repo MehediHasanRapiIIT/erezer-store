@@ -131,20 +131,22 @@ public class CustomDesignAdminServiceImpl implements CustomDesignAdminService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<CustomOrderSummaryDTO> listOrders(String status, int page, int size, boolean history) {
-        PageRequest pageable = PageRequest.of(page, size);
+    public Page<CustomOrderSummaryDTO> listOrders(String status, String q, int page, int size, boolean history) {
+        PageRequest pageable = PageRequest.of(Math.max(page, 0), kn.org.deliverybackend.util.SearchText.pageSize(size));
+        String pattern = kn.org.deliverybackend.util.SearchText.likePattern(q);
         // History = delivered orders only.
         if (history) {
-            return orderRepository.findForAdmin(CustomOrderStatus.DELIVERED, pageable).map(this::toSummaryDTO);
+            return orderRepository.findForAdmin(CustomOrderStatus.DELIVERED, pattern, pageable).map(this::toSummaryDTO);
         }
         CustomOrderStatus parsed = (status != null && !status.isBlank() && !status.equalsIgnoreCase("ALL"))
                 ? parseStatus(status) : null;
         // Active list with a specific status filter.
         if (parsed != null) {
-            return orderRepository.findForAdmin(parsed, pageable).map(this::toSummaryDTO);
+            return orderRepository.findForAdmin(parsed, pattern, pageable).map(this::toSummaryDTO);
         }
         // Active list, no filter → everything except delivered (those live in history).
-        return orderRepository.findForAdminExcluding(CustomOrderStatus.DELIVERED, pageable).map(this::toSummaryDTO);
+        return orderRepository.findForAdminExcluding(CustomOrderStatus.DELIVERED, pattern, pageable)
+                .map(this::toSummaryDTO);
     }
 
     @Override

@@ -1,5 +1,6 @@
 package kn.org.deliverybackend.service.impl;
 
+import kn.org.deliverybackend.exception.ResourceNotFoundException;
 import kn.org.deliverybackend.dto.PromotionalBannerDTO;
 import kn.org.deliverybackend.dto.request.banner.BannerContentDTO;
 import kn.org.deliverybackend.enumeration.BannerSlot;
@@ -71,7 +72,7 @@ public class BannerServiceImpl implements BannerService {
     @Override
     public PromotionalBannerDTO updateBanner(UUID id, MultipartFile image, BannerContentDTO content) {
         PromotionalBanner banner = bannerRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Banner not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Banner not found with id: " + id));
 
         // Replace image only if a new one is provided
         if (image != null && !image.isEmpty()) {
@@ -99,7 +100,7 @@ public class BannerServiceImpl implements BannerService {
     @Override
     public void deleteBanner(UUID id) {
         PromotionalBanner banner = bannerRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Banner not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Banner not found with id: " + id));
 
         String imageUrl = banner.getImageUrl();
         if (imageUrl != null) {

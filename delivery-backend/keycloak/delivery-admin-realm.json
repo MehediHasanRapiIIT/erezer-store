@@ -1,7 +1,7 @@
 {
   "realm": "delivery-admin",
   "enabled": true,
-  "sslRequired": "none",
+  "sslRequired": "external",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
   "clients": [
@@ -25,6 +25,18 @@
       "attributes": {
         "post.logout.redirect.uris": "http://localhost:4300/*##http://localhost:4200/*"
       }
+    },
+    {
+      "clientId": "erezer-backend-admin",
+      "name": "Erezer backend (staff accounts)",
+      "description": "Lets the backend create, deactivate and delete staff logins from the Staff page. No user ever logs in with it.",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false
     }
   ],
   "users": [
@@ -45,6 +57,19 @@
       "realmRoles": [
         "admin"
       ]
+    },
+    {
+      "username": "service-account-erezer-backend-admin",
+      "enabled": true,
+      "serviceAccountClientId": "erezer-backend-admin",
+      "clientRoles": {
+        "realm-management": [
+          "manage-users",
+          "view-users",
+          "query-users",
+          "view-realm"
+        ]
+      }
     }
   ],
   "roles": {
@@ -54,8 +79,22 @@
         "description": "Erezer admin panel operator",
         "composite": false,
         "clientRole": false
+      },
+      {
+        "name": "moderator",
+        "description": "Erezer staff with only the permissions an admin gives them",
+        "composite": false,
+        "clientRole": false
       }
     ]
   },
-  "loginTheme": "erezer"
+  "loginTheme": "erezer",
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200
 }

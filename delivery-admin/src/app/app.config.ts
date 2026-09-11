@@ -6,13 +6,24 @@ import * as Sentry from '@sentry/angular';
 import { routes } from './app.routes';
 import { authInterceptor } from './core/interceptors/auth.interceptor';
 import { KeycloakService } from './core/services/keycloak.service';
+import { PermissionService } from './core/services/permission.service';
 import { initSentry, sentryProviders } from './core/sentry';
 
 // Initialise Sentry before Angular bootstraps so very early errors are caught.
 initSentry();
 
-function initKeycloak(keycloakService: KeycloakService): () => Promise<boolean> {
-  return () => keycloakService.init();
+/**
+ * Logs in, then reads the person's permissions before the first page opens,
+ * so the page guard, the sidebar and the landing page all know them.
+ */
+function initKeycloak(keycloakService: KeycloakService, permissions: PermissionService): () => Promise<boolean> {
+  return () => keycloakService.init().then(async (ok) => {
+    if (ok && keycloakService.isAuthenticated()) {
+      await permissions.refresh();
+      permissions.startAutoRefresh();
+    }
+    return ok;
+  });
 }
 
 export const appConfig: ApplicationConfig = {
@@ -24,7 +35,7 @@ export const appConfig: ApplicationConfig = {
     {
       provide: APP_INITIALIZER,
       useFactory: initKeycloak,
-      deps: [KeycloakService],
+      deps: [KeycloakService, PermissionService],
       multi: true,
     },
     // Force TraceService construction so router-level tracing wires up.

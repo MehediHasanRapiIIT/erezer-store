@@ -1,12 +1,12 @@
-import { Component, computed, effect, inject, OnInit, PLATFORM_ID, signal } from '@angular/core';
+import { Component, computed, effect, inject, OnInit, PLATFORM_ID, signal, untracked } from '@angular/core';
 import { PixelService } from '../core/pixel.service';
 import { isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { catchError, debounceTime, distinctUntilChanged, of, Subject, switchMap } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, of, Subject, Subscription } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ApiService } from '../core/api.service';
-import { ApiCategory, ApiProduct } from '../core/api.models';
+import { ApiCategory, ApiProduct, ApiProductBrowse, ApiProductFacets } from '../core/api.models';
 import { EcommerceStore } from '../core/store/ecommerce.store';
 import { ProductCardComponent } from '../components/shared/product-card.component';
 import { RevealDirective } from '../core/reveal.directive';
@@ -170,7 +170,7 @@ import { RevealDirective } from '../core/reveal.directive';
       </section>
     } @else {
       <section class="relative card-grid-flush full-bleed grid grid-cols-1 px-4 pt-6 sm:grid-cols-2 sm:px-6 lg:grid-cols-3 lg:px-8 xl:grid-cols-4 2xl:grid-cols-5">
-        @for (product of pagedProducts(); track product.id; let i = $index) {
+        @for (product of products(); track product.id; let i = $index) {
           <app-product-card [product]="store.toStoreProduct(product)" [appReveal]="i % pageSize" />
         } @empty {
           <div class="col-span-full flex flex-col items-center justify-center gap-3 py-20 text-center">
@@ -191,9 +191,11 @@ import { RevealDirective } from '../core/reveal.directive';
       <!-- ── Load more ─────────────────────────────────────────────────────── -->
       @if (resultCount() > 0) {
         <div class="mt-10 flex flex-col items-center gap-3">
-          <p class="app-muted text-sm tabular-nums">Showing {{ pagedProducts().length }} of {{ resultCount() }}</p>
+          <p class="app-muted text-sm tabular-nums">Showing {{ products().length }} of {{ resultCount() }}</p>
           @if (canLoadMore()) {
-            <button type="button" (click)="loadMore()" class="btn-secondary px-8">Load more</button>
+            <button type="button" (click)="loadMore()" [disabled]="loadingMore()" class="btn-secondary px-8">
+              {{ loadingMore() ? 'Loading…' : 'Load more' }}
+            </button>
           }
         </div>
       }
@@ -344,31 +346,44 @@ export class ShopPage implements OnInit {
   private readonly platformId = inject(PLATFORM_ID);
 
   // ── state signals ──────────────────────────────────────────────────────────
-  protected readonly loading           = signal(false);
-  protected readonly categories        = signal<ApiCategory[]>([]);
-  protected readonly allProducts       = signal<ApiProduct[]>([]);
-  protected readonly searchQuery       = signal('');
+  protected readonly loading            = signal(false);
+  /** The next page is on its way ("Load more"). */
+  protected readonly loadingMore        = signal(false);
+  protected readonly categories         = signal<ApiCategory[]>([]);
+  /** Every page loaded so far, in order. */
+  protected readonly products           = signal<ApiProduct[]>([]);
+  /** How many products match in total, as counted by the server. */
+  protected readonly resultCount        = signal(0);
+  protected readonly searchQuery        = signal('');
   protected readonly selectedCategoryId = signal<number | null>(null);
-  protected readonly sortBy            = signal<'featured' | 'price-asc' | 'price-desc'>('featured');
+  protected readonly sortBy             = signal<'featured' | 'price-asc' | 'price-desc'>('featured');
 
   // ── facets ─────────────────────────────────────────────────────────────────
   protected readonly selectedGender = signal<string | null>(null);
   protected readonly selectedBrand  = signal<string | null>(null);
   protected readonly maxPrice       = signal<number | null>(null);
+  /** The filter choices for the current search and category, from the server. */
+  private readonly facets = signal<ApiProductFacets>({ genders: [], brands: [], maxPrice: null });
 
   // ── UI state ─────────────────────────────────────────────────────────────────
   protected readonly filtersOpen = signal(false);
   protected readonly skeletons = [0, 1, 2, 3, 4, 5];
 
-  // ── pagination + animated count ─────────────────────────────────────────────
-  protected readonly pageSize = 9;
-  protected readonly visibleCount = signal(this.pageSize);
+  // ── paging + animated count ─────────────────────────────────────────────────
+  /** Products per page; "Load more" fetches the next page from the server. */
+  protected readonly pageSize = 20;
+  private page = 0;
+  /** Bumped whenever the list starts again, so a late answer for an old list is ignored. */
+  private generation = 0;
+  private firstPage?: Subscription;
   /** rAF-tweened mirror of resultCount, animated on load and filter changes. */
   protected readonly displayCount = signal(0);
   private countRaf?: number;
 
-  // RxJS search subject → signal bridge
+  /** Typed search text, sent to the server after a short pause. */
   private readonly search$ = new Subject<string>();
+  /** The search text the list currently shows. */
+  private readonly appliedQuery = signal('');
 
   protected readonly sortOptions = [
     { label: 'Sort: Featured',      value: 'featured'   },
@@ -376,49 +391,35 @@ export class ShopPage implements OnInit {
     { label: 'Price: High to Low',  value: 'price-desc' },
   ] as const;
 
-  // ── derived: facet options ──────────────────────────────────────────────────
-  protected readonly availableGenders = computed(() =>
-    [...new Set(this.allProducts().map((p) => p.gender).filter((g): g is string => !!g))].sort());
-
-  protected readonly availableBrands = computed(() =>
-    [...new Set(this.allProducts().map((p) => p.brand).filter((b): b is string => !!b))].sort());
-
+  // ── derived ──────────────────────────────────────────────────────────────────
+  protected readonly availableGenders = computed(() => this.facets().genders);
+  protected readonly availableBrands  = computed(() => this.facets().brands);
   protected readonly priceCeiling = computed(() => {
-    const prices = this.allProducts().map((p) => p.discountPrice ?? p.price);
-    return prices.length ? String(Math.ceil(Math.max(...prices))) : '';
+    const max = this.facets().maxPrice;
+    return max != null ? String(Math.ceil(max)) : '';
   });
-
-  // ── derived: faceted + sorted list ──────────────────────────────────────────
-  protected readonly sortedProducts = computed(() => {
-    const gender = this.selectedGender();
-    const brand = this.selectedBrand();
-    const max = this.maxPrice();
-    let products = this.allProducts().filter((p) => {
-      if (gender && p.gender !== gender) return false;
-      if (brand && p.brand !== brand) return false;
-      if (max != null && (p.discountPrice ?? p.price) > max) return false;
-      return true;
-    });
-    const sort = this.sortBy();
-    const priceOf = (p: ApiProduct) => p.discountPrice ?? p.price;
-    if (sort === 'price-asc')  return [...products].sort((a, b) => priceOf(a) - priceOf(b));
-    if (sort === 'price-desc') return [...products].sort((a, b) => priceOf(b) - priceOf(a));
-    return products; // server order = featured
-  });
-
-  protected readonly resultCount = computed(() => this.sortedProducts().length);
 
   protected readonly activeFacetCount = computed(() =>
     (this.selectedGender() ? 1 : 0) + (this.selectedBrand() ? 1 : 0) + (this.maxPrice() !== null ? 1 : 0));
 
   protected readonly hasActiveFilters = computed(() => this.activeFacetCount() > 0);
 
-  /** Current page slice and whether more remain. */
-  protected readonly pagedProducts = computed(() => this.sortedProducts().slice(0, this.visibleCount()));
-  protected readonly canLoadMore = computed(() => this.visibleCount() < this.resultCount());
+  protected readonly canLoadMore = computed(() => this.products().length < this.resultCount());
 
   protected loadMore(): void {
-    this.visibleCount.update((v) => v + this.pageSize);
+    if (this.loadingMore() || !this.canLoadMore()) return;
+    const generation = this.generation;
+    const next = this.page + 1;
+    this.loadingMore.set(true);
+    this.api.browseProducts(this.query(next)).pipe(catchError(() => of(null))).subscribe((page) => {
+      if (generation !== this.generation) return;
+      this.loadingMore.set(false);
+      if (!page) return;
+      this.page = next;
+      this.products.update((list) => [...list, ...page.content]);
+      this.resultCount.set(page.totalElements);
+      this.store.seedApiProducts(page.content);
+    });
   }
 
   protected toggleGender(g: string): void {
@@ -437,29 +438,34 @@ export class ShopPage implements OnInit {
   }
 
   constructor() {
-    // wire up debounced search using takeUntilDestroyed (no manual unsubscribe needed)
+    // Honor a ?category=<id> deep link (e.g. from the home "Shop by category" tiles).
+    const categoryParam = this.route.snapshot.queryParamMap.get('category');
+    const categoryId = categoryParam ? Number(categoryParam) : NaN;
+    if (!isNaN(categoryId)) this.selectedCategoryId.set(categoryId);
+
+    // Typing searches after a short pause.
     this.search$.pipe(
       debounceTime(350),
       distinctUntilChanged(),
-      switchMap((q) => {
-        this.loading.set(true);
-        if (q.trim().length === 0) {
-          return this.fetchProducts();
-        }
-        this.pixel.search(q);
-        return this.api.searchProducts(q).pipe(catchError(() => of([])));
-      }),
       takeUntilDestroyed()
-    ).subscribe((products) => {
-      this.allProducts.set(products);
-      this.loading.set(false);
+    ).subscribe((q) => {
+      const text = q.trim();
+      if (text) this.pixel.search(text);
+      this.appliedQuery.set(text);
     });
 
-    // Reset to the first page whenever the filtered/sorted set changes.
+    // Any change to the search, category, filters or sort starts the list again from page one.
     effect(() => {
-      this.sortedProducts();
-      this.visibleCount.set(this.pageSize);
-    }, { allowSignalWrites: true });
+      const query = this.query(0);
+      untracked(() => this.loadFirstPage(query));
+    });
+
+    // The filter choices depend only on the search and the category.
+    effect(() => {
+      const q = this.appliedQuery();
+      const category = this.selectedCategoryId();
+      untracked(() => this.loadFacets(q, category));
+    });
 
     // Animate the toolbar count toward the live result count.
     effect(() => {
@@ -492,14 +498,6 @@ export class ShopPage implements OnInit {
 
   ngOnInit(): void {
     this.loadCategories();
-    // Honor a ?category=<id> deep link (e.g. from the home "Shop by category" tiles).
-    const categoryParam = this.route.snapshot.queryParamMap.get('category');
-    const categoryId = categoryParam ? Number(categoryParam) : NaN;
-    if (!isNaN(categoryId)) {
-      this.selectCategory(categoryId);
-    } else {
-      this.loadAllProducts();
-    }
   }
 
   protected onSearchChange(value: string): void {
@@ -509,15 +507,6 @@ export class ShopPage implements OnInit {
 
   protected selectCategory(id: number | null): void {
     this.selectedCategoryId.set(id);
-    this.loading.set(true);
-    const source$ = id === null
-      ? this.fetchProducts()
-      : this.api.getProductsByCategory(id).pipe(catchError(() => of([])));
-
-    source$.subscribe((products) => {
-      this.allProducts.set(products);
-      this.loading.set(false);
-    });
   }
 
   private loadCategories(): void {
@@ -526,16 +515,38 @@ export class ShopPage implements OnInit {
     });
   }
 
-  private loadAllProducts(): void {
+  /** What the server is asked for: the current search, category, filters and sort. */
+  private query(page: number): ApiProductBrowse {
+    return {
+      q: this.appliedQuery() || null,
+      categoryId: this.selectedCategoryId(),
+      gender: this.selectedGender(),
+      brand: this.selectedBrand(),
+      maxPrice: this.maxPrice(),
+      sort: this.sortBy(),
+      page,
+      size: this.pageSize,
+    };
+  }
+
+  private loadFirstPage(query: ApiProductBrowse): void {
+    this.firstPage?.unsubscribe();
+    const generation = ++this.generation;
     this.loading.set(true);
-    this.fetchProducts().subscribe((products) => {
-      this.allProducts.set(products);
-      this.store.seedApiProducts(products);
+    this.loadingMore.set(false);
+    this.firstPage = this.api.browseProducts(query).pipe(catchError(() => of(null))).subscribe((page) => {
+      if (generation !== this.generation) return;
+      this.page = 0;
+      this.products.set(page?.content ?? []);
+      this.resultCount.set(page?.totalElements ?? 0);
+      if (page) this.store.seedApiProducts(page.content);
       this.loading.set(false);
     });
   }
 
-  private fetchProducts() {
-    return this.api.getProducts().pipe(catchError(() => of([])));
+  private loadFacets(q: string, categoryId: number | null): void {
+    this.api.getProductFacets(q || null, categoryId).pipe(catchError(() => of(null))).subscribe((facets) => {
+      this.facets.set(facets ?? { genders: [], brands: [], maxPrice: null });
+    });
   }
 }

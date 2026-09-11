@@ -1,5 +1,7 @@
 package kn.org.deliverybackend.controller;
 
+import kn.org.deliverybackend.access.Perm;
+import kn.org.deliverybackend.access.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import kn.org.deliverybackend.dto.customdesign.CustomDesignItemAdminDTO;
@@ -35,6 +37,7 @@ public class AdminCustomDesignController {
     private String bucket;
 
     /** Upload a garment mockup or logo image; returns its public URL for use in an upsert. */
+    @RequiresPermission(value = {Perm.DESIGN_ITEMS, Perm.DESIGN_LOGOS}, mode = RequiresPermission.Mode.ANY)
     @PostMapping(value = "/uploads/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, String>> uploadImage(@RequestPart("file") MultipartFile file) {
         return ResponseEntity.ok(Map.of("url", fileStorageService.uploadFile(file, bucket)));
@@ -42,16 +45,19 @@ public class AdminCustomDesignController {
 
     // ── Garments ────────────────────────────────────────────────────────────
 
+    @RequiresPermission(Perm.DESIGN_VIEW)
     @GetMapping("/items")
     public ResponseEntity<List<CustomDesignItemAdminDTO>> listItems() {
         return ResponseEntity.ok(adminService.listItems());
     }
 
+    @RequiresPermission(Perm.DESIGN_ITEMS)
     @PostMapping("/items")
     public ResponseEntity<CustomDesignItemAdminDTO> upsertItem(@Valid @RequestBody CustomDesignItemAdminDTO dto) {
         return ResponseEntity.ok(adminService.upsertItem(dto));
     }
 
+    @RequiresPermission(Perm.DESIGN_ITEMS)
     @DeleteMapping("/items/{id}")
     public ResponseEntity<Void> deleteItem(@PathVariable UUID id) {
         adminService.deleteItem(id);
@@ -60,16 +66,19 @@ public class AdminCustomDesignController {
 
     // ── Logo library ──────────────────────────────────────────────────────────
 
+    @RequiresPermission(Perm.DESIGN_VIEW)
     @GetMapping("/logos")
     public ResponseEntity<List<CustomDesignLogoAdminDTO>> listLogos() {
         return ResponseEntity.ok(adminService.listLogos());
     }
 
+    @RequiresPermission(Perm.DESIGN_LOGOS)
     @PostMapping("/logos")
     public ResponseEntity<CustomDesignLogoAdminDTO> upsertLogo(@Valid @RequestBody CustomDesignLogoAdminDTO dto) {
         return ResponseEntity.ok(adminService.upsertLogo(dto));
     }
 
+    @RequiresPermission(Perm.DESIGN_LOGOS)
     @DeleteMapping("/logos/{id}")
     public ResponseEntity<Void> deleteLogo(@PathVariable UUID id) {
         adminService.deleteLogo(id);

@@ -60,10 +60,12 @@ export class CustomOrderService {
   private http = inject(HttpClient);
   private base = environment.apiBaseUrl;
 
-  list(status?: string, page = 0, size = 30, history = false): Observable<PageResponse<CustomOrderSummary>> {
+  /** One page of requests; the server searches reference, customer name, phone, email and item. */
+  list(status?: string, page = 0, size = 30, history = false, q = ''): Observable<PageResponse<CustomOrderSummary>> {
     const params: Record<string, string> = { page: String(page), size: String(size) };
     if (history) params['history'] = 'true';
     if (status && status !== 'ALL') params['status'] = status;
+    if (q) params['q'] = q;
     return this.http.get<PageResponse<CustomOrderSummary>>(
       `${this.base}/admin/custom-orders`, { params });
   }

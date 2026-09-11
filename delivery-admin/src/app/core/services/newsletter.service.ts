@@ -48,9 +48,11 @@ export class AdminNewsletterService {
   private http = inject(HttpClient);
   private base = environment.apiBaseUrl;
 
-  listSubscribers(status?: string, page = 0, size = 50): Observable<PageResponse<NewsletterSubscriber>> {
+  /** One page of subscribers, newest first. `q` searches the email. */
+  listSubscribers(status?: string, page = 0, size = 50, q?: string): Observable<PageResponse<NewsletterSubscriber>> {
     const params: Record<string, string> = { page: String(page), size: String(size) };
     if (status && status !== 'ALL') params['status'] = status;
+    if (q?.trim()) params['q'] = q.trim();
     return this.http.get<PageResponse<NewsletterSubscriber>>(
       `${this.base}/admin/newsletter/subscribers`, { params });
   }
@@ -59,10 +61,12 @@ export class AdminNewsletterService {
     return this.http.get<number>(`${this.base}/admin/newsletter/subscribers/count`);
   }
 
-  listCampaigns(page = 0, size = 20): Observable<PageResponse<NewsletterCampaign>> {
+  /** One page of campaigns, newest first. `q` searches the subject. */
+  listCampaigns(page = 0, size = 20, q?: string): Observable<PageResponse<NewsletterCampaign>> {
+    const params: Record<string, string> = { page: String(page), size: String(size) };
+    if (q?.trim()) params['q'] = q.trim();
     return this.http.get<PageResponse<NewsletterCampaign>>(
-      `${this.base}/admin/newsletter/campaigns`,
-      { params: { page: String(page), size: String(size) } });
+      `${this.base}/admin/newsletter/campaigns`, { params });
   }
 
   getCampaign(id: string): Observable<NewsletterCampaign> {

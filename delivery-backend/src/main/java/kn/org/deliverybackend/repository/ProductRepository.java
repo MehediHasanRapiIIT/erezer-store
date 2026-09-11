@@ -13,8 +13,10 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+
 @Repository
-public interface ProductRepository extends JpaRepository<Product, Long> {
+public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpecificationExecutor<Product> {
     List<Product> findTop10ByOrderByCreatedAtDesc();
     List<Product> findTop8ByOrderByCreatedAtDesc();
     List<Product> findTop9ByOrderByCreatedAtDesc();
@@ -41,6 +43,17 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             "LOWER(p.description) LIKE LOWER(CONCAT('%', :q, '%'))) " +
             "ORDER BY p.avgRating DESC, p.createdAt DESC")
     Page<Product> searchCustomer(@Param("q") String q, Pageable pageable);
+
+    /**
+     * The Inventory page: products not deleted, optionally matching a
+     * lower-case "%text%" pattern on name or SKU, in id order.
+     */
+    @Query(value = "SELECT p FROM Product p WHERE (p.deleted = false OR p.deleted IS NULL) " +
+            "AND (:q IS NULL OR LOWER(p.name) LIKE :q ESCAPE '\\' OR LOWER(p.sku) LIKE :q ESCAPE '\\') " +
+            "ORDER BY p.id",
+            countQuery = "SELECT COUNT(p) FROM Product p WHERE (p.deleted = false OR p.deleted IS NULL) " +
+                    "AND (:q IS NULL OR LOWER(p.name) LIKE :q ESCAPE '\\' OR LOWER(p.sku) LIKE :q ESCAPE '\\')")
+    Page<Product> searchForInventory(@Param("q") String q, Pageable pageable);
 
     /**
      * Up to {@code limit} products from the same category, excluding the

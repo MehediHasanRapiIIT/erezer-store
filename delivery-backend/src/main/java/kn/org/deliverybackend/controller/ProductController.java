@@ -1,5 +1,10 @@
 package kn.org.deliverybackend.controller;
 
+import kn.org.deliverybackend.access.Perm;
+import kn.org.deliverybackend.access.StaffAccess;
+import kn.org.deliverybackend.service.ProductPricing;
+import java.math.BigDecimal;
+import kn.org.deliverybackend.access.RequiresPermission;
 import jakarta.validation.Valid;
 import kn.org.deliverybackend.dto.productimage.ProductImageDTO;
 import kn.org.deliverybackend.dto.request.product.ProductRequestDTO;
@@ -52,22 +57,55 @@ public class ProductController {
         return ResponseEntity.ok(productService.getProductById(id));
     }
 
+    @RequiresPermission({Perm.PRODUCTS_CREATE, Perm.PRODUCTS_PRICE})
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ProductResponseDTO> createProduct(
             @Valid @RequestPart("productRequestDTO") ProductRequestDTO productRequestDTO,
             @RequestPart(value = "image", required = false) MultipartFile image) {
-
+        checkGuardedFields(productRequestDTO, null);
         return ResponseEntity.ok(productService.createProduct(productRequestDTO, image));
     }
 
+    @RequiresPermission(Perm.PRODUCTS_EDIT)
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ProductResponseDTO> updateProduct(
             @PathVariable Long id,
             @Valid ProductRequestDTO productRequestDTO,
             @RequestParam(value = "image", required = false) MultipartFile image) {
+        checkGuardedFields(productRequestDTO, productService.getProductById(id));
         return ResponseEntity.ok(productService.updateProduct(id, productRequestDTO, image));
     }
 
+    /**
+     * Parts of the product form that need a permission of their own: what
+     * customers pay (price and sale discount), the home-page flags, and
+     * "Never discount". {@code current} is null when adding; the price of a
+     * new product is covered by the endpoint's own rule.
+     */
+    private static void checkGuardedFields(ProductRequestDTO request, ProductResponseDTO current) {
+        if (current != null) {
+            BigDecimal salePriceBefore = current.getDiscountPrice() != null ? current.getDiscountPrice() : current.getPrice();
+            BigDecimal salePriceAfter = ProductPricing.salePrice(request.getPrice(), request.getDiscountPercentage());
+            if (!ProductPricing.sameAmount(request.getPrice(), current.getPrice())
+                    || !ProductPricing.sameAmount(salePriceAfter, salePriceBefore)) {
+                StaffAccess.require(Perm.PRODUCTS_PRICE);
+            }
+        }
+        if (flagChanged(request.getIsFeatured(), current == null ? null : current.getIsFeatured())
+                || flagChanged(request.getIsNewArrival(), current == null ? null : current.getIsNewArrival())) {
+            StaffAccess.require(Perm.PRODUCTS_FEATURE);
+        }
+        if (flagChanged(request.getDiscountExcluded(), current == null ? null : current.getDiscountExcluded())) {
+            StaffAccess.require(Perm.DISCOUNTS_SWITCHES);
+        }
+    }
+
+    /** True when a flag is sent and differs from what is stored. A flag not sent changes nothing; missing counts as off. */
+    private static boolean flagChanged(Boolean requested, Boolean before) {
+        return requested != null && requested != Boolean.TRUE.equals(before);
+    }
+
+    @RequiresPermission(Perm.PRODUCTS_DELETE)
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
         productService.deleteProduct(id);

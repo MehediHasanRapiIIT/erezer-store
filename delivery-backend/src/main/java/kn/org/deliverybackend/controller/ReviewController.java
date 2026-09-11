@@ -1,5 +1,6 @@
 package kn.org.deliverybackend.controller;
 
+import org.springframework.security.core.Authentication;
 import jakarta.validation.Valid;
 import kn.org.deliverybackend.dto.request.review.ReviewRequestDTO;
 import kn.org.deliverybackend.dto.request.review.ReviewUpdateRequestDTO;
@@ -27,7 +28,9 @@ public class ReviewController {
     @PostMapping("/reviews")
     public ResponseEntity<ReviewResponseDTO> submitReview(
             @PathVariable Long productId,
-            @Valid @RequestBody ReviewRequestDTO request) {
+            @Valid @RequestBody ReviewRequestDTO request,
+            Authentication authentication) {
+        request.setUserId(customerId(authentication));
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(reviewService.submitReview(productId, request));
     }
@@ -48,7 +51,9 @@ public class ReviewController {
     public ResponseEntity<ReviewResponseDTO> updateReview(
             @PathVariable Long productId,
             @PathVariable UUID reviewId,
-            @Valid @RequestBody ReviewUpdateRequestDTO request) {
+            @Valid @RequestBody ReviewUpdateRequestDTO request,
+            Authentication authentication) {
+        request.setUserId(customerId(authentication));
         return ResponseEntity.ok(reviewService.updateReview(productId, reviewId, request));
     }
 
@@ -56,8 +61,19 @@ public class ReviewController {
     public ResponseEntity<Void> deleteReview(
             @PathVariable Long productId,
             @PathVariable UUID reviewId,
-            @RequestParam UUID userId) {
-        reviewService.deleteReview(productId, reviewId, userId);
+            @RequestParam(required = false) UUID userId,
+            Authentication authentication) {
+        // Any userId sent by the client is ignored: the author is the login.
+        reviewService.deleteReview(productId, reviewId, customerId(authentication));
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * The logged-in customer. Reviews never trust an id sent in the request:
+     * security only lets authenticated customers reach the write endpoints,
+     * and their token's subject is their user id.
+     */
+    private static UUID customerId(Authentication authentication) {
+        return UUID.fromString(authentication.getName());
     }
 }

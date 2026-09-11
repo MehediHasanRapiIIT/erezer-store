@@ -1,24 +1,43 @@
-import { Component, signal, computed, inject, OnInit } from '@angular/core';
+import { Component, signal, computed, inject, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
+import { PagerComponent } from '../../shared/pager/pager.component';
 import { StockService } from '../../core/services/stock.service';
 import { BulkStockItem, InventorySummary, StockResponse, StockUpdateRequest } from '../../core/models/api.models';
 import { parseApiError } from '../../core/utils/api-error.util';
+import { PermissionService } from '../../core/services/permission.service';
 
+/**
+ * The Inventory page. The list is searched and paged by the server; the
+ * restock alerts come from their own server list, so they cover every
+ * product, not just the page on screen.
+ */
 @Component({
   selector: 'app-inventory',
   standalone: true,
-  imports: [FormsModule, SidebarComponent],
+  imports: [FormsModule, SidebarComponent, PagerComponent],
   templateUrl: './inventory.component.html',
 })
-export class InventoryComponent implements OnInit {
+export class InventoryComponent implements OnInit, OnDestroy {
   private stockService = inject(StockService);
+  protected readonly perms = inject(PermissionService);
 
+  readonly pageSize = 20;
+
+  /** The page on screen. */
   products = signal<StockResponse[]>([]);
+  page = signal(0);
+  totalElements = signal(0);
+  /** Every low or out-of-stock product, whatever page is showing. */
+  private alerts = signal<StockResponse[]>([]);
   summary = signal<InventorySummary | null>(null);
   isLoading = signal(true);
   errorMessage = signal('');
   searchQuery = signal('');
+  private searchSubject = new Subject<string>();
+  /** Numbers each request, so an answer that arrives after a newer one is ignored. */
+  private latestRequest = 0;
 
   // Stock update panel state
   activeProductId = signal<number | null>(null);
@@ -33,7 +52,7 @@ export class InventoryComponent implements OnInit {
   // Low stock alerts
   alertsDismissed = signal(false);
 
-  // Bulk update state
+  // Bulk update state (works on the page on screen)
   bulkMode = signal(false);
   bulkSelections = signal<number[]>([]);
   bulkItems = signal<Map<number, { quantity: number; unit: string }>>(new Map());
@@ -43,46 +62,47 @@ export class InventoryComponent implements OnInit {
 
   readonly unitOptions = ['units', 'kg', 'g', 'litre', 'ml', 'packets', 'pieces', 'boxes', 'bottles', 'bags'];
 
-  filtered = computed(() => {
-    const q = this.searchQuery().toLowerCase();
-    if (!q) return this.products();
-    return this.products().filter(
-      (p) =>
-        p.productName.toLowerCase().includes(q) ||
-        (p.sku ?? '').toLowerCase().includes(q)
-    );
-  });
-
-  lowStockAlerts = computed(() => {
-    if (this.alertsDismissed()) return [];
-    return this.products().filter(
-      (p) => p.stockStatus === 'LOW_STOCK' || p.stockStatus === 'OUT_OF_STOCK'
-    );
-  });
+  lowStockAlerts = computed(() => (this.alertsDismissed() ? [] : this.alerts()));
 
   ngOnInit(): void {
-    this.loadData();
+    this.loadPage(0);
+    this.loadAlertsAndSummary();
+    this.searchSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe(() => this.loadPage(0));
   }
 
-  private loadData(): void {
+  ngOnDestroy(): void {
+    this.searchSubject.complete();
+  }
+
+  onSearchChange(query: string): void {
+    this.searchQuery.set(query);
+    this.searchSubject.next(query);
+  }
+
+  /** One page from the server, for the current search. */
+  loadPage(page: number): void {
+    const request = ++this.latestRequest;
     this.isLoading.set(true);
     this.errorMessage.set('');
-
-    this.stockService.getAllStock().subscribe({
+    this.stockService.getStockPage(this.searchQuery().trim(), page, this.pageSize).subscribe({
       next: (data) => {
-        this.products.set(data);
+        if (request !== this.latestRequest) return;
+        this.products.set(data.content);
+        this.page.set(data.number);
+        this.totalElements.set(data.totalElements);
         this.isLoading.set(false);
       },
       error: (err) => {
+        if (request !== this.latestRequest) return;
         this.errorMessage.set(parseApiError(err));
         this.isLoading.set(false);
       },
     });
+  }
 
-    this.stockService.getSummary().subscribe({
-      next: (s) => this.summary.set(s),
-      error: () => {},
-    });
+  private loadAlertsAndSummary(): void {
+    this.stockService.getLowStock().subscribe({ next: (list) => this.alerts.set(list), error: () => {} });
+    this.stockService.getSummary().subscribe({ next: (s) => this.summary.set(s), error: () => {} });
   }
 
   dismissAlerts(): void {
@@ -131,7 +151,7 @@ export class InventoryComponent implements OnInit {
               : p
           )
         );
-        this.stockService.getSummary().subscribe({ next: (s) => this.summary.set(s), error: () => {} });
+        this.loadAlertsAndSummary();
         this.updateLoading.set(false);
         this.updateSuccess.set(true);
         this.alertsDismissed.set(false); // refresh alerts
@@ -180,6 +200,7 @@ export class InventoryComponent implements OnInit {
     }
   }
 
+  /** Selects every product on the page on screen. */
   selectAllForBulk(): void {
     if (this.bulkSelections().length === this.products().length) {
       this.bulkSelections.set([]);
@@ -230,12 +251,12 @@ export class InventoryComponent implements OnInit {
 
     this.stockService.bulkUpdateStock({ updates }).subscribe({
       next: (results) => {
-        // Merge updated results back into products list
+        // Merge updated results back into the page on screen
         const resultMap = new Map(results.map(r => [r.productId, r]));
         this.products.update(list =>
           list.map(p => resultMap.has(p.productId) ? { ...p, ...resultMap.get(p.productId)! } : p)
         );
-        this.stockService.getSummary().subscribe({ next: (s) => this.summary.set(s), error: () => {} });
+        this.loadAlertsAndSummary();
         this.bulkLoading.set(false);
         this.bulkSuccess.set(true);
         this.bulkSelections.set([]);

@@ -19,7 +19,8 @@ public interface NewsletterCampaignService {
      */
     NewsletterCampaignDTO send(UUID id, String sentByIdentity);
 
-    Page<NewsletterCampaignDTO> list(int page, int size);
+    /** Campaigns, newest first; {@code q} searches the subject. */
+    Page<NewsletterCampaignDTO> list(String q, int page, int size);
 
     NewsletterCampaignDTO get(UUID id);
 

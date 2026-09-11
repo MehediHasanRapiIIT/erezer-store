@@ -1,43 +1,41 @@
-import { Component, signal, computed, inject, OnInit } from '@angular/core';
+import { Component, signal, computed, inject, OnDestroy, OnInit } from '@angular/core';
 import { RouterLink, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import { SidebarComponent } from '../../../shared/sidebar/sidebar.component';
 import { CategoryService } from '../../../core/services/category.service';
 import { CategoryResponse } from '../../../core/models/api.models';
 import { parseApiError } from '../../../core/utils/api-error.util';
+import { PermissionService } from '../../../core/services/permission.service';
 
+/** The Categories page. Search and paging are done by the server. */
 @Component({
   selector: 'app-categories-list',
   standalone: true,
   imports: [RouterLink, FormsModule, SidebarComponent],
   templateUrl: './categories-list.component.html',
 })
-export class CategoriesListComponent implements OnInit {
+export class CategoriesListComponent implements OnInit, OnDestroy {
   private categoryService = inject(CategoryService);
   private router = inject(Router);
+  protected readonly perms = inject(PermissionService);
 
   searchQuery = signal('');
+  private searchSubject = new Subject<string>();
+  /** 1-based, for the page buttons; the server's pages start at 0. */
   currentPage = signal(1);
-  readonly pageSize = 5;
+  readonly pageSize = 10;
 
+  /** The page on screen. */
   categories = signal<CategoryResponse[]>([]);
+  totalElements = signal(0);
+  totalPages = signal(0);
   isLoading = signal(false);
   errorMessage = signal('');
   deleteConfirmId = signal<number | null>(null);
   isDeleting = signal(false);
-
-  filtered = computed(() => {
-    const q = this.searchQuery().toLowerCase();
-    if (!q) return this.categories();
-    return this.categories().filter((c) => c.name.toLowerCase().includes(q));
-  });
-
-  paginated = computed(() => {
-    const start = (this.currentPage() - 1) * this.pageSize;
-    return this.filtered().slice(start, start + this.pageSize);
-  });
-
-  totalPages = computed(() => Math.ceil(this.filtered().length / this.pageSize));
+  /** Numbers each request, so an answer that arrives after a newer one is ignored. */
+  private latestRequest = 0;
 
   pageNumbers = computed(() => {
     const total = this.totalPages();
@@ -53,18 +51,44 @@ export class CategoriesListComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    this.loadCategories();
+    this.loadPage(1);
+    this.searchSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe(() => this.loadPage(1));
+  }
+
+  ngOnDestroy(): void {
+    this.searchSubject.complete();
+  }
+
+  onSearchChange(query: string): void {
+    this.searchQuery.set(query);
+    this.searchSubject.next(query);
   }
 
   loadCategories(): void {
+    this.loadPage(this.currentPage());
+  }
+
+  /** One page from the server (1-based), for the current search. */
+  loadPage(page: number): void {
+    const request = ++this.latestRequest;
     this.isLoading.set(true);
     this.errorMessage.set('');
-    this.categoryService.getCategories().subscribe({
+    this.categoryService.getCategoriesPage(this.searchQuery().trim(), page - 1, this.pageSize).subscribe({
       next: (data) => {
-        this.categories.set(data);
+        if (request !== this.latestRequest) return;
+        // The last category on the last page was just deleted: show the page before.
+        if (data.content.length === 0 && page > 1) {
+          this.loadPage(page - 1);
+          return;
+        }
+        this.categories.set(data.content);
+        this.totalElements.set(data.totalElements);
+        this.totalPages.set(data.totalPages);
+        this.currentPage.set(data.number + 1);
         this.isLoading.set(false);
       },
       error: (err) => {
+        if (request !== this.latestRequest) return;
         this.errorMessage.set(parseApiError(err));
         this.isLoading.set(false);
       },
@@ -72,7 +96,7 @@ export class CategoriesListComponent implements OnInit {
   }
 
   setPage(p: number) {
-    if (p >= 1 && p <= this.totalPages()) this.currentPage.set(p);
+    if (p >= 1 && p <= this.totalPages()) this.loadPage(p);
   }
 
   minVal(a: number, b: number): number {
@@ -93,9 +117,17 @@ export class CategoriesListComponent implements OnInit {
   }
 
   toggleActive(cat: CategoryResponse): void {
+    // The server replaces every field of a category on save, so the others go
+    // back unchanged; leaving them out would wipe the image, the home-page
+    // section and "Never discount".
     this.categoryService.updateCategory(cat.id, {
       name: cat.name,
       isActive: !cat.isActive,
+      imageUrl: cat.imageUrl ?? null,
+      slug: cat.slug ?? null,
+      showOnHome: !!cat.showOnHome,
+      homeSortOrder: cat.homeSortOrder ?? 0,
+      discountExcluded: !!cat.discountExcluded,
     }).subscribe({
       next: (updated) => {
         this.categories.update(list =>
@@ -122,9 +154,9 @@ export class CategoriesListComponent implements OnInit {
     this.isDeleting.set(true);
     this.categoryService.deleteCategory(id).subscribe({
       next: () => {
-        this.categories.update((list) => list.filter((c) => c.id !== id));
         this.deleteConfirmId.set(null);
         this.isDeleting.set(false);
+        this.loadPage(this.currentPage());
       },
       error: (err) => {
         this.errorMessage.set(parseApiError(err));

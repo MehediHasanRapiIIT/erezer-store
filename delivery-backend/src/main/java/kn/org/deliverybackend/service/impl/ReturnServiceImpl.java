@@ -159,10 +159,11 @@ public class ReturnServiceImpl implements ReturnService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ReturnRequestDTO> listForAdmin(String status, int page, int size) {
+    public Page<ReturnRequestDTO> listForAdmin(String status, String q, int page, int size) {
         String normalized = (status != null && !status.isBlank() && !status.equalsIgnoreCase("ALL"))
                 ? status.toUpperCase() : null;
-        return returnRepository.findForAdmin(normalized, PageRequest.of(page, size))
+        return returnRepository.findForAdmin(normalized, kn.org.deliverybackend.util.SearchText.likePattern(q),
+                        PageRequest.of(Math.max(page, 0), kn.org.deliverybackend.util.SearchText.pageSize(size)))
                 .map(this::toDTO);
     }
 

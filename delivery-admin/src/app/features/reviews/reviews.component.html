@@ -29,16 +29,16 @@
           <div class="px-3 py-2 border-b border-gray-100">
             <div class="relative">
               <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-              <input type="text" [ngModel]="productSearch()" (ngModelChange)="productSearch.set($event)"
-                placeholder="Search products..."
+              <input type="text" [ngModel]="productSearch()" (ngModelChange)="onProductSearch($event)"
+                placeholder="Search products..." aria-label="Search products"
                 class="w-full pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-yellow-300 placeholder-gray-400"/>
             </div>
           </div>
           <div class="overflow-y-auto max-h-[calc(100vh-200px)]">
-            @if (isLoadingProducts()) {
+            @if (isLoadingProducts() && products().length === 0) {
               <div class="py-8 text-center text-gray-400 text-xs">Loading products...</div>
             } @else {
-              @for (p of filteredProducts(); track p.id) {
+              @for (p of products(); track p.id) {
                 <button (click)="selectProduct(p.id)"
                   class="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors border-b border-gray-50"
                   [class.bg-yellow-50]="selectedProductId() === p.id"
@@ -64,6 +64,12 @@
               }
               @empty {
                 <div class="py-8 text-center text-gray-400 text-xs">No products found.</div>
+              }
+              @if (canLoadMoreProducts()) {
+                <button type="button" (click)="loadProducts(false)" [disabled]="isLoadingProducts()"
+                  class="w-full py-2.5 text-xs font-medium text-yellow-700 hover:bg-yellow-50 disabled:opacity-50">
+                  {{ isLoadingProducts() ? 'Loading…' : 'Load more (' + (productTotal() - products().length) + ' more)' }}
+                </button>
               }
             }
           </div>
@@ -160,7 +166,7 @@
                       </div>
                       <!-- Delete action -->
                       <div class="flex-shrink-0">
-                        @if (deleteConfirmId() === review.reviewId) {
+                        @if (perms.can('reviews.delete') && deleteConfirmId() === review.reviewId) {
                           <div class="flex items-center gap-1.5">
                             <span class="text-xs text-gray-500">Remove?</span>
                             <button (click)="deleteReview(review.reviewId)" [disabled]="isDeleting()"
@@ -172,7 +178,7 @@
                               No
                             </button>
                           </div>
-                        } @else {
+                        } @else if (perms.can('reviews.delete')) {
                           <button (click)="confirmDelete(review.reviewId)"
                             class="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                             title="Delete review">

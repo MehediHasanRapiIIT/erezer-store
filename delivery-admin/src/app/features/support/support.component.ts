@@ -1,27 +1,40 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { catchError, of } from 'rxjs';
+import { EMPTY, Subject, catchError, debounceTime, distinctUntilChanged, map, of } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
+import { PagerComponent } from '../../shared/pager/pager.component';
 import {
   ContactMessage,
   ContactStatus,
   SupportService,
 } from '../../core/services/support.service';
+import { PermissionService } from '../../core/services/permission.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 
+/**
+ * The Support inbox. Search, the status filter and paging are all done by the
+ * server, so a search covers every message, not just the page on screen.
+ */
 @Component({
   selector: 'app-support',
   standalone: true,
-  imports: [DatePipe, FormsModule, SidebarComponent],
+  imports: [DatePipe, FormsModule, SidebarComponent, PagerComponent],
   template: `
     <div class="flex h-screen bg-gray-50 overflow-hidden">
       <app-sidebar />
 
       <div class="flex-1 flex flex-col overflow-hidden">
-        <header class="bg-white border-b border-gray-200 px-6 h-14 flex items-center justify-between flex-shrink-0">
+        <header class="bg-white border-b border-gray-200 px-6 h-14 flex items-center justify-between gap-4 flex-shrink-0">
           <h1 class="text-lg font-bold text-gray-900">Support inbox</h1>
-          <div class="flex items-center gap-2 text-sm">
+          <div class="flex items-center gap-2 text-sm min-w-0">
+            <input
+              type="search"
+              [ngModel]="search()"
+              (ngModelChange)="onSearch($event)"
+              placeholder="Search by name, email or subject…"
+              aria-label="Search messages"
+              class="w-56 md:w-72 min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-300 placeholder-gray-400" />
             <label class="text-gray-500">Filter:</label>
             <select
               [ngModel]="statusFilter()"
@@ -41,7 +54,7 @@ import { parseApiError } from '../../core/utils/api-error.util';
             <!-- Inbox list -->
             <section class="bg-white rounded-xl border border-gray-200 overflow-hidden h-fit">
               <header class="border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs uppercase text-gray-400">
-                {{ messages().length }} message(s)
+                {{ total() }} message(s)
               </header>
               <ul class="divide-y divide-gray-50">
                 @if (loading()) {
@@ -63,10 +76,17 @@ import { parseApiError } from '../../core/utils/api-error.util';
                   </li>
                 } @empty {
                   @if (!loading()) {
-                    <li class="px-4 py-6 text-center text-sm text-gray-400">No messages yet.</li>
+                    <li class="px-4 py-6 text-center text-sm text-gray-400">
+                      {{ searching() ? 'No messages match your search.' : 'No messages yet.' }}
+                    </li>
                   }
                 }
               </ul>
+              @if (total() > 0) {
+                <div class="border-t border-gray-100">
+                  <app-pager [page]="page()" [size]="pageSize" [total]="total()" [disabled]="loading()" (pageChange)="goToPage($event)" />
+                </div>
+              }
             </section>
 
             <!-- Detail -->
@@ -95,13 +115,13 @@ import { parseApiError } from '../../core/utils/api-error.util';
                   }
 
                   <div class="flex gap-2 border-t border-gray-100 pt-3">
-                    @if (m.status === 'NEW') {
+                    @if (m.status === 'NEW' && perms.can('support.update')) {
                       <button (click)="setStatus(m, 'READ')" [disabled]="acting()"
                         class="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50">
                         Mark as read
                       </button>
                     }
-                    @if (m.status !== 'RESOLVED') {
+                    @if (m.status !== 'RESOLVED' && perms.can('support.update')) {
                       <button (click)="setStatus(m, 'RESOLVED')" [disabled]="acting()"
                         class="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg disabled:opacity-50">
                         Mark resolved
@@ -111,10 +131,12 @@ import { parseApiError } from '../../core/utils/api-error.util';
                       class="px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50">
                       Reply via email
                     </a>
+                    @if (perms.can('support.delete')) {
                     <button (click)="remove(m)" [disabled]="acting()"
                       class="ml-auto px-3 py-1.5 text-xs font-medium text-red-500 hover:text-red-600">
                       Delete
                     </button>
+                    }
                   </div>
                 </div>
               } @else {
@@ -127,8 +149,11 @@ import { parseApiError } from '../../core/utils/api-error.util';
     </div>
   `,
 })
-export class SupportComponent implements OnInit {
+export class SupportComponent implements OnInit, OnDestroy {
   private readonly api = inject(SupportService);
+  protected readonly perms = inject(PermissionService);
+
+  protected readonly pageSize = 20;
 
   readonly messages     = signal<ContactMessage[]>([]);
   readonly selected     = signal<ContactMessage | null>(null);
@@ -136,36 +161,77 @@ export class SupportComponent implements OnInit {
   readonly acting       = signal(false);
   readonly error        = signal<string>('');
   readonly statusFilter = signal<string>('ALL');
+  /** Zero-based page on screen, and the number of messages across all pages. */
+  readonly page         = signal(0);
+  readonly total        = signal(0);
+  /** Typed search text, sent to the server after a short pause. */
+  readonly search       = signal('');
+  protected readonly searching = computed(() => this.search().trim().length > 0);
+
+  private readonly searchSubject = new Subject<string>();
+  /** Numbers each request, so an answer that arrives after a newer one is ignored. */
+  private latestRequest = 0;
 
   ngOnInit(): void {
-    this.reload();
+    this.loadPage(0);
+    // Typing searches all messages after a short pause, from the first page.
+    this.searchSubject.pipe(map((q) => q.trim()), debounceTime(300), distinctUntilChanged())
+      .subscribe(() => this.loadPage(0));
+  }
+
+  ngOnDestroy(): void {
+    this.searchSubject.complete();
+  }
+
+  protected onSearch(q: string): void {
+    this.search.set(q);
+    this.searchSubject.next(q);
   }
 
   protected setStatusFilter(status: string): void {
     this.statusFilter.set(status);
-    this.reload();
+    this.loadPage(0);
   }
 
-  protected reload(): void {
+  protected goToPage(page: number): void {
+    this.loadPage(page);
+  }
+
+  /**
+   * One page from the server, for the current search and status filter.
+   * `keepSelection` keeps the open message on screen even if it has left the
+   * page (e.g. it was just marked read while filtering on "New").
+   */
+  private loadPage(page: number, keepSelection = false): void {
+    const request = ++this.latestRequest;
     this.loading.set(true);
-    this.api.list(this.statusFilter()).pipe(catchError(() => of(null))).subscribe((page) => {
-      this.loading.set(false);
-      if (page) {
-        this.messages.set(page.content);
+    this.api.list(this.statusFilter(), page, this.pageSize, this.search())
+      .pipe(catchError(() => of(null)))
+      .subscribe((res) => {
+        if (request !== this.latestRequest) return;
+        this.loading.set(false);
+        if (!res) return;
+        // The last row of this page went away (e.g. it was deleted): show the page before it.
+        if (res.content.length === 0 && page > 0) {
+          this.loadPage(Math.min(page - 1, Math.max(res.totalPages - 1, 0)), keepSelection);
+          return;
+        }
+        this.messages.set(res.content);
+        this.page.set(res.number);
+        this.total.set(res.totalElements);
         const sel = this.selected();
         if (sel) {
-          const fresh = page.content.find((m) => m.id === sel.id);
-          this.selected.set(fresh ?? null);
+          const fresh = res.content.find((m) => m.id === sel.id);
+          this.selected.set(fresh ?? (keepSelection ? sel : null));
         }
-      }
-    });
+      });
   }
 
   protected select(m: ContactMessage): void {
     this.selected.set(m);
     this.error.set('');
-    // Auto-mark NEW → READ when viewing.
-    if (m.status === 'NEW') {
+    // Auto-mark NEW → READ when viewing (only for people allowed to change the status).
+    if (m.status === 'NEW' && this.perms.can('support.update')) {
       this.setStatus(m, 'READ');
     }
   }
@@ -179,6 +245,7 @@ export class SupportComponent implements OnInit {
         if (updated) {
           this.selected.set(updated);
           this.messages.update((list) => list.map((x) => x.id === updated.id ? updated : x));
+          this.loadPage(this.page(), true);
         }
       });
   }
@@ -187,11 +254,12 @@ export class SupportComponent implements OnInit {
     if (!confirm('Delete this message?')) return;
     this.acting.set(true);
     this.api.delete(m.id)
-      .pipe(catchError((err) => { this.error.set(parseApiError(err)); this.acting.set(false); return of(null); }))
+      .pipe(catchError((err) => { this.error.set(parseApiError(err)); this.acting.set(false); return EMPTY; }))
       .subscribe(() => {
         this.acting.set(false);
         this.messages.update((list) => list.filter((x) => x.id !== m.id));
         if (this.selected()?.id === m.id) this.selected.set(null);
+        this.loadPage(this.page());
       });
   }
 

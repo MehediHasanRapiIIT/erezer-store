@@ -13,6 +13,7 @@ import {
   OrderTrackingResponse,
 } from '../../../core/models/api.models';
 import { parseApiError } from '../../../core/utils/api-error.util';
+import { PermissionService } from '../../../core/services/permission.service';
 import { OrderNotesComponent } from '../order-notes/order-notes.component';
 
 // Display order for the lifecycle timeline (PENDING omitted — it's a legacy alias).
@@ -37,6 +38,7 @@ export class OrderDetailComponent implements OnInit {
   private router = inject(Router);
   private orderService = inject(OrderService);
   private sanitizer = inject(DomSanitizer);
+  protected readonly perms = inject(PermissionService);
 
   readonly order = signal<OrderResponse | null>(null);
   readonly tracking = signal<OrderTrackingResponse | null>(null);
@@ -76,6 +78,15 @@ export class OrderDetailComponent implements OnInit {
     const opt = this.statusOptions().find((s) => s.status === current);
     return opt ? opt.allowedNext : [];
   });
+
+  /** The allowed next statuses this person may actually pick (Cancel has its own permission). */
+  readonly permittedNext = computed<OrderStatus[]>(() => this.allowedNext().filter((s) => this.mayMoveTo(s)));
+
+  /** Show the note/courier fields and Update button only to people who can change the status. */
+  readonly statusFormVisible = computed(() =>
+    this.allowedNext().length === 0
+      ? this.perms.canAny('orders.status', 'orders.cancel')
+      : this.permittedNext().length > 0);
 
   readonly statusChanged = computed(() => this.selectedStatus() !== this.currentStatus());
 
@@ -122,7 +133,7 @@ export class OrderDetailComponent implements OnInit {
         if (t) {
           // Default the dropdown to the first legal next state if any.
           const opt = this.statusOptions().find((s) => s.status === t.currentStatus);
-          const first = opt?.allowedNext[0];
+          const first = opt?.allowedNext.find((s) => this.mayMoveTo(s));
           if (first) {
             this.selectedStatus.set(first);
           } else {
@@ -139,7 +150,7 @@ export class OrderDetailComponent implements OnInit {
         this.statusOptions.set(opts);
         // Re-default selectedStatus once options arrive.
         const opt = opts.find((s) => s.status === this.currentStatus());
-        const first = opt?.allowedNext[0];
+        const first = opt?.allowedNext.find((s) => this.mayMoveTo(s));
         if (first && this.selectedStatus() === this.currentStatus()) {
           this.selectedStatus.set(first);
         }
@@ -164,6 +175,12 @@ export class OrderDetailComponent implements OnInit {
     this.revokeInvoiceUrl();
     this.invoiceBlob = null;
     this.invoicePreviewUrl.set(null);
+
+    // Without "Download invoices" the preview can't be fetched; the modal then only offers Send.
+    if (!this.perms.can('orders.invoice.print')) {
+      this.invoiceLoading.set(false);
+      return;
+    }
 
     this.orderService.getInvoicePdf(order.id).subscribe({
       next: (blob) => {
@@ -256,6 +273,11 @@ export class OrderDetailComponent implements OnInit {
   }
 
   // ── status update ──────────────────────────────────────────────────────────
+
+  /** Cancelling needs "Cancel orders"; every other move needs "Change order status". */
+  private mayMoveTo(status: OrderStatus): boolean {
+    return this.perms.can(status === 'CANCELLED' ? 'orders.cancel' : 'orders.status');
+  }
 
   onUpdateStatus(): void {
     const o = this.order();

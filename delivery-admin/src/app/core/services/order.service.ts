@@ -28,12 +28,20 @@ export class OrderService {
     return this.http.get<OrderResponse[]>(`${this.baseUrl}/admin/orders`);
   }
 
-  getOrdersPaged(page: number, size: number, status?: string, fromDate?: string, toDate?: string, excludeStatus?: string): Observable<PageResponse<OrderResponse>> {
+  /**
+   * One page of orders, filtered by the server. Dates are shop days (Dhaka);
+   * `q` searches the order number, the customer's name, phone and email, and
+   * the address, across every order.
+   */
+  getOrdersPaged(page: number, size: number, status?: string, fromDate?: string, toDate?: string,
+                 excludeStatus?: string, q?: string, payment?: string): Observable<PageResponse<OrderResponse>> {
     const params: Record<string, string> = { page: String(page), size: String(size) };
     if (status && status !== 'ALL') params['status'] = status;
     if (excludeStatus) params['excludeStatus'] = excludeStatus;
     if (fromDate) params['fromDate'] = fromDate;
     if (toDate) params['toDate'] = toDate;
+    if (q) params['q'] = q;
+    if (payment && payment !== 'ALL') params['payment'] = payment;
     return this.http.get<PageResponse<OrderResponse>>(`${this.baseUrl}/admin/orders/paged`, { params });
   }
 
@@ -59,14 +67,6 @@ export class OrderService {
 
   getStatusOptions(): Observable<OrderStatusOption[]> {
     return this.http.get<OrderStatusOption[]>(`${this.baseUrl}/admin/orders/statuses`);
-  }
-
-  getOrdersByUser(userId: string): Observable<OrderResponse[]> {
-    return this.http.get<OrderResponse[]>(`${this.baseUrl}/app/consumer/${userId}/orders`);
-  }
-
-  getOrderDetails(userId: string, orderId: string): Observable<OrderResponse> {
-    return this.http.get<OrderResponse>(`${this.baseUrl}/app/consumer/${userId}/orders/${orderId}`);
   }
 
   /** Admin: fetch one order fresh (enriched customer + items). */

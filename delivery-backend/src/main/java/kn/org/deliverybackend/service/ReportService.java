@@ -41,7 +41,11 @@ public interface ReportService {
     List<TopCategoryDTO> topCategories(LocalDate from, LocalDate to, int limit);
 
     /** Customer LTV across the whole order history (date filter is intentionally absent). */
-    List<CustomerLifetimeValueDTO> customerLtv(int limit, int offset);
+    /** Purchasing customers ranked by lifetime revenue; {@code q} searches name, email and phone. */
+    List<CustomerLifetimeValueDTO> customerLtv(int limit, int offset, String q);
 
     long totalCustomersWithOrders();
+
+    /** How many purchasing customers match {@code q}; all of them when it is blank. */
+    long customerCount(String q);
 }

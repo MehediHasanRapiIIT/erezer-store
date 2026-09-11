@@ -1,5 +1,8 @@
 package kn.org.deliverybackend.controller;
 
+import kn.org.deliverybackend.access.Perm;
+import kn.org.deliverybackend.access.StaffAccess;
+import kn.org.deliverybackend.access.RequiresPermission;
 import jakarta.validation.Valid;
 import kn.org.deliverybackend.dto.OrderDTO;
 import kn.org.deliverybackend.dto.OrderSummaryDTO;
@@ -36,16 +39,19 @@ public class AdminOrderController {
     private final OrderService orderService;
     private final InvoiceService invoiceService;
 
+    @RequiresPermission(Perm.ORDERS_VIEW)
     @GetMapping("/summary")
     public ResponseEntity<OrderSummaryDTO> getSummary() {
         return ResponseEntity.ok(orderHistoryService.getSummary());
     }
 
+    @RequiresPermission(Perm.ORDERS_VIEW)
     @GetMapping
     public ResponseEntity<List<OrderDTO>> getAllOrders() {
         return ResponseEntity.ok(orderHistoryService.getAllOrders());
     }
 
+    @RequiresPermission(Perm.ORDERS_VIEW)
     @GetMapping("/paged")
     public ResponseEntity<Page<OrderDTO>> getOrdersPaged(
             @RequestParam(defaultValue = "0") int page,
@@ -53,21 +59,27 @@ public class AdminOrderController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String excludeStatus,
             @RequestParam(required = false) String fromDate,
-            @RequestParam(required = false) String toDate) {
-        return ResponseEntity.ok(orderHistoryService.getOrdersPaged(page, size, status, excludeStatus, fromDate, toDate));
+            @RequestParam(required = false) String toDate,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String payment) {
+        return ResponseEntity.ok(orderHistoryService.getOrdersPaged(page, size, status, excludeStatus,
+                fromDate, toDate, q, payment));
     }
 
+    @RequiresPermission(Perm.ORDERS_VIEW)
     @GetMapping("/status/{status}")
     public ResponseEntity<List<OrderDTO>> getOrdersByStatus(@PathVariable String status) {
         return ResponseEntity.ok(orderHistoryService.getOrdersByStatus(status));
     }
 
+    @RequiresPermission(Perm.ORDERS_VIEW)
     @GetMapping("/{orderId}")
     public ResponseEntity<OrderDTO> getOrder(@PathVariable UUID orderId) {
         return ResponseEntity.ok(orderHistoryService.getOrderByIdForAdmin(orderId));
     }
 
     /** Invoice PDF for viewing / printing. */
+    @RequiresPermission(Perm.ORDERS_INVOICE_PRINT)
     @GetMapping("/{orderId}/invoice/pdf")
     public ResponseEntity<byte[]> invoicePdf(@PathVariable UUID orderId) {
         byte[] pdf = invoiceService.generateInvoicePdf(orderId);
@@ -78,6 +90,7 @@ public class AdminOrderController {
     }
 
     /** Emails the invoice PDF to the customer and sends a short SMS. */
+    @RequiresPermission(Perm.ORDERS_INVOICE_SEND)
     @PostMapping("/{orderId}/invoice/send")
     public ResponseEntity<InvoiceSendResultDTO> sendInvoice(@PathVariable UUID orderId) {
         return ResponseEntity.ok(invoiceService.sendInvoice(orderId));
@@ -91,11 +104,17 @@ public class AdminOrderController {
      * Returns 400 if the requested transition is not allowed from the current
      * status. Persists an audit row and fires an email to the customer.
      */
+    @RequiresPermission(value = {Perm.ORDERS_STATUS, Perm.ORDERS_CANCEL}, mode = RequiresPermission.Mode.ANY)
     @PatchMapping("/{orderId}/status")
     public ResponseEntity<OrderDTO> updateOrderStatus(
             @PathVariable UUID orderId,
             @Valid @RequestBody OrderStatusUpdateRequestDTO body,
             @AuthenticationPrincipal Jwt jwt) {
+        // Cancelling is its own permission, separate from moving an order along.
+        boolean cancelling = OrderStatus.parse(body.getStatus())
+                .map(s -> s == OrderStatus.CANCELLED).orElse(false);
+        StaffAccess.require(cancelling ? Perm.ORDERS_CANCEL : Perm.ORDERS_STATUS);
+        StaffAccess.describe("Changed order status to " + body.getStatus());
         String changedBy = jwt != null
                 ? jwt.getClaimAsString("preferred_username") != null
                         ? "admin:" + jwt.getClaimAsString("preferred_username")
@@ -105,12 +124,14 @@ public class AdminOrderController {
     }
 
     /** Returns the full status-history timeline for an order. */
+    @RequiresPermission(Perm.ORDERS_VIEW)
     @GetMapping("/{orderId}/track")
     public ResponseEntity<OrderTrackingDTO> getTracking(@PathVariable UUID orderId) {
         return ResponseEntity.ok(orderService.getOrderTracking(orderId));
     }
 
     /** Lists all status values + which transitions are legal from each. */
+    @RequiresPermission(Perm.ORDERS_VIEW)
     @GetMapping("/statuses")
     public ResponseEntity<List<StatusOptionDTO>> getStatusOptions() {
         List<StatusOptionDTO> options = Arrays.stream(OrderStatus.values())

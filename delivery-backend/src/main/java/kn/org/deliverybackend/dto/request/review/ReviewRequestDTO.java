@@ -10,7 +10,7 @@ import java.util.UUID;
 @Data
 public class ReviewRequestDTO {
 
-    @NotNull(message = "userId is required")
+    /** Set from the logged-in customer by the controller; any value sent is ignored. */
     private UUID userId;
 
     @NotNull(message = "orderId is required")

@@ -16,7 +16,13 @@ public interface OrderHistoryService {
 
     /** Admin: fetch one order (with enriched customer/items) by id. */
     OrderDTO getOrderByIdForAdmin(UUID orderId);
-    Page<OrderDTO> getOrdersPaged(int page, int size, String status, String excludeStatus, String fromDate, String toDate);
+    /**
+     * The admin order list, newest first. Every filter is optional. {@code fromDate}/{@code toDate}
+     * are shop days (Asia/Dhaka), both inclusive; {@code q} searches the order number, the customer's
+     * name, phone and email, and the address; {@code payment} is CASH, BKASH, CARD, ...
+     */
+    Page<OrderDTO> getOrdersPaged(int page, int size, String status, String excludeStatus,
+                                  String fromDate, String toDate, String q, String payment);
     List<OrderDTO> getOrdersByStatus(String status);
 
     /**

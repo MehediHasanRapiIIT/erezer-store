@@ -27,10 +27,19 @@ public interface ReturnRequestRepository extends JpaRepository<ReturnRequest, UU
             "ORDER BY r.requestedAt DESC")
     Optional<ReturnRequest> findLatestByOrder(@Param("orderId") UUID orderId);
 
-    @Query(value = "SELECT r FROM ReturnRequest r WHERE r.deleted = false " +
-            "AND (:status IS NULL OR r.status = :status) " +
-            "ORDER BY r.requestedAt DESC",
-            countQuery = "SELECT COUNT(r) FROM ReturnRequest r WHERE r.deleted = false " +
-                    "AND (:status IS NULL OR r.status = :status)")
-    Page<ReturnRequest> findForAdmin(@Param("status") String status, Pageable pageable);
+    /**
+     * The admin returns list, newest first. {@code q} is a lower-case "%text%"
+     * pattern (or null) matched against the customer email, the reason, and
+     * the order and return numbers.
+     */
+    String ADMIN_FILTERS = "AND (:status IS NULL OR r.status = :status) " +
+            "AND (:q IS NULL OR LOWER(r.customerEmail) LIKE :q ESCAPE '\\' " +
+            "  OR LOWER(r.reason) LIKE :q ESCAPE '\\' " +
+            "  OR LOWER(CAST(r.orderId AS String)) LIKE :q ESCAPE '\\' " +
+            "  OR LOWER(CAST(r.id AS String)) LIKE :q ESCAPE '\\') ";
+
+    @Query(value = "SELECT r FROM ReturnRequest r WHERE r.deleted = false " + ADMIN_FILTERS +
+            "ORDER BY r.requestedAt DESC, r.id",
+            countQuery = "SELECT COUNT(r) FROM ReturnRequest r WHERE r.deleted = false " + ADMIN_FILTERS)
+    Page<ReturnRequest> findForAdmin(@Param("status") String status, @Param("q") String q, Pageable pageable);
 }

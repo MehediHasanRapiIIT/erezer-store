@@ -6,6 +6,7 @@ import { ProductService } from '../../../core/services/product.service';
 import { CategoryService } from '../../../core/services/category.service';
 import { CategoryResponse, ProductRequest } from '../../../core/models/api.models';
 import { parseApiError } from '../../../core/utils/api-error.util';
+import { PermissionService } from '../../../core/services/permission.service';
 
 @Component({
   selector: 'app-add-product',
@@ -17,6 +18,7 @@ export class AddProductComponent implements OnInit {
   private router = inject(Router);
   private productService = inject(ProductService);
   private categoryService = inject(CategoryService);
+  protected readonly perms = inject(PermissionService);
 
   // Form fields
   productName  = signal('');

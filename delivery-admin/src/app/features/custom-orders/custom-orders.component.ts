@@ -1,7 +1,7 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { catchError, of } from 'rxjs';
+import { EMPTY, Subject, catchError, debounceTime, distinctUntilChanged, of } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import {
   CustomOrderDetail,
@@ -9,6 +9,7 @@ import {
   CustomOrderStatus,
   CustomOrderSummary,
 } from '../../core/services/custom-order.service';
+import { PermissionService } from '../../core/services/permission.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 
 const STATUSES: CustomOrderStatus[] = ['NEW', 'IN_REVIEW', 'QUOTED', 'CONFIRMED', 'DELIVERED', 'CLOSED'];
@@ -36,18 +37,21 @@ const ACTIVE_FILTER_STATUSES: CustomOrderStatus[] = ['NEW', 'IN_REVIEW', 'QUOTED
                 [class.text-gray-500]="tab() !== 'history'">History</button>
             </div>
           </div>
-          @if (tab() === 'active') {
-            <div class="flex items-center gap-2 text-sm">
+          <div class="flex items-center gap-3 text-sm">
+            <input type="search" [ngModel]="searchQuery()" (ngModelChange)="onSearchChange($event)"
+              placeholder="Search reference, name, phone, email…" aria-label="Search custom requests"
+              class="w-64 rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-300" />
+            @if (tab() === 'active') {
               <label class="text-gray-500">Filter:</label>
               <select [ngModel]="statusFilter()" (ngModelChange)="setStatusFilter($event)"
                 class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm">
                 <option value="ALL">All active</option>
                 @for (s of activeFilterStatuses; track s) { <option [value]="s">{{ label(s) }}</option> }
               </select>
-            </div>
-          } @else {
-            <span class="text-sm text-gray-400">Delivered orders</span>
-          }
+            } @else {
+              <span class="text-gray-400">Delivered orders</span>
+            }
+          </div>
         </header>
 
         <main class="flex-1 overflow-y-auto p-6">
@@ -84,7 +88,9 @@ const ACTIVE_FILTER_STATUSES: CustomOrderStatus[] = ['NEW', 'IN_REVIEW', 'QUOTED
                   </li>
                 } @empty {
                   @if (!loading()) {
-                    <li class="px-4 py-6 text-center text-sm text-gray-400">No requests yet.</li>
+                    <li class="px-4 py-6 text-center text-sm text-gray-400">
+                      {{ searchQuery().trim() ? 'No requests match your search.' : 'No requests yet.' }}
+                    </li>
                   }
                 }
               </ul>
@@ -165,33 +171,40 @@ const ACTIVE_FILTER_STATUSES: CustomOrderStatus[] = ['NEW', 'IN_REVIEW', 'QUOTED
                   <div class="grid gap-3 border-t border-gray-100 pt-3 sm:grid-cols-2">
                     <label class="text-xs font-semibold uppercase text-gray-400">
                       Status
-                      <select [(ngModel)]="editStatus" class="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-800">
+                      <select [(ngModel)]="editStatus" [disabled]="!perms.can('custom_orders.update')" class="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-800">
                         @for (s of statuses; track s) { <option [value]="s">{{ label(s) }}</option> }
                       </select>
                     </label>
                     <label class="text-xs font-semibold uppercase text-gray-400">
                       Internal notes
-                      <textarea [(ngModel)]="editNotes" rows="2" class="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-800"></textarea>
+                      <textarea [(ngModel)]="editNotes" [disabled]="!perms.can('custom_orders.update')" rows="2" class="mt-1 block w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-800"></textarea>
                     </label>
                   </div>
+                  @if (!perms.can('custom_orders.update')) {
+                    <p class="text-xs text-gray-400">Needs the “Update custom orders” permission.</p>
+                  }
 
                   @if (error()) {
                     <p class="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{{ error() }}</p>
                   }
 
                   <div class="flex gap-2 border-t border-gray-100 pt-3">
+                    @if (perms.can('custom_orders.update')) {
                     <button (click)="save(d)" [disabled]="acting()"
                       class="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
                       Save changes
                     </button>
+                    }
                     <a [href]="'mailto:' + d.email + '?subject=' + replyEncoded(d)" target="_blank" rel="noopener"
                       class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
                       Reply via email
                     </a>
+                    @if (perms.can('custom_orders.delete')) {
                     <button (click)="remove(d)" [disabled]="acting()"
                       class="ml-auto px-3 py-1.5 text-xs font-medium text-red-500 hover:text-red-600">
                       Delete
                     </button>
+                    }
                   </div>
                 </div>
               } @else {
@@ -244,8 +257,15 @@ const ACTIVE_FILTER_STATUSES: CustomOrderStatus[] = ['NEW', 'IN_REVIEW', 'QUOTED
     </div>
   `,
 })
-export class CustomOrdersComponent implements OnInit {
+export class CustomOrdersComponent implements OnInit, OnDestroy {
   private readonly api = inject(CustomOrderService);
+  protected readonly perms = inject(PermissionService);
+
+  // Server search: reference, customer name, phone, email, item
+  readonly searchQuery = signal('');
+  private readonly searchSubject = new Subject<string>();
+  /** Numbers each list request, so an answer that arrives after a newer one is ignored. */
+  private latestRequest = 0;
 
   readonly statuses = STATUSES;
   readonly activeFilterStatuses = ACTIVE_FILTER_STATUSES;
@@ -272,6 +292,19 @@ export class CustomOrdersComponent implements OnInit {
 
   ngOnInit(): void {
     this.reload();
+    this.searchSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe(() => {
+      this.page.set(0);
+      this.reload();
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.searchSubject.complete();
+  }
+
+  protected onSearchChange(query: string): void {
+    this.searchQuery.set(query);
+    this.searchSubject.next(query);
   }
 
   protected setTab(tab: 'active' | 'history'): void {
@@ -296,16 +329,23 @@ export class CustomOrdersComponent implements OnInit {
   }
 
   protected reload(): void {
+    const request = ++this.latestRequest;
     this.loading.set(true);
-    this.api.list(this.statusFilter(), this.page(), this.pageSize, this.tab() === 'history')
+    this.api.list(this.statusFilter(), this.page(), this.pageSize, this.tab() === 'history', this.searchQuery().trim())
       .pipe(catchError(() => of(null)))
       .subscribe((page) => {
+        if (request !== this.latestRequest) return;
         this.loading.set(false);
-        if (page) {
-          this.orders.set(page.content);
-          this.totalPages.set(page.totalPages);
-          this.totalElements.set(page.totalElements);
+        if (!page) return;
+        // The page emptied (its last request was deleted or moved): step back one.
+        if (page.content.length === 0 && this.page() > 0) {
+          this.page.update((p) => p - 1);
+          this.reload();
+          return;
         }
+        this.orders.set(page.content);
+        this.totalPages.set(page.totalPages);
+        this.totalElements.set(page.totalElements);
       });
   }
 
@@ -340,11 +380,12 @@ export class CustomOrdersComponent implements OnInit {
     if (!confirm('Delete this request?')) return;
     this.acting.set(true);
     this.api.delete(d.id)
-      .pipe(catchError((err) => { this.error.set(parseApiError(err)); this.acting.set(false); return of(null); }))
+      .pipe(catchError((err) => { this.error.set(parseApiError(err)); this.acting.set(false); return EMPTY; }))
       .subscribe(() => {
         this.acting.set(false);
-        this.orders.update((list) => list.filter((x) => x.id !== d.id));
         if (this.detail()?.id === d.id) this.detail.set(null);
+        // Reload from the server so the page stays full and the count right.
+        this.reload();
       });
   }
 

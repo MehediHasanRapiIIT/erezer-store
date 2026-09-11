@@ -58,9 +58,11 @@ export class ReturnService {
   private http = inject(HttpClient);
   private base = environment.apiBaseUrl;
 
-  list(status?: string, page = 0, size = 20): Observable<PageResponse<ReturnRequestResponse>> {
+  /** One page of returns, newest first. `q` searches customer email, reason, order and return number. */
+  list(status?: string, page = 0, size = 20, q?: string): Observable<PageResponse<ReturnRequestResponse>> {
     const params: Record<string, string> = { page: String(page), size: String(size) };
     if (status && status !== 'ALL') params['status'] = status;
+    if (q?.trim()) params['q'] = q.trim();
     return this.http.get<PageResponse<ReturnRequestResponse>>(`${this.base}/admin/returns`, { params });
   }
 

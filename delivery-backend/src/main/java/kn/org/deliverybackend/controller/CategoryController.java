@@ -1,5 +1,8 @@
 package kn.org.deliverybackend.controller;
 
+import kn.org.deliverybackend.access.Perm;
+import kn.org.deliverybackend.access.StaffAccess;
+import kn.org.deliverybackend.access.RequiresPermission;
 import jakarta.validation.Valid;
 import kn.org.deliverybackend.dto.request.category.CategoryRequestDTO;
 import kn.org.deliverybackend.dto.response.category.CategoryResponseDTO;
@@ -40,16 +43,30 @@ public class CategoryController {
         return ResponseEntity.ok(categoryService.getCategoryById(id));
     }
 
+    @RequiresPermission(Perm.CATEGORIES_CREATE)
     @PostMapping
     public ResponseEntity<CategoryResponseDTO> createCategory(@Valid @RequestBody CategoryRequestDTO categoryRequestDTO) {
+        // "Never discount" changes what customers pay, so it needs the discount switches permission.
+        if (Boolean.TRUE.equals(categoryRequestDTO.getDiscountExcluded())) {
+            StaffAccess.require(Perm.DISCOUNTS_SWITCHES);
+        }
         return ResponseEntity.ok(categoryService.createCategory(categoryRequestDTO));
     }
 
+    @RequiresPermission(Perm.CATEGORIES_EDIT)
     @PutMapping("/{id}")
     public ResponseEntity<CategoryResponseDTO> updateCategory(@PathVariable Long id, @Valid @RequestBody CategoryRequestDTO categoryRequestDTO) {
+        // The service stores a missing "Never discount" as off, so compare what
+        // will be stored, not only what was sent: leaving the field out must
+        // not be a way round the permission.
+        boolean excludedAfter = Boolean.TRUE.equals(categoryRequestDTO.getDiscountExcluded());
+        if (excludedAfter != Boolean.TRUE.equals(categoryService.getCategoryById(id).getDiscountExcluded())) {
+            StaffAccess.require(Perm.DISCOUNTS_SWITCHES);
+        }
         return ResponseEntity.ok(categoryService.updateCategory(id, categoryRequestDTO));
     }
 
+    @RequiresPermission(Perm.CATEGORIES_DELETE)
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteCategory(@PathVariable Long id) {
         categoryService.deleteCategory(id);

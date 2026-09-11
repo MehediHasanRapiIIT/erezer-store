@@ -4,9 +4,17 @@ import { FormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 import { SidebarComponent } from '../../../shared/sidebar/sidebar.component';
 import { ProductService } from '../../../core/services/product.service';
-import { ProductResponse } from '../../../core/models/api.models';
+import { CategoryService } from '../../../core/services/category.service';
+import { CategoryResponse, ProductResponse } from '../../../core/models/api.models';
 import { parseApiError } from '../../../core/utils/api-error.util';
+import { salePercent } from '../../../core/utils/price.util';
+import { PermissionService } from '../../../core/services/permission.service';
+import { ACCESS } from '../../../core/access/admin-pages';
 
+/**
+ * The Products page. Search, the category filter and paging are all done by
+ * the server, so a search covers every product, not just the page on screen.
+ */
 @Component({
   selector: 'app-products-list',
   standalone: true,
@@ -15,13 +23,19 @@ import { parseApiError } from '../../../core/utils/api-error.util';
 })
 export class ProductsListComponent implements OnInit, OnDestroy {
   private productService = inject(ProductService);
+  private categoryService = inject(CategoryService);
   private router = inject(Router);
+  protected readonly perms = inject(PermissionService);
+  protected readonly ACCESS = ACCESS;
   private destroy$ = new Subject<void>();
   private searchSubject = new Subject<string>();
 
   readonly pageSize = 10;
 
   searchQuery = signal('');
+  /** Only products in this category; null for all. */
+  categoryId = signal<number | null>(null);
+  categories = signal<CategoryResponse[]>([]);
   currentPage = signal(0); // 0-indexed for backend
   totalElements = signal(0);
   totalPages = signal(0);
@@ -32,16 +46,8 @@ export class ProductsListComponent implements OnInit, OnDestroy {
   deleteConfirmId = signal<number | null>(null);
   isDeleting = signal(false);
 
-  // For search — client-side filter on current page results
-  filtered = computed(() => {
-    const q = this.searchQuery().toLowerCase();
-    if (!q) return this.products();
-    return this.products().filter(p =>
-      p.name.toLowerCase().includes(q) ||
-      (p.sku ?? '').toLowerCase().includes(q) ||
-      (p.categoryName ?? '').toLowerCase().includes(q)
-    );
-  });
+  /** Numbers each request, so an answer that arrives after a newer one is ignored. */
+  private latestRequest = 0;
 
   showingFrom = computed(() => this.currentPage() * this.pageSize + 1);
   showingTo = computed(() => Math.min((this.currentPage() + 1) * this.pageSize, this.totalElements()));
@@ -62,18 +68,17 @@ export class ProductsListComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadPage(0);
+    this.categoryService.getCategories().subscribe({
+      next: (cats) => this.categories.set(cats),
+      error: () => this.categories.set([]),
+    });
 
+    // Typing searches all products after a short pause, from the first page.
     this.searchSubject.pipe(
       debounceTime(300),
       distinctUntilChanged(),
       takeUntil(this.destroy$)
-    ).subscribe((query) => {
-      if (query.trim()) {
-        this.searchForProducts(query.trim());
-      } else {
-        this.loadPage(0);
-      }
-    });
+    ).subscribe(() => this.loadPage(0));
   }
 
   ngOnDestroy(): void {
@@ -86,11 +91,29 @@ export class ProductsListComponent implements OnInit, OnDestroy {
     this.searchSubject.next(query);
   }
 
+  onCategoryChange(id: number | null): void {
+    this.categoryId.set(id);
+    this.loadPage(0);
+  }
+
+  /** One page from the server, for the current search and category. */
   loadPage(page: number): void {
+    const request = ++this.latestRequest;
     this.isLoading.set(true);
     this.errorMessage.set('');
-    this.productService.getProductsPaged(page, this.pageSize).subscribe({
+    this.productService.searchAdmin({
+      q: this.searchQuery().trim(),
+      categoryId: this.categoryId(),
+      page,
+      size: this.pageSize,
+    }).subscribe({
       next: (data) => {
+        if (request !== this.latestRequest) return;
+        // The last product on the last page was just deleted: show the page before.
+        if (data.content.length === 0 && page > 0) {
+          this.loadPage(page - 1);
+          return;
+        }
         this.products.set(data.content);
         this.currentPage.set(data.number);
         this.totalElements.set(data.totalElements);
@@ -98,24 +121,7 @@ export class ProductsListComponent implements OnInit, OnDestroy {
         this.isLoading.set(false);
       },
       error: (err) => {
-        this.errorMessage.set(parseApiError(err));
-        this.isLoading.set(false);
-      },
-    });
-  }
-
-  private searchForProducts(query: string): void {
-    this.isLoading.set(true);
-    this.errorMessage.set('');
-    this.productService.searchProducts(query).subscribe({
-      next: (data) => {
-        this.products.set(data);
-        this.totalElements.set(data.length);
-        this.totalPages.set(1);
-        this.currentPage.set(0);
-        this.isLoading.set(false);
-      },
-      error: (err) => {
+        if (request !== this.latestRequest) return;
         this.errorMessage.set(parseApiError(err));
         this.isLoading.set(false);
       },
@@ -155,12 +161,19 @@ export class ProductsListComponent implements OnInit, OnDestroy {
     return map[key] ?? 'bg-gray-100 text-gray-600 border border-gray-200';
   }
 
+  /** The status switch re-saves the product with its price unchanged, so "Edit products" is enough. */
+  canToggleAvailability(_product: ProductResponse): boolean {
+    return this.perms.can('products.edit');
+  }
+
   toggleAvailability(product: ProductResponse): void {
     const dto = {
       categoryId: product.categoryId,
       name: product.name,
       description: product.description,
       price: product.price,
+      // Without this the save would remove the product's sale price.
+      discountPercentage: salePercent(product.price, product.discountPrice),
       shopId: 1,
       isAvailable: !product.isAvailable,
     };

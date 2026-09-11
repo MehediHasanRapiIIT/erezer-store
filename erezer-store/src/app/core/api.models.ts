@@ -279,6 +279,36 @@ export interface ApiReview {
   createdAt: string;
 }
 
+/** One page of a list, as the backend's paged endpoints return it. */
+export interface ApiPage<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  /** Zero-based page number. */
+  number: number;
+  size: number;
+}
+
+/** What the shop list asks the server for. Every field is optional. */
+export interface ApiProductBrowse {
+  q?: string | null;
+  categoryId?: number | null;
+  gender?: string | null;
+  brand?: string | null;
+  maxPrice?: number | null;
+  sort?: 'featured' | 'price-asc' | 'price-desc';
+  page?: number;
+  size?: number;
+}
+
+/** The shop's filter choices for the current search and category. */
+export interface ApiProductFacets {
+  genders: string[];
+  brands: string[];
+  /** Highest price shown; null when nothing matches. */
+  maxPrice: number | null;
+}
+
 export interface ApiReviewPage {
   content: ApiReview[];
   pageable: { pageNumber: number; pageSize: number };

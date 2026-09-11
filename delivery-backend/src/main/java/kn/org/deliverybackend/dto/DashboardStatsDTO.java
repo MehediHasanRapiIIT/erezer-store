@@ -22,28 +22,28 @@ public class DashboardStatsDTO {
     // All time
     private long totalOrders;        // every placed order, including cancelled
     private long validOrders;        // not cancelled / returned
-    private double totalRevenue;
+    private Double totalRevenue;
     private long pendingOrders;      // PLACED, awaiting acceptance (any date)
     private long cancelledOrders;
     private long activeRiders;
 
     // Today vs yesterday
     private long todayOrders;
-    private double todayRevenue;
+    private Double todayRevenue;
     private long yesterdayOrders;
-    private double yesterdayRevenue;
+    private Double yesterdayRevenue;
 
     // This week (Sunday–Saturday) vs last week
     private long weekOrders;
-    private double weekRevenue;
+    private Double weekRevenue;
     private long lastWeekOrders;
-    private double lastWeekRevenue;
+    private Double lastWeekRevenue;
 
     // This month vs last month
     private long monthOrders;
-    private double monthRevenue;
+    private Double monthRevenue;
     private long lastMonthOrders;
-    private double lastMonthRevenue;
+    private Double lastMonthRevenue;
 
     // Inventory
     private int lowStockProducts;
@@ -53,4 +53,16 @@ public class DashboardStatsDTO {
     private String asOf;             // business-local timestamp
     private String zone;
     private String currency;
+
+    /** Leaves out every money total, for staff without "See money totals". */
+    public DashboardStatsDTO withoutRevenue() {
+        totalRevenue = null;
+        todayRevenue = null;
+        yesterdayRevenue = null;
+        weekRevenue = null;
+        lastWeekRevenue = null;
+        monthRevenue = null;
+        lastMonthRevenue = null;
+        return this;
+    }
 }

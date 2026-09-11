@@ -6,8 +6,10 @@ import { ProductService } from '../../../core/services/product.service';
 import { CategoryService } from '../../../core/services/category.service';
 import { CategoryResponse, ProductRequest } from '../../../core/models/api.models';
 import { parseApiError } from '../../../core/utils/api-error.util';
+import { salePercent } from '../../../core/utils/price.util';
 import { VariantManagerComponent } from '../variant-manager/variant-manager.component';
 import { ImageGalleryEditorComponent } from '../image-gallery-editor/image-gallery-editor.component';
+import { PermissionService } from '../../../core/services/permission.service';
 
 @Component({
   selector: 'app-edit-product',
@@ -26,6 +28,7 @@ export class EditProductComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private productService = inject(ProductService);
   private categoryService = inject(CategoryService);
+  protected readonly perms = inject(PermissionService);
 
   productId = signal<number>(0);
 
@@ -91,8 +94,9 @@ export class EditProductComponent implements OnInit {
         this.customSizeEnabled.set(!!p.customSizeEnabled);
         this.customSizeSurcharge.set(p.customSizeSurcharge ?? null);
         this.customSizeNote.set(p.customSizeNote ?? '');
-        // discountPrice back to percentage is approximate; store 0 if unknown
-        this.discount.set(0);
+        // Show the sale discount the product already has, so saving the form
+        // keeps its sale price instead of quietly removing it.
+        this.discount.set(salePercent(p.price, p.discountPrice) ?? 0);
         this.isFetching.set(false);
       },
       error: (err) => {

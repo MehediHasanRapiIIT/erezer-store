@@ -63,10 +63,12 @@ public class NewsletterServiceImpl implements NewsletterService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<NewsletterSubscriberDTO> list(String status, int page, int size) {
+    public Page<NewsletterSubscriberDTO> list(String status, String q, int page, int size) {
         String normalized = (status != null && !status.isBlank() && !status.equalsIgnoreCase("ALL"))
                 ? status.toUpperCase() : null;
-        return repository.findForAdmin(normalized, PageRequest.of(page, size)).map(this::toDTO);
+        return repository.findForAdmin(normalized, kn.org.deliverybackend.util.SearchText.likePattern(q),
+                        PageRequest.of(Math.max(page, 0), kn.org.deliverybackend.util.SearchText.pageSize(size)))
+                .map(this::toDTO);
     }
 
     @Override

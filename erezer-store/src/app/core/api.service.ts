@@ -14,7 +14,10 @@ import {
   ApiCategory,
   ApiHomeData,
   ApiOrder,
+  ApiPage,
   ApiProduct,
+  ApiProductBrowse,
+  ApiProductFacets,
   ApiProductImage,
   ApiProfile,
   ApiRatingSummary,
@@ -141,6 +144,27 @@ export class ApiService {
 
   searchProducts(name: string): Observable<ApiProduct[]> {
     return this.http.get<ApiProduct[]>(`${BASE}/api/products/search`, { params: { name } });
+  }
+
+  /** One page of the shop list, searched, filtered and sorted by the server. */
+  browseProducts(query: ApiProductBrowse): Observable<ApiPage<ApiProduct>> {
+    return this.http.get<ApiPage<ApiProduct>>(`${BASE}/api/products/browse`, { params: this.definedParams(query) });
+  }
+
+  /** The genders, brands and highest price available for a search and category. */
+  getProductFacets(q: string | null, categoryId: number | null): Observable<ApiProductFacets> {
+    return this.http.get<ApiProductFacets>(`${BASE}/api/products/facets`, {
+      params: this.definedParams({ q, categoryId }),
+    });
+  }
+
+  /** Query parameters without the empty ones, so "no filter" is simply left out. */
+  private definedParams(values: object): Record<string, string> {
+    const params: Record<string, string> = {};
+    for (const [key, value] of Object.entries(values)) {
+      if (value !== null && value !== undefined && value !== '') params[key] = String(value);
+    }
+    return params;
   }
 
   getProductStockStatus(id: number): Observable<ApiStockStatus> {

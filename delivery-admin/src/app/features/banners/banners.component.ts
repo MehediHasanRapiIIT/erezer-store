@@ -4,6 +4,7 @@ import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import { BannerService } from '../../core/services/banner.service';
 import { BannerContent, BannerResponse, BannerSlot, CategoryResponse } from '../../core/models/api.models';
 import { CategoryService } from '../../core/services/category.service';
+import { PermissionService } from '../../core/services/permission.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 import { catchError, of } from 'rxjs';
 
@@ -46,6 +47,7 @@ type LinkKind =
 export class BannersComponent implements OnInit {
   private bannerService = inject(BannerService);
   private categoryService = inject(CategoryService);
+  protected readonly perms = inject(PermissionService);
 
   banners = signal<BannerResponse[]>([]);
   isLoading = signal(true);

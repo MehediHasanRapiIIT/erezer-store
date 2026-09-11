@@ -9,15 +9,17 @@
         <h1 class="text-xl font-bold text-gray-900">Product Management</h1>
         <p class="text-xs text-gray-400">Manage catalog, pricing, and stock for AmarBazaar delivery.</p>
       </div>
-      <a
-        routerLink="/products/new"
-        class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
-      >
-        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-        </svg>
-        Add New Product
-      </a>
+      @if (perms.allows(ACCESS.productNew)) {
+        <a
+          routerLink="/products/new"
+          class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
+        >
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+          </svg>
+          Add New Product
+        </a>
+      }
     </header>
 
     <main class="flex-1 overflow-y-auto p-6">
@@ -38,12 +40,13 @@
             />
           </div>
           <div class="ml-auto flex items-center gap-2">
-            <button class="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
-              </svg>
-              Filter
-            </button>
+            <select [ngModel]="categoryId()" (ngModelChange)="onCategoryChange($event)" aria-label="Filter by category"
+              class="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 bg-white outline-none focus:ring-2 focus:ring-blue-300">
+              <option [ngValue]="null">All categories</option>
+              @for (c of categories(); track c.id) {
+                <option [ngValue]="c.id">{{ c.name }}</option>
+              }
+            </select>
             <button class="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
@@ -86,7 +89,7 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-50">
-              @for (product of filtered(); track product.id) {
+              @for (product of products(); track product.id) {
                 <tr class="hover:bg-gray-50 transition-colors">
                   <!-- Image -->
                   <td class="px-4 py-3.5">
@@ -131,7 +134,8 @@
                     <button
                       type="button"
                       (click)="toggleAvailability(product)"
-                      class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none"
+                      [disabled]="!canToggleAvailability(product)"
+                      class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                       [class.bg-emerald-500]="product.isAvailable"
                       [class.bg-gray-300]="!product.isAvailable"
                       [attr.aria-checked]="product.isAvailable"
@@ -150,7 +154,8 @@
                     <button
                       type="button"
                       (click)="toggleFeatured(product)"
-                      class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none"
+                      [disabled]="!perms.can('products.feature')"
+                      class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                       [class.bg-amber-500]="product.isFeatured"
                       [class.bg-gray-300]="!product.isFeatured"
                       [attr.aria-checked]="product.isFeatured"
@@ -167,37 +172,41 @@
                   <!-- Actions -->
                   <td class="px-4 py-3.5">
                     <div class="flex items-center gap-1">
-                      <button
-                        (click)="editProduct(product.id)"
-                        class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                        aria-label="Edit product"
-                      >
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                        </svg>
-                      </button>
-                      @if (deleteConfirmId() === product.id) {
-                        <div class="flex items-center gap-1">
-                          <button
-                            (click)="deleteProduct(product.id)"
-                            [disabled]="isDeleting()"
-                            class="px-2 py-1 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded transition-colors disabled:opacity-50"
-                          >{{ isDeleting() ? '...' : 'Yes' }}</button>
-                          <button
-                            (click)="cancelDelete()"
-                            class="px-2 py-1 text-xs font-semibold text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
-                          >No</button>
-                        </div>
-                      } @else {
+                      @if (perms.can('products.edit')) {
                         <button
-                          (click)="confirmDelete(product.id)"
-                          class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                          aria-label="Delete product"
+                          (click)="editProduct(product.id)"
+                          class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                          aria-label="Edit product"
                         >
                           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                           </svg>
                         </button>
+                      }
+                      @if (perms.can('products.delete')) {
+                        @if (deleteConfirmId() === product.id) {
+                          <div class="flex items-center gap-1">
+                            <button
+                              (click)="deleteProduct(product.id)"
+                              [disabled]="isDeleting()"
+                              class="px-2 py-1 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded transition-colors disabled:opacity-50"
+                            >{{ isDeleting() ? '...' : 'Yes' }}</button>
+                            <button
+                              (click)="cancelDelete()"
+                              class="px-2 py-1 text-xs font-semibold text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+                            >No</button>
+                          </div>
+                        } @else {
+                          <button
+                            (click)="confirmDelete(product.id)"
+                            class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            aria-label="Delete product"
+                          >
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                          </button>
+                        }
                       }
                     </div>
                   </td>

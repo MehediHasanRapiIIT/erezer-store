@@ -1,5 +1,9 @@
 package kn.org.deliverybackend.controller;
 
+import kn.org.deliverybackend.access.Perm;
+import kn.org.deliverybackend.dto.discount.DiscountSwitchesDTO;
+import kn.org.deliverybackend.service.StoreSettingsService;
+import kn.org.deliverybackend.access.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import kn.org.deliverybackend.dto.discount.DiscountRequestDTO;
@@ -20,22 +24,41 @@ import java.util.UUID;
 public class DiscountAdminController {
 
     private final DiscountService discountService;
+    private final StoreSettingsService storeSettingsService;
 
+    /** The discount on/off switches: the master switch and one per kind of rule. */
+    @GetMapping("/switches")
+    @RequiresPermission(Perm.DISCOUNTS_VIEW)
+    public ResponseEntity<DiscountSwitchesDTO> switches() {
+        return ResponseEntity.ok(storeSettingsService.getDiscountSwitches());
+    }
+
+    /** Flips one or more switches; a switch left out stays as it is. */
+    @PutMapping("/switches")
+    @RequiresPermission(Perm.DISCOUNTS_SWITCHES)
+    public ResponseEntity<DiscountSwitchesDTO> updateSwitches(@RequestBody DiscountSwitchesDTO change) {
+        return ResponseEntity.ok(storeSettingsService.updateDiscountSwitches(change));
+    }
+
+    @RequiresPermission(Perm.DISCOUNTS_VIEW)
     @GetMapping
     public ResponseEntity<List<DiscountResponseDTO>> list() {
         return ResponseEntity.ok(discountService.list());
     }
 
+    @RequiresPermission(Perm.DISCOUNTS_VIEW)
     @GetMapping("/{id}")
     public ResponseEntity<DiscountResponseDTO> get(@PathVariable UUID id) {
         return ResponseEntity.ok(discountService.get(id));
     }
 
+    @RequiresPermission(Perm.DISCOUNTS_CREATE)
     @PostMapping
     public ResponseEntity<DiscountResponseDTO> create(@Valid @RequestBody DiscountRequestDTO request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(discountService.create(request));
     }
 
+    @RequiresPermission(Perm.DISCOUNTS_EDIT)
     @PutMapping("/{id}")
     public ResponseEntity<DiscountResponseDTO> update(
             @PathVariable UUID id,
@@ -43,6 +66,7 @@ public class DiscountAdminController {
         return ResponseEntity.ok(discountService.update(id, request));
     }
 
+    @RequiresPermission(Perm.DISCOUNTS_DELETE)
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         discountService.delete(id);

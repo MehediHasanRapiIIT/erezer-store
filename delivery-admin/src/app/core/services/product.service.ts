@@ -19,6 +19,29 @@ export class ProductService {
     });
   }
 
+  /**
+   * One page of the Products page: the server searches name, SKU, brand and
+   * category name across all products, optionally within one category.
+   */
+  searchAdmin(query: { q?: string; categoryId?: number | null; page: number; size: number }):
+      Observable<PageResponse<ProductResponse>> {
+    const params: Record<string, string> = { page: String(query.page), size: String(query.size) };
+    if (query.q) params['q'] = query.q;
+    if (query.categoryId != null) params['categoryId'] = String(query.categoryId);
+    return this.http.get<PageResponse<ProductResponse>>(`${this.baseUrl}/admin/products`, { params });
+  }
+
+  /**
+   * One page of the public shop search (name, brand, description). For
+   * pickers that shouldn't download every product; needs no staff permission.
+   */
+  browse(q: string, page: number, size: number, categoryId?: number | null): Observable<PageResponse<ProductResponse>> {
+    const params: Record<string, string> = { page: String(page), size: String(size) };
+    if (q) params['q'] = q;
+    if (categoryId != null) params['categoryId'] = String(categoryId);
+    return this.http.get<PageResponse<ProductResponse>>(`${this.baseUrl}/api/products/browse`, { params });
+  }
+
   searchProducts(name: string): Observable<ProductResponse[]> {
     return this.http.get<ProductResponse[]>(`${this.baseUrl}/api/products/search`, {
       params: { name },

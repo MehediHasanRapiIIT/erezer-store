@@ -25,12 +25,14 @@ public interface NewsletterSubscriberRepository extends JpaRepository<Newsletter
             "ORDER BY s.subscribedAt DESC")
     List<NewsletterSubscriber> findAllSubscribed();
 
-    @Query(value = "SELECT s FROM NewsletterSubscriber s WHERE s.deleted = false " +
-            "AND (:status IS NULL OR s.status = :status) " +
-            "ORDER BY s.subscribedAt DESC",
-            countQuery = "SELECT COUNT(s) FROM NewsletterSubscriber s WHERE s.deleted = false " +
-                    "AND (:status IS NULL OR s.status = :status)")
-    Page<NewsletterSubscriber> findForAdmin(@Param("status") String status, Pageable pageable);
+    /** The admin subscriber list, newest first; {@code q} is a lower-case "%text%" pattern (or null) on the email. */
+    String ADMIN_FILTERS = "AND (:status IS NULL OR s.status = :status) " +
+            "AND (:q IS NULL OR LOWER(s.email) LIKE :q ESCAPE '\\') ";
+
+    @Query(value = "SELECT s FROM NewsletterSubscriber s WHERE s.deleted = false " + ADMIN_FILTERS +
+            "ORDER BY s.subscribedAt DESC, s.id",
+            countQuery = "SELECT COUNT(s) FROM NewsletterSubscriber s WHERE s.deleted = false " + ADMIN_FILTERS)
+    Page<NewsletterSubscriber> findForAdmin(@Param("status") String status, @Param("q") String q, Pageable pageable);
 
     long countByStatusAndDeletedFalse(String status);
 }
