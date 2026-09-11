@@ -91,7 +91,7 @@ import { RevealDirective } from '../core/reveal.directive';
               }
 
               <!-- wishlist -->
-              <button type="button" (click)="store.toggleWishlist(toStr(p.id))"
+              <button type="button" (click)="store.toggleWishlist(toStr(p.id), { name: p.name, price: effectivePrice(p) })"
                 [attr.aria-label]="store.isWishlisted(toStr(p.id)) ? 'Remove from wishlist' : 'Add to wishlist'"
                 class="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/85 text-neutral-900 shadow-sm backdrop-blur transition hover:scale-110 dark:bg-neutral-900/80 dark:text-white">
                 <svg class="h-5 w-5" viewBox="0 0 24 24" [attr.fill]="store.isWishlisted(toStr(p.id)) ? '#f43f5e' : 'none'"

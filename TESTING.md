@@ -98,6 +98,26 @@ It creates three throwaway rules, flips each switch, asserts the checkout quote
 responds, then deletes the rules and restores your settings. Exits non-zero on
 the first disagreement.
 
+### Meta Pixel and Conversions API
+
+The storefront pixel is off until `META_PIXEL_ID` is set in `.env`. To see it
+fire locally without a real Meta account, put any number there and restart the
+store, then install the "Meta Pixel Helper" Chrome extension and browse: it
+lists PageView, ViewContent, AddToCart, AddToWishlist, Search, InitiateCheckout,
+AddPaymentInfo, Purchase, CompleteRegistration, Lead and Contact as you trigger
+them. Purchase carries the product ids and quantities, and for bKash it fires
+on the return page only after the payment completes.
+
+The backend sends its own copy of each Purchase to Meta's Conversions API when
+`META_CAPI_ACCESS_TOKEN` is also set, using the same event id as the browser so
+Meta counts the sale once. Cash-on-delivery orders are sent when placed; bKash
+orders when the payment is confirmed. Paste a code from Events Manager ->
+Test events into `META_TEST_EVENT_CODE` to watch them arrive, then clear it.
+
+The product feed for Meta catalog ads is at
+`http://localhost:8080/api/meta/catalog.csv`. In Commerce Manager, add a data
+source of type "scheduled feed" pointing at that URL on your production domain.
+
 ### Garment mockups for the custom-design studio
 
 `/custom-design` draws whatever image is attached to the selected garment

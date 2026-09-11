@@ -86,6 +86,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/coupons/validate").permitAll()
                         .requestMatchers("/api/shipping/**").permitAll()
                         .requestMatchers("/api/checkout/quote").permitAll()
+                        .requestMatchers("/api/meta/**").permitAll()
                         .requestMatchers("/api/payments/bkash/**").permitAll()
                         .requestMatchers("/api/support/contact").permitAll()
                         .requestMatchers("/api/newsletter/**").permitAll()

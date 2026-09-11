@@ -1,4 +1,5 @@
 import { isPlatformBrowser, NgTemplateOutlet } from '@angular/common';
+import { PixelService } from '../core/pixel.service';
 import { Component, computed, inject, OnDestroy, OnInit, PLATFORM_ID, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -484,6 +485,7 @@ import { CountUpDirective } from '../core/count-up.directive';
 export class HomePage implements OnInit, OnDestroy {
   protected readonly store = inject(EcommerceStore);
   private readonly api = inject(ApiService);
+  private readonly pixel = inject(PixelService);
   private readonly settings = inject(SettingsStore);
 
   private readonly platformId = inject(PLATFORM_ID);
@@ -563,6 +565,7 @@ export class HomePage implements OnInit, OnDestroy {
         if (response) {
           this.newsletterDone.set(true);
           this.newsletterMessage.set(response.message);
+          this.pixel.lead('newsletter');
         }
       });
   }

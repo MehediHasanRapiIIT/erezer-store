@@ -1,4 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
+import { PixelService } from '../core/pixel.service';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { catchError, of } from 'rxjs';
@@ -78,6 +79,7 @@ import { AuthService } from '../core/auth.service';
 })
 export class ContactPage {
   private readonly api = inject(ApiService);
+  private readonly pixel = inject(PixelService);
   private readonly auth = inject(AuthService);
 
   protected readonly submitting = signal(false);
@@ -112,6 +114,7 @@ export class ContactPage {
       this.submitting.set(false);
       if (response) {
         this.submitted.set(true);
+        this.pixel.contact();
       }
     });
   }

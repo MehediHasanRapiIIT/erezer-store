@@ -9,6 +9,8 @@ import kn.org.deliverybackend.payment.bkash.BkashCreatePaymentRequest;
 import kn.org.deliverybackend.payment.bkash.BkashPaymentResponse;
 import kn.org.deliverybackend.payment.bkash.BkashPaymentService;
 import kn.org.deliverybackend.repository.OrderRepository;
+import kn.org.deliverybackend.integration.meta.MetaConversionsService;
+import kn.org.deliverybackend.integration.meta.RequestAttribution;
 import kn.org.deliverybackend.repository.PaymentRepository;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -44,6 +46,7 @@ public class BkashController {
     private final BkashPaymentService bkash;
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
+    private final MetaConversionsService metaConversions;
 
     @Value("${app.bkash.callback-url}")
     private String configuredCallbackUrl;
@@ -64,8 +67,9 @@ public class BkashController {
 
         BkashPaymentResponse response = bkash.createPayment(bkashRequest);
 
+        // No id here: the entity generates one on insert. A hand-assigned id
+        // makes Spring Data treat the new row as an update and the save fails.
         Payment payment = new Payment();
-        payment.setId(UUID.randomUUID());
         payment.setOrderId(order.getId());
         payment.setMethod("BKASH");
         payment.setProvider(PROVIDER);
@@ -89,10 +93,19 @@ public class BkashController {
         BkashPaymentResponse response = bkash.executePayment(request.paymentId);
         paymentRepository.findByProviderAndProviderPaymentId(PROVIDER, request.paymentId)
                 .ifPresent(payment -> {
+                    boolean wasCompleted = "Completed".equalsIgnoreCase(payment.getStatus());
                     payment.setStatus(response.getStatus());
                     payment.setProviderTrxId(response.getTrxId());
                     payment.setTransactionId(response.getTrxId());
                     paymentRepository.save(payment);
+
+                    // The money has actually moved now, so this is the moment a
+                    // bKash order becomes a sale for Meta. Guarded so a repeated
+                    // execute call cannot report the same purchase twice.
+                    if (!wasCompleted && "Completed".equalsIgnoreCase(response.getStatus())
+                            && payment.getOrderId() != null) {
+                        metaConversions.sendPurchase(payment.getOrderId(), RequestAttribution.capture());
+                    }
                 });
         return ResponseEntity.ok(response);
     }

@@ -8,7 +8,7 @@ import { SettingsStore } from '../core/store/settings.store';
 import { BundleCheckoutStore } from '../core/store/bundle-checkout.store';
 import { AuthService } from '../core/auth.service';
 import { ApiService } from '../core/api.service';
-import { PixelService } from '../core/pixel.service';
+import { PixelLine, PixelService } from '../core/pixel.service';
 import {
   ApiAddress,
   CheckoutQuoteResponse,
@@ -421,7 +421,16 @@ export class CheckoutPage implements OnInit, OnDestroy {
     });
   }
 
+  /** The lines being bought, in the shape the pixel and Meta's catalog expect. */
+  private pixelLines(): PixelLine[] {
+    return this.effItems().map((i) => ({
+      id: i.product.id, name: i.product.name, quantity: i.quantity, price: i.unitPrice,
+    }));
+  }
+
   ngOnInit(): void {
+    // Reaching this page is the "started checkout" moment Meta optimises on.
+    if (this.effCount() > 0) this.pixel.initiateCheckout(this.pixelLines(), this.summaryTotal());
     // Checkout requires an account — send guests to sign in, then back here.
     if (!this.auth.isAuthenticated()) {
       void this.router.navigate(['/account'], { queryParams: { redirect: '/checkout' } });
@@ -603,6 +612,13 @@ export class CheckoutPage implements OnInit, OnDestroy {
       bundleId:        this.bundleCheckout.pending()?.bundleId,
     };
 
+    // Snapshot for the pixel now: the cart is emptied as soon as the order
+    // is saved, and a bKash order reports only after the payment succeeds.
+    const pixelLines = this.pixelLines();
+    const pixelValue = this.summaryTotal();
+    this.pixel.setUser({ phone: form.phone });
+    this.pixel.addPaymentInfo(this.paymentMethod(), pixelValue);
+
     this.api.createOrder(userId, payload)
       .pipe(catchError((err) => {
         this.errorMessage.set(err?.error?.message ?? 'Failed to place order. Please try again.');
@@ -614,7 +630,13 @@ export class CheckoutPage implements OnInit, OnDestroy {
 
         // Clear the source after the order is persisted — the bundle in bundle
         // mode (leaving the real cart untouched), otherwise the cart.
-        this.pixel.purchase(order.id, this.summaryTotal());
+        if (this.paymentMethod() === 'BKASH') {
+          // Not a sale yet: the shopper still has to pay at bKash. The return
+          // page fires Purchase only if the payment actually completes.
+          this.pixel.deferPurchase(order.id, pixelValue, pixelLines);
+        } else {
+          this.pixel.purchase(order.id, pixelValue, pixelLines);
+        }
         if (this.bundleMode()) {
           this.bundleCheckout.clear();
         } else {

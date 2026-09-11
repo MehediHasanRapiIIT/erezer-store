@@ -1,4 +1,5 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
+import { PixelService } from '../core/pixel.service';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, of } from 'rxjs';
 import { ApiService } from '../core/api.service';
@@ -51,6 +52,7 @@ export class BkashCallbackPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly api   = inject(ApiService);
   private readonly router = inject(Router);
+  private readonly pixel = inject(PixelService);
 
   protected readonly state        = signal<State>('verifying');
   protected readonly orderId      = signal<string | null>(null);
@@ -82,6 +84,8 @@ export class BkashCallbackPage implements OnInit {
           this.trxId.set(response.trxId);
           this.state.set('success');
           const oid = this.orderId();
+          // Money has moved: report the purchase parked by the checkout page.
+          if (oid) this.pixel.purchaseDeferred(oid, response.amount);
           if (oid) {
             setTimeout(() => void this.router.navigateByUrl(`/orders/${oid}`), 1500);
           }

@@ -1,4 +1,5 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
+import { PixelService } from '../core/pixel.service';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -367,6 +368,7 @@ export class AccountPage implements OnInit {
   private readonly api = inject(ApiService);
   private readonly store = inject(EcommerceStore);
   private readonly router = inject(Router);
+  private readonly pixel = inject(PixelService);
 
   // ── auth flow ──────────────────────────────────────────────────────────────
   protected readonly tab = signal<AuthTab>('login');
@@ -474,6 +476,7 @@ export class AccountPage implements OnInit {
         lastName:  this.regLastName.trim(),
       });
       this.regPassword = '';
+      this.pixel.completeRegistration();
       this.afterAuth();
     } catch { /* error surfaced via auth.error() */ }
   }

@@ -221,10 +221,22 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
 
-      # --- Redis + mail (internal) ---
+      # --- Redis + mail ---
+      # Mail goes to Mailpit (http://localhost:8025) unless LOCAL_MAIL_HOST is
+      # set in .env, which points the local stack at a real SMTP account, e.g.
+      # Gmail, to try real delivery before production.
       REDIS_HOST: redis
-      MAIL_HOST: mailpit
-      MAIL_PORT: "1025"
+      MAIL_HOST: ${LOCAL_MAIL_HOST:-mailpit}
+      MAIL_PORT: ${LOCAL_MAIL_PORT:-1025}
+      MAIL_USERNAME: ${LOCAL_MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${LOCAL_MAIL_PASSWORD:-}
+      MAIL_FROM: ${LOCAL_MAIL_FROM:-no-reply@erezer.local}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Erezer}
+      # Mailpit wants neither; a real server rejects the session without both.
+      # ":+" yields "true" only when a real host was configured, and an empty
+      # value (which Spring reads as false) otherwise.
+      MAIL_SMTP_AUTH: ${LOCAL_MAIL_HOST:+true}
+      MAIL_SMTP_STARTTLS: ${LOCAL_MAIL_HOST:+true}
 
       # --- Links pasted into emails: must be reachable from a human's browser ---
       EREZER_STORE_URL: ${PUBLIC_STORE_URL:-http://localhost:4200}
@@ -237,6 +249,13 @@ services:
       BUSINESS_WEEK_START: ${BUSINESS_WEEK_START:-SUNDAY}
       BUSINESS_FISCAL_YEAR_START_MONTH: ${BUSINESS_FISCAL_YEAR_START_MONTH:-7}
       BUSINESS_CURRENCY: ${BUSINESS_CURRENCY:-BDT}
+
+      # --- Meta Conversions API (server-side purchase events) ---
+      META_PIXEL_ID: ${META_PIXEL_ID:-}
+      META_CAPI_ACCESS_TOKEN: ${META_CAPI_ACCESS_TOKEN:-}
+      META_TEST_EVENT_CODE: ${META_TEST_EVENT_CODE:-}
+      META_CAPI_BASE_URL: ${META_CAPI_BASE_URL:-https://graph.facebook.com}
+      META_API_VERSION: ${META_API_VERSION:-v23.0}
 
       SENTRY_DSN: ${SENTRY_DSN_BACKEND:-}
       SENTRY_ENV: ${SENTRY_ENV:-local}

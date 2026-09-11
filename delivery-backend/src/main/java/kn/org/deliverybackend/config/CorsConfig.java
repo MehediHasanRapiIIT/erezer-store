@@ -23,6 +23,8 @@ public class CorsConfig {
                 "Accept",
                 "Origin",
                 "X-Requested-With",
+                "X-Meta-Fbp",
+                "X-Meta-Fbc",
                 "Access-Control-Request-Method",
                 "Access-Control-Request-Headers"
         ));

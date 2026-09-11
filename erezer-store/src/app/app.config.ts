@@ -5,6 +5,7 @@ import * as Sentry from '@sentry/angular';
 
 import { routes } from './app.routes';
 import { authInterceptor } from './core/auth.interceptor';
+import { metaInterceptor } from './core/meta.interceptor';
 import { initSentry, sentryProviders } from './core/sentry';
 
 // Eagerly init Sentry before Angular bootstraps so early errors are captured.
@@ -19,7 +20,7 @@ export const appConfig: ApplicationConfig = {
       scrollPositionRestoration: 'enabled',
       anchorScrolling: 'enabled',
     })),
-    provideHttpClient(withFetch(), withInterceptors([authInterceptor])),
+    provideHttpClient(withFetch(), withInterceptors([authInterceptor, metaInterceptor])),
     ...sentryProviders(),
     // TraceService needs to be instantiated for router-level tracing to wire up;
     // Angular won't construct it otherwise.

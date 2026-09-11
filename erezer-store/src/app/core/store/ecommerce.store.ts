@@ -1,4 +1,5 @@
 import { computed, effect, inject, Injectable, signal } from '@angular/core';
+import { PixelService } from '../pixel.service';
 import { CartItem, Order, Product, Review, UserProfile } from '../models';
 import { ApiCartItem, ApiProduct } from '../api.models';
 import { PRODUCTS } from '../mock-data';
@@ -24,6 +25,7 @@ function persistCart(items: CartItem[]): void {
 @Injectable({ providedIn: 'root' })
 export class EcommerceStore {
   private readonly discountsStore = inject(DiscountsStore);
+  private readonly pixel = inject(PixelService);
 
   /** Last API product payload, kept so cards can re-price when discounts load. */
   private lastApiProducts: ApiProduct[] = [];
@@ -288,10 +290,22 @@ export class EcommerceStore {
     return this.wishlist().includes(productId);
   }
 
-  toggleWishlist(productId: string): void {
+  /**
+   * @param hint name and price for the pixel event when the caller has the
+   *             product in hand; the catalogue may not be loaded on a direct
+   *             product-page visit.
+   */
+  toggleWishlist(productId: string, hint?: { name: string; price: number }): void {
+    const adding = !this.wishlist().includes(productId);
     this.wishlist.update((items) =>
       items.includes(productId) ? items.filter((id) => id !== productId) : [...items, productId]
     );
+    if (adding) {
+      const product = this.products().find((p) => p.id === productId);
+      const name = hint?.name ?? product?.name ?? '';
+      const price = hint?.price ?? product?.price ?? 0;
+      this.pixel.addToWishlist(productId, name, price);
+    }
   }
 
   // ── cart mutations ─────────────────────────────────────────────────────────

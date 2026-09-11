@@ -1,4 +1,5 @@
 import { Component, computed, effect, inject, OnInit, PLATFORM_ID, signal } from '@angular/core';
+import { PixelService } from '../core/pixel.service';
 import { isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -338,6 +339,7 @@ import { RevealDirective } from '../core/reveal.directive';
 export class ShopPage implements OnInit {
   protected readonly store = inject(EcommerceStore);
   private readonly api = inject(ApiService);
+  private readonly pixel = inject(PixelService);
   private readonly route = inject(ActivatedRoute);
   private readonly platformId = inject(PLATFORM_ID);
 
@@ -444,6 +446,7 @@ export class ShopPage implements OnInit {
         if (q.trim().length === 0) {
           return this.fetchProducts();
         }
+        this.pixel.search(q);
         return this.api.searchProducts(q).pipe(catchError(() => of([])));
       }),
       takeUntilDestroyed()

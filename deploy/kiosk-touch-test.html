@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Erezer kiosk touch test</title>
+<!--
+  Kiosk touch test.
+
+  Answers one question before any kiosk is built: can ONE Windows PC with
+  several touchscreen monitors serve several customers at the same time?
+
+  How to use it:
+    1. Open this file in Chrome once per touchscreen, one window on each screen.
+       Add ?screen=1, ?screen=2 ... to the address so each window shows its number.
+    2. Press F11 in each window for full screen.
+    3. Have two people use two screens AT THE SAME TIME:
+       - both drag the coloured designs onto their shirt simultaneously
+       - both type their name on the on-screen keyboard simultaneously
+    4. Pass: both drags move smoothly at once, letters appear only on the screen
+       that was touched, and no Windows menu or keyboard pops up.
+-->
+<style>
+  :root { color-scheme: light; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  html, body { margin: 0; height: 100%; background: #f4f4f5; color: #18181b; overflow: hidden; }
+  /* A kiosk must never zoom, scroll, select text or show a long-press menu. */
+  * { box-sizing: border-box; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  body { touch-action: none; display: grid; grid-template-rows: auto 1fr auto; }
+
+  header { display: flex; align-items: center; justify-content: space-between; padding: 14px 22px; background: #18181b; color: #fff; }
+  header h1 { margin: 0; font-size: 22px; letter-spacing: .04em; }
+  .pill { font-size: 14px; padding: 6px 12px; border-radius: 999px; background: #3f3f46; }
+  .pill.ok { background: #059669; } .pill.warn { background: #b45309; }
+
+  main { display: grid; grid-template-columns: 1fr 340px; gap: 18px; padding: 18px; min-height: 0; }
+
+  #stage { position: relative; background: #fff; border-radius: 16px; overflow: hidden; border: 1px solid #e4e4e7; }
+  #shirt { position: absolute; inset: 8% 22%; border-radius: 40px 40px 18px 18px; background: #e4e4e7; border: 2px dashed #a1a1aa;
+           display: flex; align-items: flex-start; justify-content: center; padding-top: 12px; color: #71717a; font-size: 15px; }
+  .design { position: absolute; width: 96px; height: 96px; border-radius: 18px; display: flex; align-items: center; justify-content: center;
+            font-size: 42px; color: #fff; box-shadow: 0 6px 18px rgba(0,0,0,.18); touch-action: none; cursor: grab; }
+  .design.dragging { outline: 4px solid #2563eb; transform: scale(1.06); z-index: 5; }
+
+  aside { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+  .card { background: #fff; border: 1px solid #e4e4e7; border-radius: 16px; padding: 14px; }
+  .card h2 { margin: 0 0 8px; font-size: 15px; color: #52525b; font-weight: 600; }
+  /* A div, not an <input>: an input would make Windows pop up its own touch
+     keyboard on whichever screen it likes. */
+  #field { min-height: 52px; border: 2px solid #d4d4d8; border-radius: 12px; padding: 12px; font-size: 22px; background: #fafafa; word-break: break-all; }
+  #field::after { content: "|"; color: #2563eb; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  #keys { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .key { height: 48px; border-radius: 10px; border: 0; background: #e4e4e7; font-size: 19px; font-weight: 600; color: #18181b; touch-action: none; }
+  .key:active, .key.down { background: #2563eb; color: #fff; }
+  .key.wide { grid-column: span 3; } .key.del { grid-column: span 2; background: #fee2e2; }
+
+  #stats { font-size: 14px; line-height: 1.7; color: #3f3f46; }
+  #stats b { color: #18181b; }
+  footer { padding: 10px 22px; font-size: 13px; color: #71717a; background: #fff; border-top: 1px solid #e4e4e7; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">SCREEN</h1>
+  <div style="display:flex;gap:8px">
+    <span id="focus" class="pill">window focus: ?</span>
+    <span id="active" class="pill">fingers down: 0</span>
+  </div>
+</header>
+
+<main>
+  <section id="stage">
+    <div id="shirt">Drag the designs onto the shirt</div>
+  </section>
+
+  <aside>
+    <div class="card">
+      <h2>Type your name (on-screen keyboard)</h2>
+      <div id="field"></div>
+    </div>
+    <div class="card"><div id="keys"></div></div>
+    <div class="card">
+      <h2>What this screen received</h2>
+      <div id="stats"></div>
+    </div>
+  </aside>
+</main>
+
+<footer>
+  Pass: two people can drag and type on two screens at the same moment, each screen reacts only to its own touches,
+  and "fingers down" rises only when this screen is touched. "window focus" may flip between screens; that is fine as long as touch keeps working.
+</footer>
+
+<script>
+(function () {
+  const screenNo = new URLSearchParams(location.search).get('screen') || '?';
+  document.getElementById('title').textContent = 'SCREEN ' + screenNo;
+  document.title = 'Touch test ' + screenNo;
+
+  // Nothing in a kiosk should open a menu or zoom.
+  ['contextmenu', 'gesturestart', 'dblclick'].forEach((e) => document.addEventListener(e, (ev) => ev.preventDefault()));
+  document.addEventListener('wheel', (ev) => { if (ev.ctrlKey) ev.preventDefault(); }, { passive: false });
+
+  const stats = { touches: 0, drags: 0, keys: 0, whileUnfocused: 0, lastAt: '—' };
+  const fingers = new Set();
+  const render = () => {
+    document.getElementById('stats').innerHTML =
+      `Touches received: <b>${stats.touches}</b><br>` +
+      `Drags completed: <b>${stats.drags}</b><br>` +
+      `Keys pressed: <b>${stats.keys}</b><br>` +
+      `Touches while window not focused: <b>${stats.whileUnfocused}</b><br>` +
+      `Last touch: <b>${stats.lastAt}</b>`;
+    const a = document.getElementById('active');
+    a.textContent = 'fingers down: ' + fingers.size;
+    a.className = 'pill' + (fingers.size ? ' ok' : '');
+  };
+  const focusPill = () => {
+    const f = document.getElementById('focus');
+    const has = document.hasFocus();
+    f.textContent = 'window focus: ' + (has ? 'yes' : 'no');
+    f.className = 'pill ' + (has ? 'ok' : 'warn');
+  };
+  setInterval(focusPill, 300);
+
+  document.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
+    fingers.add(e.pointerId);
+    stats.touches++;
+    if (!document.hasFocus()) stats.whileUnfocused++;
+    stats.lastAt = new Date().toLocaleTimeString();
+    render();
+  }, true);
+  const lift = (e) => { fingers.delete(e.pointerId); render(); };
+  document.addEventListener('pointerup', lift, true);
+  document.addEventListener('pointercancel', lift, true);
+
+  // ── draggable designs: every finger drags independently ────────────────
+  const stage = document.getElementById('stage');
+  const designs = [
+    ['★', '#e11d48'], ['♥', '#db2777'], ['⚡', '#f59e0b'], ['☀', '#0891b2'], ['✿', '#16a34a'], ['☾', '#7c3aed'],
+  ];
+  designs.forEach(([glyph, color], i) => {
+    const d = document.createElement('div');
+    d.className = 'design';
+    d.textContent = glyph;
+    d.style.background = color;
+    d.style.left = (16 + (i % 2) * 110) + 'px';
+    d.style.top = (16 + Math.floor(i / 2) * 110) + 'px';
+    stage.appendChild(d);
+
+    let offset = null;
+    d.addEventListener('pointerdown', (e) => {
+      d.setPointerCapture(e.pointerId);
+      const r = d.getBoundingClientRect();
+      offset = { x: e.clientX - r.left, y: e.clientY - r.top, id: e.pointerId };
+      d.classList.add('dragging');
+    });
+    d.addEventListener('pointermove', (e) => {
+      if (!offset || e.pointerId !== offset.id) return;
+      const s = stage.getBoundingClientRect();
+      d.style.left = Math.max(0, Math.min(s.width - 96, e.clientX - s.left - offset.x)) + 'px';
+      d.style.top = Math.max(0, Math.min(s.height - 96, e.clientY - s.top - offset.y)) + 'px';
+    });
+    const end = (e) => {
+      if (!offset || e.pointerId !== offset.id) return;
+      offset = null;
+      d.classList.remove('dragging');
+      stats.drags++;
+      render();
+    };
+    d.addEventListener('pointerup', end);
+    d.addEventListener('pointercancel', end);
+  });
+
+  // ── on-screen keyboard: types without needing Windows keyboard focus ────
+  const field = document.getElementById('field');
+  const keys = document.getElementById('keys');
+  const layout = 'QWERTYUIOPASDFGHJKLZXCVBNM'.split('');
+  const addKey = (label, onPress, cls) => {
+    const k = document.createElement('button');
+    k.className = 'key' + (cls ? ' ' + cls : '');
+    k.textContent = label;
+    k.type = 'button';
+    // pointerdown, not click: a click needs the window to be focused first,
+    // which is exactly what two customers on two screens would fight over.
+    k.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      k.classList.add('down');
+      onPress();
+      stats.keys++;
+      render();
+    });
+    const up = () => k.classList.remove('down');
+    k.addEventListener('pointerup', up);
+    k.addEventListener('pointercancel', up);
+    k.addEventListener('pointerleave', up);
+    keys.appendChild(k);
+  };
+  layout.forEach((ch) => addKey(ch, () => { field.textContent += ch; }));
+  addKey('SPACE', () => { field.textContent += ' '; }, 'wide');
+  addKey('⌫', () => { field.textContent = field.textContent.slice(0, -1); }, 'del');
+
+  render();
+  focusPill();
+})();
+</script>
+</body>
+</html>

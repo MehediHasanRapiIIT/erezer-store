@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, effect, inject } from '@angular/core';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { catchError, filter, of } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -30,6 +30,9 @@ export class App {
 
     // Meta Pixel: inject base code once, then fire a PageView per navigation.
     this.pixel.init();
+    // Advanced matching: once the shopper signs in, let Meta match their
+    // purchases to the ad they clicked. Hashed by the pixel before sending.
+    effect(() => this.pixel.setUser({ email: this.auth.email(), externalId: this.auth.userId() }));
     this.router.events.pipe(
       filter((e): e is NavigationEnd => e instanceof NavigationEnd),
       takeUntilDestroyed(),

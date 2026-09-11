@@ -23,4 +23,20 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    /**
+     * Meta Conversions API calls. Separate from email so a slow Meta endpoint
+     * never delays order confirmations, and small because each call is one
+     * short HTTPS request.
+     */
+    @Bean(name = "metaExecutor")
+    public Executor metaExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(500);
+        executor.setThreadNamePrefix("meta-capi-");
+        executor.initialize();
+        return executor;
+    }
 }
