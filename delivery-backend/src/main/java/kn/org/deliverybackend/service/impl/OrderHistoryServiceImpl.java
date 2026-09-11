@@ -56,26 +56,37 @@ public class OrderHistoryServiceImpl implements OrderHistoryService {
     @Override
     @Transactional(readOnly = true)
     public List<OrderDTO> getOrderHistory(UUID userId) {
-        usersRepository.findById(userId)
+        Users user = usersRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
 
         return orderRepository.findByClientId(userId)
                 .stream()
-                .map(order -> {
-                    OrderDTO dto = orderMapper.toDTO(order);
-                    dto.setOrderItems(
-                            orderItemRepository.findByOrderId(order.getId())
-                                    .stream()
-                                    .map(this::toEnrichedItemDTO)
-                                    .collect(Collectors.toList())
-                    );
-                    usersRepository.findById(userId).ifPresent(user -> {
-                        dto.setCustomerName(buildName(user));
-                        dto.setCustomerPhone(user.getPhoneNumber());
-                    });
-                    return dto;
-                })
+                .map(order -> toHistoryDTO(order, user))
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<OrderDTO> getOrderHistoryPage(UUID userId, int page, int size) {
+        Users user = usersRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        PageRequest pageable = PageRequest.of(Math.max(page, 0), kn.org.deliverybackend.util.SearchText.pageSize(size));
+        return orderRepository.findHistoryForClient(userId, pageable).map(order -> toHistoryDTO(order, user));
+    }
+
+    /** One order as the customer's history shows it: items with product details, plus their name and phone. */
+    private OrderDTO toHistoryDTO(Order order, Users user) {
+        OrderDTO dto = orderMapper.toDTO(order);
+        dto.setOrderItems(
+                orderItemRepository.findByOrderId(order.getId())
+                        .stream()
+                        .map(this::toEnrichedItemDTO)
+                        .collect(Collectors.toList())
+        );
+        dto.setCustomerName(buildName(user));
+        dto.setCustomerPhone(user.getPhoneNumber());
+        return dto;
     }
 
     @Override

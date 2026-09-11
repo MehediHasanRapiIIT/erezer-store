@@ -11,6 +11,9 @@ import java.util.UUID;
 public interface OrderHistoryService {
 
     List<OrderDTO> getOrderHistory(UUID userId);
+
+    /** The customer's order history one page at a time, newest first, without deleted orders. */
+    Page<OrderDTO> getOrderHistoryPage(UUID userId, int page, int size);
     OrderDTO getOrderDetails(UUID userId, UUID orderId);
     List<OrderDTO> getAllOrders();
 

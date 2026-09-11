@@ -293,8 +293,10 @@ def customer_sweep(stack: Stack, results: Results):
     a = customer_token(a_id, a_email)
     base = f"{stack.api}/app/consumer"
     results.expect("customer reads their own orders", http("GET", f"{base}/{a_id}/orders", a)[0] == 200)
+    results.expect("customer reads their own order history pages",
+                   http("GET", f"{base}/{a_id}/orders/paged", a)[0] == 200)
     results.expect("no login, someone's orders", http("GET", f"{base}/{b_id}/orders")[0] == 401)
-    for label, path in (("orders", "/orders"), ("profile", "/profile"), ("addresses", "/addresses"),
+    for label, path in (("orders", "/orders"), ("order history pages", "/orders/paged"), ("profile", "/profile"), ("addresses", "/addresses"),
                         ("cart", "/cart"), ("returns", "/returns"), ("design drafts", "/custom-design/drafts")):
         status = http("GET", f"{base}/{b_id}{path}", a)[0]
         results.expect(f"customer reads another's {label}", status == 403, f"-> {status}")

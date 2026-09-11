@@ -321,8 +321,11 @@ export class ApiService {
     return this.http.post<ApiOrder>(`${BASE}/app/consumer/guest/orders`, payload);
   }
 
-  getOrders(userId: string): Observable<ApiOrder[]> {
-    return this.http.get<ApiOrder[]>(`${BASE}/app/consumer/${userId}/orders`);
+  /** The customer's orders one page at a time, newest first. */
+  getOrdersPage(userId: string, page: number, size: number): Observable<ApiPage<ApiOrder>> {
+    return this.http.get<ApiPage<ApiOrder>>(`${BASE}/app/consumer/${userId}/orders/paged`, {
+      params: { page: String(page), size: String(size) },
+    });
   }
 
   getOrderById(userId: string, orderId: string): Observable<ApiOrder> {

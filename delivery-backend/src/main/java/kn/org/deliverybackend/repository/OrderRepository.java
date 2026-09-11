@@ -18,6 +18,12 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     @Query("SELECT o FROM Order o WHERE o.clientId = :clientId AND o.deleted = false ORDER BY o.createdAt DESC")
     List<Order> findByClientId(UUID clientId);
 
+    /** One customer's order history, newest first; the id breaks ties so paging never repeats an order. */
+    @Query(value = "SELECT o FROM Order o WHERE o.clientId = :clientId AND o.deleted = false " +
+            "ORDER BY o.createdAt DESC, o.id",
+            countQuery = "SELECT COUNT(o) FROM Order o WHERE o.clientId = :clientId AND o.deleted = false")
+    Page<Order> findHistoryForClient(@Param("clientId") UUID clientId, Pageable pageable);
+
     @Query("SELECT o FROM Order o WHERE o.id = :orderId AND o.clientId = :clientId AND o.deleted = false")
     Optional<Order> findByIdAndClientId(UUID orderId, UUID clientId);
 

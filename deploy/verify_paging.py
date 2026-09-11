@@ -516,9 +516,60 @@ def admin_customers_custom(results: Results):
     results.expect("custom orders need a staff login", get("/admin/custom-orders")[0] == 401)
 
 
+# ── 7. Shop: a customer's own orders ─────────────────────────────────────────
+
+def customer_token(user_id: str, email: str) -> str:
+    """A short-lived shop login for one customer, signed with the secret in .env (never printed)."""
+    import base64, hashlib, hmac, time
+    secret = next((line.split("=", 1)[1].strip().strip("\"'")
+                   for line in (ROOT / ".env").read_text(encoding="utf-8").splitlines()
+                   if line.startswith("EREZER_JWT_SECRET=")), "")
+    if not secret:
+        raise SystemExit("EREZER_JWT_SECRET is not in .env")
+
+    def b64(d: bytes) -> str:
+        return base64.urlsafe_b64encode(d).rstrip(b"=").decode()
+
+    now = int(time.time())
+    head = b64(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+    claims = b64(json.dumps({"iss": "erezer-store", "sub": user_id, "email": email, "tt": "access",
+                             "iat": now, "exp": now + 600}).encode())
+    return f"{head}.{claims}.{b64(hmac.new(secret.encode(), f'{head}.{claims}'.encode(), hashlib.sha256).digest())}"
+
+
+def shop_orders(results: Results):
+    print("== a customer's own orders (/app/consumer/{id}/orders/paged) ==")
+    people = psql_json("SELECT u.id::text AS id, u.email, count(o.id) AS n FROM users u "
+                       "JOIN orders o ON o.client_id = u.id GROUP BY u.id, u.email ORDER BY n DESC, u.id")
+    if len(people) < 2:
+        raise SystemExit("needs at least two customers with orders")
+    for who in (people[0], people[-1]):
+        token = customer_token(who["id"], who["email"])
+        rows = psql_json("SELECT id::text AS id, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS.US') AS at, "
+                         f"deleted FROM orders WHERE client_id = '{who['id']}'")
+        live = [r for r in rows if r["deleted"] is False]  # the same rule as opening one order
+        live.sort(key=lambda r: r["id"])
+        live.sort(key=lambda r: r["at"] or "", reverse=True)
+        items, total = all_pages(f"/app/consumer/{who['id']}/orders/paged", {}, token, size=7)
+        check_list(results, f"customer with {who['n']} orders: newest first",
+                   [x["id"] for x in items], total, [r["id"] for r in live])
+        status, old = get(f"/app/consumer/{who['id']}/orders", token=token)
+        results.expect("  the same orders as the old whole list, less deleted ones",
+                       status == 200 and {x["id"] for x in items} == {x["id"] for x in old} - {
+                           r["id"] for r in rows if r["deleted"] is not False})
+    a, b = people[0], people[1]
+    token = customer_token(a["id"], a["email"])
+    results.expect("another customer's orders are refused",
+                   get(f"/app/consumer/{b['id']}/orders/paged", token=token)[0] == 403)
+    results.expect("needs a login", get(f"/app/consumer/{a['id']}/orders/paged")[0] == 401)
+    status, body = get(f"/app/consumer/{a['id']}/orders/paged", {"size": 1000}, token)
+    results.expect("page size is capped at 100", status == 200 and body["size"] <= 100,
+                   f"size {body.get('size') if status == 200 else status}")
+
+
 SECTIONS = {"shop": shop, "admin-products": admin_products, "admin-orders": admin_orders,
             "admin-inboxes": admin_inboxes, "admin-stock-categories": admin_stock_categories,
-            "admin-customers-custom": admin_customers_custom}
+            "admin-customers-custom": admin_customers_custom, "shop-orders": shop_orders}
 
 
 def main() -> int:

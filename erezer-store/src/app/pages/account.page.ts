@@ -301,7 +301,9 @@ type AuthTab = 'login' | 'register' | 'forgot';
         <article class="app-card p-6" appReveal>
           <div class="mb-4 flex items-end justify-between gap-2">
             <h2 class="text-lg font-semibold">Order history</h2>
-            <a routerLink="/orders" class="text-sm underline underline-offset-4">View all</a>
+            <a routerLink="/orders" class="text-sm underline underline-offset-4">
+              View all{{ ordersTotal() > apiOrders().length ? ' (' + ordersTotal() + ')' : '' }}
+            </a>
           </div>
           <div class="space-y-3">
             @for (order of apiOrders(); track order.id; let i = $index) {
@@ -413,7 +415,11 @@ export class AccountPage implements OnInit {
   protected addrType: AddressType = 'HOME';
 
   // ── orders ─────────────────────────────────────────────────────────────────
+  /** The newest few orders; the whole history lives on the My orders page. */
   protected readonly apiOrders = signal<Array<{ id: string; createdAt: string; orderStatus: string; totalAmount: number }>>([]);
+  /** How many orders the customer has in all. */
+  protected readonly ordersTotal = signal(0);
+  private readonly recentOrderCount = 5;
 
   ngOnInit(): void {
     if (this.auth.isAuthenticated()) {
@@ -536,6 +542,7 @@ export class AccountPage implements OnInit {
     this.profile.set(null);
     this.addresses.set([]);
     this.apiOrders.set([]);
+    this.ordersTotal.set(0);
     this.tab.set('login');
   }
 
@@ -631,8 +638,10 @@ export class AccountPage implements OnInit {
   private loadOrders(): void {
     const userId = this.auth.userId();
     if (!userId) return;
-    this.api.getOrders(userId).pipe(catchError(() => of([]))).subscribe((orders) => {
-      this.apiOrders.set(orders.map((o) => ({
+    this.api.getOrdersPage(userId, 0, this.recentOrderCount).pipe(catchError(() => of(null))).subscribe((result) => {
+      if (!result) return;
+      this.ordersTotal.set(result.totalElements);
+      this.apiOrders.set(result.content.map((o) => ({
         id: o.id,
         createdAt: o.createdAt,
         orderStatus: o.orderStatus,

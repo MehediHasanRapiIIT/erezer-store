@@ -44,11 +44,12 @@ import { RevealDirective } from '../core/reveal.directive';
         </div>
       } @else {
         <div class="space-y-3">
-          <!-- API orders (authenticated) -->
+          <!-- API orders (authenticated). The fade-in stagger restarts on each
+               page, so orders added by "Load more" don't wait longer and longer. -->
           @for (order of apiOrders(); track order.id; let i = $index) {
             <a [routerLink]="['/orders', order.id]"
               class="group block app-card p-5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5"
-              [appReveal]="i">
+              [appReveal]="i % pageSize">
               <div class="flex flex-wrap items-start justify-between gap-3">
                 <div class="flex items-center gap-3">
                   <span class="inline-flex h-11 w-11 items-center justify-center rounded-full" [class]="badgeClass(order.orderStatus)">
@@ -98,6 +99,15 @@ import { RevealDirective } from '../core/reveal.directive';
             </a>
           }
         </div>
+
+        @if (total() > apiOrders().length) {
+          <div class="mt-8 flex flex-col items-center gap-3">
+            <p class="app-muted text-sm tabular-nums">Showing {{ apiOrders().length }} of {{ total() }}</p>
+            <button type="button" (click)="loadMore()" [disabled]="loadingMore()" class="btn-secondary px-8">
+              {{ loadingMore() ? 'Loading…' : 'Load more' }}
+            </button>
+          </div>
+        }
       }
     </section>
   `
@@ -107,18 +117,39 @@ export class OrdersPage implements OnInit {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
 
-  protected readonly loading   = signal(false);
-  protected readonly apiOrders = signal<ApiOrder[]>([]);
+  /** Orders per page; "Load more" fetches the next page from the server. */
+  protected readonly pageSize = 10;
+  private page = 0;
+
+  protected readonly loading     = signal(false);
+  protected readonly loadingMore = signal(false);
+  protected readonly apiOrders   = signal<ApiOrder[]>([]);
+  /** How many orders the customer has in all, from the server. */
+  protected readonly total       = signal(0);
 
   ngOnInit(): void {
     const userId = this.auth.userId();
-    if (userId) {
-      this.loading.set(true);
-      this.api.getOrders(userId).pipe(catchError(() => of([]))).subscribe((orders) => {
-        this.apiOrders.set(orders);
-        this.loading.set(false);
-      });
-    }
+    if (!userId) return;
+    this.loading.set(true);
+    this.fetch(userId, 0);
+  }
+
+  protected loadMore(): void {
+    const userId = this.auth.userId();
+    if (!userId || this.loadingMore()) return;
+    this.loadingMore.set(true);
+    this.fetch(userId, this.page + 1);
+  }
+
+  private fetch(userId: string, page: number): void {
+    this.api.getOrdersPage(userId, page, this.pageSize).pipe(catchError(() => of(null))).subscribe((result) => {
+      this.loading.set(false);
+      this.loadingMore.set(false);
+      if (!result) return;
+      this.page = page;
+      this.total.set(result.totalElements);
+      this.apiOrders.update((list) => (page === 0 ? result.content : [...list, ...result.content]));
+    });
   }
 
   protected statusLabel(status: string): string {

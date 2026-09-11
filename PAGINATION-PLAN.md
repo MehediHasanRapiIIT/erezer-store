@@ -110,6 +110,20 @@ a time, each finished and checked before the next.
   - Checks: the browser check passes 29/29 (read-only: every form is
     cancelled). The server search these pickers use is the shop's, already
     covered by `verify_paging.py shop`.
+- [x] **8. Shop: My orders.** Found in a recheck of every list after item 7:
+  a customer's whole order history loaded at once (one customer has 224).
+  *Done 12 Sep 2026.*
+  - New `GET /app/consumer/{userId}/orders/paged` (page, size 10, capped at
+    100): newest first, deleted orders left out, the same "only your own"
+    rule as every customer address. The old whole-list endpoint is kept but
+    nothing in the shop uses it now.
+  - My orders shows 10 at a time with "Load more"; the account page shows the
+    newest 5 and "View all (count)". The cards' fade-in delay now restarts on
+    each page, like the shop's; it used to grow with the list, so the 200th
+    order waited about 14 seconds to appear.
+  - Checks: `verify_paging.py shop-orders` 7/7 (139/139 across all items), the
+    access sweep 422/422 (it now also tries another customer's pages), backend
+    tests pass, and the browser check 12/12 as the customer with 224 orders.
 
 Each item is checked two ways: the server's results must match what the old
 in-browser filter showed, and paging through must never repeat or skip a row.

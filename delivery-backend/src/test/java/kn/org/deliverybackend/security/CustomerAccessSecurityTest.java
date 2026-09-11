@@ -33,6 +33,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -104,6 +105,21 @@ class CustomerAccessSecurityTest {
         mvc.perform(get("/app/consumer/{u}/orders", BOB).header("Authorization", bearer(ALICE)))
                 .andExpect(status().isForbidden());
         verify(orderHistoryService, never()).getOrderHistory(any());
+    }
+
+    @Test
+    void customerReadsOwnOrderHistoryPage() throws Exception {
+        // Also pins that "paged" is not taken for an order id.
+        mvc.perform(get("/app/consumer/{u}/orders/paged", ALICE).header("Authorization", bearer(ALICE)))
+                .andExpect(status().isOk());
+        verify(orderHistoryService).getOrderHistoryPage(ALICE, 0, 10);
+    }
+
+    @Test
+    void customerCannotReadAnotherCustomersOrderHistoryPage() throws Exception {
+        mvc.perform(get("/app/consumer/{u}/orders/paged", BOB).header("Authorization", bearer(ALICE)))
+                .andExpect(status().isForbidden());
+        verify(orderHistoryService, never()).getOrderHistoryPage(any(), anyInt(), anyInt());
     }
 
     @Test
