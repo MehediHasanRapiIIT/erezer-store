@@ -46,7 +46,9 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             "  OR o.customer_phone ILIKE :q OR o.customer_email ILIKE :q OR o.delivery_address ILIKE :q " +
             "  OR o.client_id IN (SELECT u.id FROM users u WHERE " +
             "    TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) ILIKE :q " +
-            "    OR u.phone_number ILIKE :q OR u.email ILIKE :q)) ";
+            "    OR u.phone_number ILIKE :q OR u.email ILIKE :q) " +
+            // A product code in the order's lines: the code it was placed with.
+            "  OR EXISTS (SELECT 1 FROM order_item oi WHERE oi.order_id = o.id AND oi.product_code ILIKE :q)) ";
 
     /** The admin order list, newest first; the id breaks ties so pages never overlap. */
     @Query(value = "SELECT * FROM orders o WHERE o.deleted = false " + ADMIN_ORDER_FILTERS

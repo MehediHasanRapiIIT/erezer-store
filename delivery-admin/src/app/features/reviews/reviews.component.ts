@@ -8,6 +8,7 @@ import { ProductService } from '../../core/services/product.service';
 import { PageResponse, ProductResponse, ReviewResponse } from '../../core/models/api.models';
 import { parseApiError } from '../../core/utils/api-error.util';
 import { PermissionService } from '../../core/services/permission.service';
+import { NoticeService } from '../../core/services/notice.service';
 
 /**
  * Reviews, one product at a time. The product picker searches on the server,
@@ -24,6 +25,7 @@ export class ReviewsComponent implements OnInit, OnDestroy {
   private reviewService = inject(ReviewService);
   private productService = inject(ProductService);
   protected readonly perms = inject(PermissionService);
+  private readonly notices = inject(NoticeService);
 
   // Product picker (server search, 20 at a time)
   readonly productPageSize = 20;
@@ -153,6 +155,7 @@ export class ReviewsComponent implements OnInit, OnDestroy {
     this.isDeleting.set(true);
     this.reviewService.deleteReview(productId, reviewId).subscribe({
       next: () => {
+        this.notices.success('Review deleted');
         this.deleteConfirmId.set(null);
         this.isDeleting.set(false);
         // Reload from the server so the page stays full and the count right.

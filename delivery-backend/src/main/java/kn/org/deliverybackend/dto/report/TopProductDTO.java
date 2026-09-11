@@ -19,4 +19,6 @@ public class TopProductDTO {
     private BigDecimal revenue;
     /** Distinct counted orders containing the product. */
     private long orderCount;
+    /** Typed by staff; several products may share one. */
+    private String productCode;
 }

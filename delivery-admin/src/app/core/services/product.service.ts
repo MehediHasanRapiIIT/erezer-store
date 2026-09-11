@@ -69,6 +69,7 @@ export class ProductService {
     // PUT endpoint uses @RequestParam flat fields, not @RequestPart JSON blob
     formData.append('categoryId', String(dto.categoryId));
     formData.append('name', dto.name);
+    formData.append('productCode', dto.productCode);
     formData.append('description', dto.description);
     formData.append('price', String(dto.price));
     if (dto.discountPercentage != null) {

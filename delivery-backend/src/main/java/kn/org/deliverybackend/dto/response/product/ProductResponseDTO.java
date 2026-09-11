@@ -15,6 +15,8 @@ public class ProductResponseDTO {
     private Long categoryId;
     private String categoryName;
     private String sku;
+    /** Typed by staff; several products may share one. */
+    private String productCode;
     private String unit;
     private String name;
     private String description;

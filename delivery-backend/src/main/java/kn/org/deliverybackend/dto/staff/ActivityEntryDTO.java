@@ -14,4 +14,6 @@ public record ActivityEntryDTO(UUID id,
                                String area,
                                String targetId,
                                String summary,
-                               Integer status) {}
+                               Integer status,
+                               /** Longer detail, e.g. every old and new price; null for most lines. */
+                               String details) {}

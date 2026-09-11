@@ -9,6 +9,8 @@ import {
   CustomDesignLogoAdmin,
 } from '../../core/services/custom-design-asset.service';
 import { PermissionService } from '../../core/services/permission.service';
+import { ConfirmService } from '../../core/services/confirm.service';
+import { NoticeService } from '../../core/services/notice.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 
 type ColorView = 'front' | 'back' | 'leftSleeve' | 'rightSleeve';
@@ -189,6 +191,8 @@ const COLOR_VIEWS: { key: ColorView; label: string }[] = [
 export class CustomDesignComponent implements OnInit {
   private readonly api = inject(CustomDesignAssetService);
   protected readonly perms = inject(PermissionService);
+  private readonly confirmer = inject(ConfirmService);
+  private readonly notices = inject(NoticeService);
   // This app is zoneless: an HTTP callback that mutates plain (non-signal)
   // state must notify change detection itself, or the view silently never
   // updates. Signals (items, error, ...) do this on their own; the colour
@@ -275,14 +279,28 @@ export class CustomDesignComponent implements OnInit {
       .pipe(catchError((err) => { this.error.set(parseApiError(err)); this.acting.set(false); return of(null); }))
       .subscribe((saved) => {
         this.acting.set(false);
-        if (saved) { this.editing = null; this.reload(); }
+        if (saved) {
+          this.notices.success('Item saved', saved.name);
+          this.editing = null;
+          this.reload();
+        }
       });
   }
 
-  protected deleteItem(it: CustomDesignItemAdmin): void {
-    if (!it.id || !confirm(`Delete "${it.name}"?`)) return;
+  protected async deleteItem(it: CustomDesignItemAdmin): Promise<void> {
+    if (!it.id) return;
+    const ok = await this.confirmer.ask({
+      title: `Delete "${it.name}"?`,
+      message: 'Customers can no longer choose this garment.',
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     this.api.deleteItem(it.id).pipe(catchError((err) => { this.error.set(parseApiError(err)); return EMPTY; }))
-      .subscribe(() => this.items.update((list) => list.filter((x) => x.id !== it.id)));
+      .subscribe(() => {
+        this.items.update((list) => list.filter((x) => x.id !== it.id));
+        this.notices.success('Item deleted', it.name);
+      });
   }
 
   // ── Logo library ────────────────────────────────────────────────────────
@@ -305,14 +323,29 @@ export class CustomDesignComponent implements OnInit {
       .pipe(catchError((err) => { this.error.set(parseApiError(err)); this.acting.set(false); return of(null); }))
       .subscribe((saved) => {
         this.acting.set(false);
-        if (saved) { this.logos.update((list) => [...list, saved]); this.newLogoName = ''; this.newLogoUrl = ''; }
+        if (saved) {
+          this.logos.update((list) => [...list, saved]);
+          this.notices.success('Design added', saved.name);
+          this.newLogoName = '';
+          this.newLogoUrl = '';
+        }
       });
   }
 
-  protected deleteLogo(logo: CustomDesignLogoAdmin): void {
-    if (!logo.id || !confirm(`Delete "${logo.name}"?`)) return;
+  protected async deleteLogo(logo: CustomDesignLogoAdmin): Promise<void> {
+    if (!logo.id) return;
+    const ok = await this.confirmer.ask({
+      title: `Delete "${logo.name}"?`,
+      message: 'Customers can no longer put this design on a garment.',
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     this.api.deleteLogo(logo.id).pipe(catchError((err) => { this.error.set(parseApiError(err)); return EMPTY; }))
-      .subscribe(() => this.logos.update((list) => list.filter((x) => x.id !== logo.id)));
+      .subscribe(() => {
+        this.logos.update((list) => list.filter((x) => x.id !== logo.id));
+        this.notices.success('Design deleted', logo.name);
+      });
   }
 
   private splitList(text: string): string[] {

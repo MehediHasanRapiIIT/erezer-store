@@ -7,6 +7,8 @@ import {
 } from '../../../core/services/product-image.service';
 import { parseApiError } from '../../../core/utils/api-error.util';
 import { PermissionService } from '../../../core/services/permission.service';
+import { ConfirmService } from '../../../core/services/confirm.service';
+import { NoticeService } from '../../../core/services/notice.service';
 
 @Component({
   selector: 'app-image-gallery-editor',
@@ -108,6 +110,8 @@ export class ImageGalleryEditorComponent implements OnChanges {
 
   private readonly api = inject(ProductImageService);
   protected readonly perms = inject(PermissionService);
+  private readonly confirmer = inject(ConfirmService);
+  private readonly notices = inject(NoticeService);
 
   readonly images    = signal<ProductImageResponse[]>([]);
   readonly loading   = signal(false);
@@ -148,7 +152,10 @@ export class ImageGalleryEditorComponent implements OnChanges {
       .subscribe((created) => {
         this.uploading.set(false);
         input.value = '';
-        if (created) this.reload();
+        if (created) {
+          this.notices.success('Photo uploaded');
+          this.reload();
+        }
       });
   }
 
@@ -182,10 +189,19 @@ export class ImageGalleryEditorComponent implements OnChanges {
       .subscribe(() => this.reload());
   }
 
-  remove(img: ProductImageResponse): void {
-    if (!confirm('Delete this image?')) return;
+  async remove(img: ProductImageResponse): Promise<void> {
+    const ok = await this.confirmer.ask({
+      title: 'Delete this photo?',
+      message: "It is removed from the product's gallery.",
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     this.api.delete(this.productId(), img.id)
       .pipe(catchError((err) => { this.error.set(parseApiError(err)); return of(null); }))
-      .subscribe(() => this.reload());
+      .subscribe(() => {
+        this.notices.success('Photo deleted');
+        this.reload();
+      });
   }
 }

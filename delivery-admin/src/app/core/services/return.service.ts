@@ -10,6 +10,7 @@ export interface ReturnItem {
   orderItemId: string;
   productId: number | null;
   productName: string | null;
+  productCode: string | null;
   quantity: number;
   condition: string | null;
   lineRefundAmount: number | null;

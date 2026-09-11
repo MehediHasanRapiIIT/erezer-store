@@ -137,17 +137,23 @@
                     <tr>
                       <td class="px-5 py-3">
                         <div class="flex items-center gap-3">
-                          <div class="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                          <!-- Bigger picture; click to see it full size. -->
+                          <button type="button"
+                            (click)="item.imageUrl ? previewImage.set({ url: item.imageUrl, name: item.productName || 'Product' }) : null"
+                            class="w-16 h-16 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center border border-gray-200"
+                            [class.cursor-zoom-in]="item.imageUrl" [disabled]="!item.imageUrl"
+                            [attr.aria-label]="'See the picture of ' + (item.productName || 'this product')">
                             @if (item.imageUrl) {
                               <img [src]="item.imageUrl" [alt]="item.productName || ''" class="w-full h-full object-cover"/>
                             } @else {
-                              <svg class="w-5 h-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                              <svg class="w-6 h-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                               </svg>
                             }
-                          </div>
+                          </button>
                           <div>
                             <p class="font-medium text-gray-800">{{ item.productName || 'Unknown Product' }}</p>
+                            <p class="font-mono text-xs font-medium text-gray-600">Code: {{ item.productCode || '—' }}</p>
                             @if (item.variantSize || item.variantName) {
                               <p class="text-xs text-gray-500">{{ variantLabel(item) }}</p>
                             }
@@ -159,7 +165,6 @@
                                 }
                               </div>
                             }
-                            <p class="text-xs text-gray-400 font-mono">{{ item.productId || '—' }}</p>
                           </div>
                         </div>
                       </td>
@@ -170,6 +175,19 @@
                   }
                 </tbody>
               </table>
+              <!-- A product picture, full size -->
+              @if (previewImage(); as img) {
+                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" (click)="previewImage.set(null)">
+                  <div class="w-full max-w-3xl rounded-xl bg-white p-3" (click)="$event.stopPropagation()">
+                    <div class="mb-2 flex items-center justify-between gap-3">
+                      <p class="text-sm font-semibold text-gray-800">{{ img.name }}</p>
+                      <button type="button" (click)="previewImage.set(null)" aria-label="Close"
+                        class="rounded-full px-2 text-xl leading-none text-gray-400 hover:text-gray-700">&times;</button>
+                    </div>
+                    <img [src]="img.url" [alt]="img.name" class="mx-auto max-h-[75vh] w-auto rounded-lg object-contain" />
+                  </div>
+                </div>
+              }
               <!-- Totals -->
               <div class="px-5 py-4 border-t border-gray-100 space-y-2">
                 <div class="flex justify-between text-sm text-gray-500">

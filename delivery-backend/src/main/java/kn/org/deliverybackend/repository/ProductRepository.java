@@ -27,6 +27,10 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     @Query(value = "SELECT * FROM product WHERE category_id = :categoryId", nativeQuery = true)
     List<Product> findByCategoryId(@Param("categoryId") Long categoryId);
 
+    /** A category's products, leaving out deleted ones, by name: the rows of a category price change. */
+    @Query("SELECT p FROM Product p WHERE p.categoryId = :categoryId AND p.deleted = false ORDER BY p.name, p.id")
+    List<Product> findLiveByCategory(@Param("categoryId") Long categoryId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM Product p WHERE p.id = :id")
     Optional<Product> findByIdWithLock(@Param("id") Long id);
@@ -34,7 +38,8 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     @Query("SELECT p FROM Product p WHERE p.deleted = false AND (" +
             "LOWER(p.name) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
             "LOWER(p.description) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
-            "LOWER(p.sku) LIKE LOWER(CONCAT('%', :q, '%'))) " +
+            "LOWER(p.sku) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
+            "LOWER(p.productCode) LIKE LOWER(CONCAT('%', :q, '%'))) " +
             "ORDER BY p.createdAt DESC")
     Page<Product> searchAdmin(@Param("q") String q, Pageable pageable);
 
@@ -46,13 +51,15 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
     /**
      * The Inventory page: products not deleted, optionally matching a
-     * lower-case "%text%" pattern on name or SKU, in id order.
+     * lower-case "%text%" pattern on name, SKU or product code, in id order.
      */
     @Query(value = "SELECT p FROM Product p WHERE (p.deleted = false OR p.deleted IS NULL) " +
-            "AND (:q IS NULL OR LOWER(p.name) LIKE :q ESCAPE '\\' OR LOWER(p.sku) LIKE :q ESCAPE '\\') " +
+            "AND (:q IS NULL OR LOWER(p.name) LIKE :q ESCAPE '\\' OR LOWER(p.sku) LIKE :q ESCAPE '\\' " +
+            "     OR LOWER(p.productCode) LIKE :q ESCAPE '\\') " +
             "ORDER BY p.id",
             countQuery = "SELECT COUNT(p) FROM Product p WHERE (p.deleted = false OR p.deleted IS NULL) " +
-                    "AND (:q IS NULL OR LOWER(p.name) LIKE :q ESCAPE '\\' OR LOWER(p.sku) LIKE :q ESCAPE '\\')")
+                    "AND (:q IS NULL OR LOWER(p.name) LIKE :q ESCAPE '\\' OR LOWER(p.sku) LIKE :q ESCAPE '\\' " +
+                    "     OR LOWER(p.productCode) LIKE :q ESCAPE '\\')")
     Page<Product> searchForInventory(@Param("q") String q, Pageable pageable);
 
     /**

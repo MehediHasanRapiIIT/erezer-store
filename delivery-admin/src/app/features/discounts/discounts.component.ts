@@ -14,6 +14,8 @@ import {
 import { CategoryService } from '../../core/services/category.service';
 import { ProductService } from '../../core/services/product.service';
 import { PermissionService } from '../../core/services/permission.service';
+import { ConfirmService } from '../../core/services/confirm.service';
+import { NoticeService } from '../../core/services/notice.service';
 import { CategoryResponse, ProductResponse } from '../../core/models/api.models';
 import { parseApiError } from '../../core/utils/api-error.util';
 
@@ -254,7 +256,10 @@ const EMPTY_FORM: DiscountForm = {
                           @for (p of productResults(); track p.id) {
                             <button type="button" (click)="pickProduct(p)"
                               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-normal text-gray-800 hover:bg-gray-50">
-                              <span class="flex-1 truncate">{{ p.name }}</span>
+                              <span class="flex-1 truncate">
+                                {{ p.name }}
+                                @if (p.productCode) { <span class="ml-1 font-mono text-xs text-gray-400">{{ p.productCode }}</span> }
+                              </span>
                               <span class="text-xs text-gray-400">৳{{ p.price }}</span>
                             </button>
                           } @empty {
@@ -334,6 +339,8 @@ export class DiscountsComponent implements OnInit {
   private readonly productApi = inject(ProductService);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly perms = inject(PermissionService);
+  private readonly confirmer = inject(ConfirmService);
+  private readonly notices = inject(NoticeService);
 
   readonly discounts  = signal<DiscountResponse[]>([]);
   readonly categories = signal<CategoryResponse[]>([]);
@@ -397,7 +404,11 @@ export class DiscountsComponent implements OnInit {
     // Optimistic: the switch flips immediately, and reverts if the save fails.
     this.settings.set(next);
     this.api.updateSwitches(change).subscribe({
-      next: (saved) => { this.settings.set(saved); this.savingSettings.set(false); },
+      next: (saved) => {
+        this.settings.set(saved);
+        this.savingSettings.set(false);
+        this.notices.success('Discount settings saved');
+      },
       error: (err) => {
         this.settings.set(current);
         this.savingSettings.set(false);
@@ -444,8 +455,13 @@ export class DiscountsComponent implements OnInit {
   }
 
   protected pickProduct(p: ProductResponse): void {
-    this.rememberName(p.id, p.name);
+    this.rememberName(p.id, DiscountsComponent.label(p));
     this.form.targetId = p.id;
+  }
+
+  /** "Classic Hoodie · EZ-HD-101": the name with the product code. */
+  private static label(p: ProductResponse): string {
+    return p.productCode ? `${p.name} · ${p.productCode}` : p.name;
   }
 
   protected productName(id: number): string {
@@ -463,7 +479,7 @@ export class DiscountsComponent implements OnInit {
       .filter((id) => !known.has(id));
     for (const id of ids) {
       this.productApi.getProduct(id).pipe(catchError(() => of(null)))
-        .subscribe((p) => { if (p) this.rememberName(p.id, p.name); });
+        .subscribe((p) => { if (p) this.rememberName(p.id, DiscountsComponent.label(p)); });
     }
   }
 
@@ -544,17 +560,25 @@ export class DiscountsComponent implements OnInit {
       } else {
         this.discounts.update((list) => [...list, saved]);
       }
+      this.notices.success(editId ? 'Discount saved' : 'Discount added', saved.name);
       this.lookUpProductNames([saved]);
       this.cancelEdit();
     });
   }
 
-  protected remove(d: DiscountResponse): void {
-    if (!confirm(`Delete discount "${d.name}"?`)) return;
+  protected async remove(d: DiscountResponse): Promise<void> {
+    const ok = await this.confirmer.ask({
+      title: `Delete discount "${d.name}"?`,
+      message: 'Prices go back to normal for whatever it covered.',
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     this.api.delete(d.id)
       .pipe(catchError((err) => { this.errorMessage.set(parseApiError(err)); return EMPTY; }))
       .subscribe(() => {
         this.discounts.update((list) => list.filter((x) => x.id !== d.id));
+        this.notices.success('Discount deleted', d.name);
       });
   }
 

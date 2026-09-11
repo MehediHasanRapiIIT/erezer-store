@@ -18,6 +18,8 @@ export interface ActivityEntry {
   targetId: string | null;
   summary: string | null;
   status: number | null;
+  /** Longer detail, e.g. every old and new price of a category price change. */
+  details: string | null;
 }
 
 export interface ActivityPage {

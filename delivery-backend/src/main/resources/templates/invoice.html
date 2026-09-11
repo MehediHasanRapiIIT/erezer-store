@@ -134,7 +134,11 @@
       <tbody>
         <tr th:each="item, s : ${items}">
           <td th:text="${s.count}">1</td>
-          <td><span class="pname" th:text="${item.name}">Product</span></td>
+          <td>
+            <span class="pname" th:text="${item.name}">Product</span>
+            <div th:if="${item.code != ''}" style="font-size:9px;color:#6b7280;margin-top:1px;"
+                 th:text="${'Code: ' + item.code}">Code: PI-00001</div>
+          </td>
           <td class="center psize" th:text="${item.size}">—</td>
           <td class="num" th:text="${item.quantity}">1</td>
           <td class="num" th:text="${item.unit}">Tk 0.00</td>

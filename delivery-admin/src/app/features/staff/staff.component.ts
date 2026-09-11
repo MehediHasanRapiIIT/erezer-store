@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import { PermissionService } from '../../core/services/permission.service';
+import { ConfirmService } from '../../core/services/confirm.service';
 import { PermissionTemplate, StaffMember, StaffService } from '../../core/services/staff.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 import { PermissionChecklistComponent } from './permission-checklist.component';
@@ -309,6 +310,7 @@ interface LoginNotice {
 export class StaffComponent implements OnInit {
   private readonly api = inject(StaffService);
   protected readonly perms = inject(PermissionService);
+  private readonly confirmer = inject(ConfirmService);
 
   readonly staff = signal<StaffMember[]>([]);
   readonly templates = signal<PermissionTemplate[]>([]);
@@ -466,8 +468,14 @@ export class StaffComponent implements OnInit {
     });
   }
 
-  protected deactivate(m: StaffMember): void {
-    if (!confirm(`Deactivate ${m.name}? They are signed out everywhere and can't log in until reactivated.`)) return;
+  protected async deactivate(m: StaffMember): Promise<void> {
+    const ok = await this.confirmer.ask({
+      title: `Deactivate ${m.name}?`,
+      message: "They are signed out everywhere and can't log in until reactivated.",
+      confirmLabel: 'Deactivate',
+      danger: true,
+    });
+    if (!ok) return;
     this.run(this.api.deactivate(m.id), (saved) => this.successMessage.set(`${saved.name} is deactivated.`));
   }
 
@@ -475,12 +483,17 @@ export class StaffComponent implements OnInit {
     this.run(this.api.reactivate(m.id), (saved) => this.successMessage.set(`${saved.name} can log in again.`));
   }
 
-  protected changeRole(m: StaffMember): void {
+  protected async changeRole(m: StaffMember): Promise<void> {
     const toAdmin = m.role !== 'ADMIN';
-    const question = toAdmin
-      ? `Make ${m.name} an admin? Admins can do everything, including managing staff. Their current permissions are cleared.`
-      : `Make ${m.name} a moderator? They will have no permissions until someone gives them some.`;
-    if (!confirm(question)) return;
+    const ok = await this.confirmer.ask({
+      title: toAdmin ? `Make ${m.name} an admin?` : `Make ${m.name} a moderator?`,
+      message: toAdmin
+        ? 'Admins can do everything, including managing staff. Their current permissions are cleared.'
+        : 'They will have no permissions until someone gives them some.',
+      confirmLabel: toAdmin ? 'Make admin' : 'Make moderator',
+      danger: true,
+    });
+    if (!ok) return;
     this.run(this.api.changeRole(m.id, toAdmin ? 'ADMIN' : 'MODERATOR'), (saved) => {
       this.successMessage.set(toAdmin
         ? `${saved.name} is now an admin.`

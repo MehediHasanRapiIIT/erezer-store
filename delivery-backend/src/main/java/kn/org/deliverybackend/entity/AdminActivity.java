@@ -57,6 +57,10 @@ public class AdminActivity {
     @Column(length = 400)
     private String summary;
 
+    /** Longer detail, such as every old and new price of a category price change. */
+    @Column(columnDefinition = "TEXT")
+    private String details;
+
     private Integer status;
 
     @Column(name = "ip_address", length = 64)

@@ -8,6 +8,7 @@ import { UploadService } from '../../../core/services/upload.service';
 import { parseApiError } from '../../../core/utils/api-error.util';
 import { HttpErrorResponse } from '@angular/common/http';
 import { PermissionService } from '../../../core/services/permission.service';
+import { NoticeService } from '../../../core/services/notice.service';
 
 @Component({
   selector: 'app-add-category',
@@ -23,6 +24,7 @@ export class AddCategoryComponent {
   ) {}
 
   protected readonly perms = inject(PermissionService);
+  private readonly notices = inject(NoticeService);
 
   categoryName = signal('');
   isActive     = signal(true);
@@ -72,6 +74,7 @@ export class AddCategoryComponent {
     }).subscribe({
       next: () => {
         this.isLoading.set(false);
+        this.notices.success('Category added', this.categoryName().trim());
         this.router.navigate(['/categories']);
       },
       error: (err: HttpErrorResponse) => {

@@ -9,6 +9,7 @@ import { CategoryResponse, ProductResponse } from '../../../core/models/api.mode
 import { parseApiError } from '../../../core/utils/api-error.util';
 import { salePercent } from '../../../core/utils/price.util';
 import { PermissionService } from '../../../core/services/permission.service';
+import { NoticeService } from '../../../core/services/notice.service';
 import { ACCESS } from '../../../core/access/admin-pages';
 
 /**
@@ -23,6 +24,7 @@ import { ACCESS } from '../../../core/access/admin-pages';
 })
 export class ProductsListComponent implements OnInit, OnDestroy {
   private productService = inject(ProductService);
+  private readonly notices = inject(NoticeService);
   private categoryService = inject(CategoryService);
   private router = inject(Router);
   protected readonly perms = inject(PermissionService);
@@ -170,6 +172,8 @@ export class ProductsListComponent implements OnInit, OnDestroy {
     const dto = {
       categoryId: product.categoryId,
       name: product.name,
+      // Required on every save; sent back unchanged.
+      productCode: product.productCode,
       description: product.description,
       price: product.price,
       // Without this the save would remove the product's sale price.
@@ -182,6 +186,8 @@ export class ProductsListComponent implements OnInit, OnDestroy {
         this.products.update(list =>
           list.map(p => p.id === product.id ? { ...p, isAvailable: updated.isAvailable } : p)
         );
+        this.notices.success(
+          updated.isAvailable ? 'Product is on sale in the shop' : 'Product hidden from the shop', product.name);
       },
       error: (err) => this.errorMessage.set(parseApiError(err)),
     });
@@ -193,6 +199,8 @@ export class ProductsListComponent implements OnInit, OnDestroy {
         this.products.update(list =>
           list.map(p => p.id === product.id ? { ...p, isFeatured: updated.isFeatured } : p)
         );
+        this.notices.success(
+          updated.isFeatured ? 'Featured on the home page' : 'No longer featured', product.name);
       },
       error: (err) => this.errorMessage.set(parseApiError(err)),
     });
@@ -209,6 +217,7 @@ export class ProductsListComponent implements OnInit, OnDestroy {
     this.isDeleting.set(true);
     this.productService.deleteProduct(id).subscribe({
       next: () => {
+        this.notices.success('Product deleted');
         this.deleteConfirmId.set(null);
         this.isDeleting.set(false);
         this.loadPage(this.currentPage());

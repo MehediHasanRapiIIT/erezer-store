@@ -89,6 +89,7 @@ public class AdminSearchServiceImpl implements AdminSearchService {
             extra.put("stockQuantity", p.getStockQuantity());
             extra.put("isAvailable", p.getIsAvailable());
             if (p.getSku() != null) extra.put("sku", p.getSku());
+            if (p.getProductCode() != null) extra.put("productCode", p.getProductCode());
             if (p.getCategoryId() != null) {
                 extra.put("categoryId", p.getCategoryId());
                 String catName = categoryNames.get(p.getCategoryId());
@@ -98,7 +99,8 @@ public class AdminSearchServiceImpl implements AdminSearchService {
                     .id(String.valueOf(p.getId()))
                     .type("PRODUCT")
                     .title(p.getName())
-                    .subtitle(p.getSku() != null ? p.getSku() : p.getDescription())
+                    .subtitle(p.getProductCode() != null ? "Code: " + p.getProductCode()
+                            : p.getSku() != null ? p.getSku() : p.getDescription())
                     .imageUrl(p.getImageUrl())
                     .extra(extra)
                     .build();

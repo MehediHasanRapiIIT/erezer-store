@@ -35,7 +35,8 @@ interface AnalyticsData {
   ordersByPayment: { method: string; count: number; revenue: number | null }[];
   dailyOrders: DailyOrder[];
   topCategories: CategoryRevenue[];
-  topProducts: { id: number; name: string; imageUrl: string; price: number; stockQuantity: number; stockStatus: string }[];
+  topProducts: { id: number; name: string; imageUrl: string; price: number; stockQuantity: number; stockStatus: string;
+    productCode: string | null }[];
 }
 
 @Component({

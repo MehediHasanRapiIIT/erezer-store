@@ -342,6 +342,8 @@ public class OrderHistoryServiceImpl implements OrderHistoryService {
             productRepository.findById(item.getProductId()).ifPresent(product -> {
                 dto.setProductName(product.getName());
                 dto.setImageUrl(product.getImageUrl());
+                // The code kept with the order; the product's own only for a line saved without one.
+                if (dto.getProductCode() == null) dto.setProductCode(product.getProductCode());
             });
         }
         return dto;

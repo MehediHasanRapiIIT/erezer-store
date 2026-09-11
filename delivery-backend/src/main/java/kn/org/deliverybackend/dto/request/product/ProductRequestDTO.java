@@ -20,6 +20,11 @@ public class ProductRequestDTO {
     @Size(min = 2, max = 100, message = "Product name must be between 2 and 100 characters")
     private String name;
 
+    /** Typed by staff; several products may share one. */
+    @NotBlank(message = "Product code is required")
+    @Size(max = 40, message = "Product code must be 40 characters or fewer")
+    private String productCode;
+
     @NotBlank(message = "Description is required")
     private String description;
 

@@ -92,7 +92,7 @@ def check_list(results: Results, label: str, got: list, total: int, expected: li
 
 def shop(results: Results):
     print("== shop list (/api/products/browse) ==")
-    products = psql_json("SELECT id, name, brand, description, gender, category_id, price, discount_price, "
+    products = psql_json("SELECT id, name, brand, description, product_code, gender, category_id, price, discount_price, "
                          "coalesce(is_featured, false) AS featured, coalesce(deleted, false) AS deleted FROM product")
 
     def shown(p) -> Decimal:
@@ -101,7 +101,7 @@ def shop(results: Results):
     def matches(p, q=None, category=None, gender=None, brand=None, max_price=None) -> bool:
         if p["deleted"]:
             return False
-        if q and not any(q.lower() in (p[k] or "").lower() for k in ("name", "brand", "description")):
+        if q and not any(q.lower() in (p[k] or "").lower() for k in ("name", "brand", "description", "product_code")):
             return False
         if category is not None and p["category_id"] != category:
             return False
@@ -136,6 +136,10 @@ def shop(results: Results):
     scenarios += [({"q": w}, "featured") for w in words]
     if brands:
         scenarios += [({"q": brands[0][:4]}, "price-asc")]
+    codes = sorted(p["product_code"] for p in live if p["product_code"])
+    if codes:
+        # The product code is searched too (the admin pickers use this search).
+        scenarios += [({"q": codes[len(codes) // 2].lower()}, "featured")]
     scenarios += [({"q": "zzzz-nothing-matches"}, "featured"), ({"q": "%"}, "featured")]
     if categories and genders:
         scenarios += [({"category": categories[0], "gender": genders[0]}, "price-asc")]
@@ -197,13 +201,15 @@ def admin_token() -> str:
 def admin_products(results: Results):
     print("== admin products (/admin/products) ==")
     token = admin_token()
-    products = psql_json("SELECT p.id, p.name, p.sku, p.brand, p.category_id, coalesce(p.deleted, false) AS deleted, "
+    products = psql_json("SELECT p.id, p.name, p.sku, p.product_code, p.brand, p.category_id, "
+                         "coalesce(p.deleted, false) AS deleted, "
                          "c.name AS category_name FROM product p LEFT JOIN category c ON c.id = p.category_id")
 
     def matches(p, q=None, category=None) -> bool:
         if p["deleted"]:
             return False
-        if q and not any(q.lower() in (p[k] or "").lower() for k in ("name", "sku", "brand", "category_name")):
+        if q and not any(q.lower() in (p[k] or "").lower()
+                         for k in ("name", "sku", "product_code", "brand", "category_name")):
             return False
         return category is None or p["category_id"] == category
 
@@ -215,6 +221,9 @@ def admin_products(results: Results):
     scenarios = [{}] + [{"q": w} for w in words]
     if skus:
         scenarios.append({"q": skus[0][:5]})
+    codes = sorted(p["product_code"] for p in live if p["product_code"])
+    if codes:
+        scenarios.append({"q": codes[-1]})
     if category_names:
         scenarios.append({"q": category_names[0][:4]})
     scenarios += [{"category": c} for c in categories[:3]]
@@ -252,7 +261,9 @@ def admin_orders(results: Results):
         "o.customer_name AS name, o.customer_phone AS phone, o.customer_email AS email, "
         "o.delivery_address AS address, "
         "trim(coalesce(u.first_name, '') || ' ' || coalesce(u.last_name, '')) AS profile_name, "
-        "u.phone_number AS profile_phone, u.email AS profile_email "
+        "u.phone_number AS profile_phone, u.email AS profile_email, "
+        "coalesce((SELECT string_agg(coalesce(oi.product_code, ''), ' ') FROM order_item oi "
+        "          WHERE oi.order_id = o.id), '') AS codes "
         "FROM orders o LEFT JOIN users u ON u.id = o.client_id WHERE coalesce(o.deleted, false) = false")
     dhaka = timedelta(hours=6)  # Bangladesh has no daylight saving
     for o in orders:
@@ -272,7 +283,8 @@ def admin_orders(results: Results):
             return False
         if q:
             t = q.strip().lstrip("#").strip().lower()
-            fields = ("id", "name", "phone", "email", "address", "profile_name", "profile_phone", "profile_email")
+            fields = ("id", "name", "phone", "email", "address", "profile_name", "profile_phone", "profile_email",
+                      "codes")
             if not any(t in (o[f] or "").lower() for f in fields):
                 return False
         return True
@@ -302,6 +314,10 @@ def admin_orders(results: Results):
         {"frm": week_ago, "to": today, "exclude": "DELIVERED"},
         {"q": "zzzz-nothing-matches"},
     ]
+    # A product code from an order's lines: the code the order was placed with.
+    code = next((o["codes"].split()[0] for o in orders if o["codes"].strip()), "")
+    if code:
+        scenarios.append({"q": code})
     if late:
         scenarios.append({"frm": late["day"], "to": late["day"]})
     for f in scenarios:
@@ -393,16 +409,19 @@ def admin_stock_categories(results: Results):
     token = admin_token()
 
     print("== inventory (/admin/inventory) ==")
-    products = [p for p in psql_json("SELECT id, name, sku, coalesce(deleted, false) AS deleted FROM product")
-                if not p["deleted"]]
+    products = [p for p in psql_json("SELECT id, name, sku, product_code, coalesce(deleted, false) AS deleted "
+                                     "FROM product") if not p["deleted"]]
 
     def stock_expected(q=None):
-        keep = [p for p in products if not q or any(q.lower() in (p[k] or "").lower() for k in ("name", "sku"))]
+        keep = [p for p in products if not q or any(q.lower() in (p[k] or "").lower()
+                                                     for k in ("name", "sku", "product_code"))]
         return [p["id"] for p in sorted(keep, key=lambda p: p["id"])]
 
     words = sorted({w for p in products for w in (p["name"] or "").lower().split() if len(w) > 3})[:2]
     skus = sorted(p["sku"] for p in products if p["sku"])
-    for f in [{}] + [{"q": w} for w in words] + ([{"q": skus[0][:5]}] if skus else []) + [{"q": "zzzz-nothing"}]:
+    codes = sorted(p["product_code"] for p in products if p["product_code"])
+    for f in ([{}] + [{"q": w} for w in words] + ([{"q": skus[0][:5]}] if skus else [])
+              + ([{"q": codes[0].lower()}] if codes else []) + [{"q": "zzzz-nothing"}]):
         items, total = all_pages("/admin/inventory", {"q": f.get("q")}, token, size=7)
         check_list(results, f"inventory {f or 'everything'}", [x["productId"] for x in items], total,
                    stock_expected(**f))

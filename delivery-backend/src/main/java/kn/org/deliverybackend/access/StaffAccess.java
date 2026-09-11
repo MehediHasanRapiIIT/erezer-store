@@ -17,6 +17,8 @@ public final class StaffAccess {
     public static final String RULE_ATTRIBUTE = "erezer.access.rule";
     /** Set by a controller to replace the generic activity log line for this request. */
     public static final String ACTIVITY_SUMMARY_ATTRIBUTE = "erezer.access.summary";
+    /** Set by a controller to keep longer detail with the activity log line. */
+    public static final String ACTIVITY_DETAILS_ATTRIBUTE = "erezer.access.details";
 
     private StaffAccess() {}
 
@@ -54,6 +56,14 @@ public final class StaffAccess {
         RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
         if (attributes != null && summary != null) {
             attributes.setAttribute(ACTIVITY_SUMMARY_ATTRIBUTE, summary, RequestAttributes.SCOPE_REQUEST);
+        }
+    }
+
+    /** Longer detail kept with the activity log line, shown under "Show details". */
+    public static void details(String details) {
+        RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+        if (attributes != null && details != null && !details.isBlank()) {
+            attributes.setAttribute(ACTIVITY_DETAILS_ATTRIBUTE, details, RequestAttributes.SCOPE_REQUEST);
         }
     }
 }

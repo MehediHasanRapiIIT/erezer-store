@@ -10,6 +10,7 @@ import { salePercent } from '../../../core/utils/price.util';
 import { VariantManagerComponent } from '../variant-manager/variant-manager.component';
 import { ImageGalleryEditorComponent } from '../image-gallery-editor/image-gallery-editor.component';
 import { PermissionService } from '../../../core/services/permission.service';
+import { NoticeService } from '../../../core/services/notice.service';
 
 @Component({
   selector: 'app-edit-product',
@@ -27,6 +28,7 @@ export class EditProductComponent implements OnInit {
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private productService = inject(ProductService);
+  private readonly notices = inject(NoticeService);
   private categoryService = inject(CategoryService);
   protected readonly perms = inject(PermissionService);
 
@@ -34,6 +36,8 @@ export class EditProductComponent implements OnInit {
 
   // Form fields
   productName    = signal('');
+  /** Typed by staff; required, and several products may share one. */
+  productCode    = signal('');
   description    = signal('');
   basePrice      = signal<number | null>(null);
   discount       = signal<number>(0);
@@ -78,6 +82,7 @@ export class EditProductComponent implements OnInit {
     this.productService.getProduct(id).subscribe({
       next: (p) => {
         this.productName.set(p.name);
+        this.productCode.set(p.productCode ?? '');
         this.description.set(p.description);
         this.basePrice.set(p.price);
         this.categoryId.set(p.categoryId);
@@ -114,6 +119,10 @@ export class EditProductComponent implements OnInit {
       this.fieldErrors.set({ name: 'Product name is required.' });
       return;
     }
+    if (!this.productCode().trim()) {
+      this.fieldErrors.set({ productCode: 'Product code is required.' });
+      return;
+    }
     if (!this.basePrice() || this.basePrice()! <= 0) {
       this.fieldErrors.set({ price: 'A valid price is required.' });
       return;
@@ -125,6 +134,7 @@ export class EditProductComponent implements OnInit {
 
     const dto: ProductRequest = {
       name: this.productName().trim(),
+      productCode: this.productCode().trim(),
       description: this.description().trim(),
       price: this.basePrice()!,
       discountPercentage: this.discount() || undefined,
@@ -149,6 +159,7 @@ export class EditProductComponent implements OnInit {
     this.productService.updateProduct(this.productId(), dto).subscribe({
       next: () => {
         this.isLoading.set(false);
+        this.notices.success('Product saved', this.productName().trim());
         this.router.navigate(['/products']);
       },
       error: (err) => {

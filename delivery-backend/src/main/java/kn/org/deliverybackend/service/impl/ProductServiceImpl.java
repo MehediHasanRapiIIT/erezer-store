@@ -124,6 +124,7 @@ public class ProductServiceImpl implements ProductService {
                 where.add(cb.or(
                         cb.like(cb.lower(root.get("name")), pattern, '\\'),
                         cb.like(cb.lower(root.get("sku")), pattern, '\\'),
+                        cb.like(cb.lower(root.get("productCode")), pattern, '\\'),
                         cb.like(cb.lower(root.get("brand")), pattern, '\\'),
                         root.get("categoryId").in(byCategory)));
             }
@@ -142,10 +143,13 @@ public class ProductServiceImpl implements ProductService {
         String q = f.q() == null ? "" : f.q().trim().toLowerCase(Locale.ROOT);
         if (!q.isEmpty()) {
             String pattern = likePattern(q);
+            // The product code too: the admin product pickers use this search, and a
+            // customer who knows a code (say from a tag) can find the product.
             where.add(cb.or(
                     cb.like(cb.lower(root.get("name")), pattern, '\\'),
                     cb.like(cb.lower(root.get("brand")), pattern, '\\'),
-                    cb.like(cb.lower(root.get("description")), pattern, '\\')));
+                    cb.like(cb.lower(root.get("description")), pattern, '\\'),
+                    cb.like(cb.lower(root.get("productCode")), pattern, '\\')));
         }
         if (f.categoryId() != null) where.add(cb.equal(root.get("categoryId"), f.categoryId()));
         if (f.gender() != null && !f.gender().isBlank()) where.add(cb.equal(root.get("gender"), f.gender().trim()));
@@ -266,6 +270,7 @@ public class ProductServiceImpl implements ProductService {
 
         product.setCategoryId(productRequestDTO.getCategoryId());
         product.setName(productRequestDTO.getName());
+        product.setProductCode(productRequestDTO.getProductCode());
         product.setDescription(productRequestDTO.getDescription());
         product.setPrice(productRequestDTO.getPrice());
         calculateAndSetDiscountPrice(product, productRequestDTO);

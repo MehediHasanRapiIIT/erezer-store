@@ -124,6 +124,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             for (OrderItemDTO it : dto.getOrderItems()) {
                 Map<String, Object> row = new HashMap<>();
                 row.put("name", it.getProductName() != null ? it.getProductName() : "Item");
+                row.put("code", it.getProductCode() != null ? it.getProductCode() : "");
                 row.put("size", it.getVariantSize() != null && !it.getVariantSize().isBlank()
                         ? it.getVariantSize() : "—");
                 int qty = it.getQuantity() == null ? 0 : it.getQuantity();

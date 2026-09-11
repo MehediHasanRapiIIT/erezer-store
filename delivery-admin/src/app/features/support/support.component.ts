@@ -10,6 +10,8 @@ import {
   SupportService,
 } from '../../core/services/support.service';
 import { PermissionService } from '../../core/services/permission.service';
+import { ConfirmService } from '../../core/services/confirm.service';
+import { NoticeService } from '../../core/services/notice.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 
 /**
@@ -152,6 +154,8 @@ import { parseApiError } from '../../core/utils/api-error.util';
 export class SupportComponent implements OnInit, OnDestroy {
   private readonly api = inject(SupportService);
   protected readonly perms = inject(PermissionService);
+  private readonly confirmer = inject(ConfirmService);
+  private readonly notices = inject(NoticeService);
 
   protected readonly pageSize = 20;
 
@@ -250,14 +254,21 @@ export class SupportComponent implements OnInit, OnDestroy {
       });
   }
 
-  protected remove(m: ContactMessage): void {
-    if (!confirm('Delete this message?')) return;
+  protected async remove(m: ContactMessage): Promise<void> {
+    const ok = await this.confirmer.ask({
+      title: 'Delete this message?',
+      message: "This can't be undone.",
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     this.acting.set(true);
     this.api.delete(m.id)
       .pipe(catchError((err) => { this.error.set(parseApiError(err)); this.acting.set(false); return EMPTY; }))
       .subscribe(() => {
         this.acting.set(false);
         this.messages.update((list) => list.filter((x) => x.id !== m.id));
+        this.notices.success('Message deleted');
         if (this.selected()?.id === m.id) this.selected.set(null);
         this.loadPage(this.page());
       });

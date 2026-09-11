@@ -13,6 +13,7 @@ export interface RevenuePoint {
 export interface TopProduct {
   productId: number;
   productName: string;
+  productCode: string | null;
   imageUrl: string | null;
   unitsSold: number;
   revenue: number;         // sales value (qty × price + surcharge)

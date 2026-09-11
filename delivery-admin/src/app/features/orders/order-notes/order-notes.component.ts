@@ -4,6 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { EMPTY, catchError, of } from 'rxjs';
 import { OrderNote, OrderNoteService } from '../../../core/services/order-note.service';
 import { PermissionService } from '../../../core/services/permission.service';
+import { ConfirmService } from '../../../core/services/confirm.service';
+import { NoticeService } from '../../../core/services/notice.service';
 import { parseApiError } from '../../../core/utils/api-error.util';
 
 @Component({
@@ -74,6 +76,8 @@ export class OrderNotesComponent implements OnChanges {
 
   private readonly api = inject(OrderNoteService);
   protected readonly perms = inject(PermissionService);
+  private readonly confirmer = inject(ConfirmService);
+  private readonly notices = inject(NoticeService);
 
   readonly notes   = signal<OrderNote[]>([]);
   readonly loading = signal(false);
@@ -107,17 +111,25 @@ export class OrderNotesComponent implements OnChanges {
         this.adding.set(false);
         if (created) {
           this.notes.update((list) => [created, ...list]);
+          this.notices.success('Note added');
           this.draft = '';
         }
       });
   }
 
-  protected remove(n: OrderNote): void {
-    if (!confirm('Delete this note?')) return;
+  protected async remove(n: OrderNote): Promise<void> {
+    const ok = await this.confirmer.ask({
+      title: 'Delete this note?',
+      message: "This can't be undone.",
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     this.api.delete(this.orderId(), n.id)
       .pipe(catchError((err) => { this.error.set(parseApiError(err)); return EMPTY; }))
       .subscribe(() => {
         this.notes.update((list) => list.filter((x) => x.id !== n.id));
+        this.notices.success('Note deleted');
       });
   }
 }

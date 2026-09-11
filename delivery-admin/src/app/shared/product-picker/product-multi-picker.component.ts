@@ -36,7 +36,7 @@ const MAX_PAGE = 60;
     </div>
     <div class="mb-2 flex flex-col gap-2 sm:flex-row">
       <input type="search" [ngModel]="search()" (ngModelChange)="onSearch($event)"
-        [ngModelOptions]="{ standalone: true }" placeholder="Search products…" aria-label="Search products"
+        [ngModelOptions]="{ standalone: true }" placeholder="Search by name or code…" aria-label="Search products"
         class="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm" />
       <select [ngModel]="categoryFilter()" (ngModelChange)="onCategory($event)"
         [ngModelOptions]="{ standalone: true }" aria-label="Category"
@@ -50,7 +50,10 @@ const MAX_PAGE = 60;
         <label class="flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 cursor-pointer">
           <input type="checkbox" [checked]="isSelected(p.id)" (change)="toggle(p.id)" />
           @if (p.imageUrl) { <img [src]="p.imageUrl" [alt]="p.name" class="h-8 w-8 rounded object-cover" /> }
-          <span class="flex-1">{{ p.name }}</span>
+          <span class="flex-1">
+            {{ p.name }}
+            @if (p.productCode) { <span class="ml-1 font-mono text-xs text-gray-400">{{ p.productCode }}</span> }
+          </span>
           <span class="text-xs text-gray-400">৳{{ p.price }}</span>
         </label>
       } @empty {

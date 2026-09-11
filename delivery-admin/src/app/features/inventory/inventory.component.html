@@ -125,7 +125,10 @@
                   }
                 </div>
                 <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium text-gray-800 truncate">{{ product.productName }}</p>
+                  <p class="text-sm font-medium text-gray-800 truncate">
+                    {{ product.productName }}
+                    @if (product.productCode) { <span class="ml-1 font-mono text-xs text-gray-400">{{ product.productCode }}</span> }
+                  </p>
                   <p class="text-xs text-gray-400">Current: {{ product.stockQuantity }} {{ product.unit }}</p>
                 </div>
                 <!-- Inline qty input (only when selected) -->
@@ -164,6 +167,7 @@
                   <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-orange-200 rounded-lg text-xs font-medium text-orange-700">
                     <span class="w-1.5 h-1.5 rounded-full" [class]="p.stockStatus === 'OUT_OF_STOCK' ? 'bg-red-500' : 'bg-orange-500'"></span>
                     {{ p.productName }}
+                    @if (p.productCode) { <span class="font-mono">· {{ p.productCode }}</span> }
                     <span class="text-orange-400">({{ p.stockQuantity }} {{ p.unit }})</span>
                   </span>
                 }
@@ -193,7 +197,7 @@
               type="text"
               [ngModel]="searchQuery()"
               (ngModelChange)="onSearchChange($event)"
-              placeholder="Search by product name or SKU..."
+              placeholder="Search by product name, code or SKU..."
               class="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400 placeholder-gray-400"
             />
           </div>
@@ -240,7 +244,7 @@
                   <!-- Product name -->
                   <td class="px-5 py-3.5">
                     <p class="font-semibold text-gray-800 leading-tight">{{ product.productName }}</p>
-                    <p class="text-xs text-gray-400 mt-0.5">ID: {{ product.productId }}</p>
+                    <p class="mt-0.5 font-mono text-xs font-medium text-gray-600">Code: {{ product.productCode || '—' }}</p>
                   </td>
                   <!-- SKU -->
                   <td class="px-5 py-3.5">
@@ -306,6 +310,7 @@
                       <div class="max-w-lg">
                         <p class="text-sm font-semibold text-gray-800 mb-3">
                           Update stock for <span class="text-blue-600">{{ product.productName }}</span>
+                          @if (product.productCode) { <span class="font-mono text-xs text-gray-400">({{ product.productCode }})</span> }
                         </p>
 
                         <div class="flex items-end gap-3">

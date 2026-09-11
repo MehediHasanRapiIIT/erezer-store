@@ -2,6 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, input, output, signal } from '@angular/core';
 import { Observable } from 'rxjs';
 import { PermissionService } from '../../core/services/permission.service';
+import { ConfirmService } from '../../core/services/confirm.service';
 import { PermissionTemplate, StaffService } from '../../core/services/staff.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 
@@ -60,6 +61,7 @@ import { parseApiError } from '../../core/utils/api-error.util';
 export class PermissionTemplatesComponent {
   private readonly api = inject(StaffService);
   protected readonly perms = inject(PermissionService);
+  private readonly confirmer = inject(ConfirmService);
 
   readonly templates = input.required<PermissionTemplate[]>();
   /** The current ticks, for "Save ticks as template…". */
@@ -99,8 +101,14 @@ export class PermissionTemplatesComponent {
     this.run(this.api.updateTemplate(t.id, { name, permissions: t.permissions }));
   }
 
-  protected remove(t: PermissionTemplate): void {
-    if (!confirm(`Delete the template “${t.name}”? People already given these permissions keep them.`)) return;
+  protected async remove(t: PermissionTemplate): Promise<void> {
+    const ok = await this.confirmer.ask({
+      title: `Delete the template “${t.name}”?`,
+      message: 'People already given these permissions keep them.',
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     this.run(this.api.deleteTemplate(t.id));
   }
 

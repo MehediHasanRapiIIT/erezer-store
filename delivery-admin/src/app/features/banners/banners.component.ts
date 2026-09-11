@@ -5,6 +5,7 @@ import { BannerService } from '../../core/services/banner.service';
 import { BannerContent, BannerResponse, BannerSlot, CategoryResponse } from '../../core/models/api.models';
 import { CategoryService } from '../../core/services/category.service';
 import { PermissionService } from '../../core/services/permission.service';
+import { NoticeService } from '../../core/services/notice.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 import { catchError, of } from 'rxjs';
 
@@ -48,6 +49,7 @@ export class BannersComponent implements OnInit {
   private bannerService = inject(BannerService);
   private categoryService = inject(CategoryService);
   protected readonly perms = inject(PermissionService);
+  private readonly notices = inject(NoticeService);
 
   banners = signal<BannerResponse[]>([]);
   isLoading = signal(true);
@@ -525,6 +527,7 @@ export class BannersComponent implements OnInit {
           this.banners.update((list) => [banner, ...list]);
         }
         this.isSaving.set(false);
+        this.notices.success(editId ? 'Banner saved' : 'Banner added');
         this.closeForm();
       },
       error: (err) => {
@@ -542,6 +545,7 @@ export class BannersComponent implements OnInit {
     this.bannerService.deleteBanner(id).subscribe({
       next: () => {
         this.banners.update((list) => list.filter((b) => b.id !== id));
+        this.notices.success('Banner deleted');
         this.deleteConfirmId.set(null);
         this.isDeleting.set(false);
       },

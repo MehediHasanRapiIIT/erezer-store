@@ -10,6 +10,8 @@ import {
   FlashSaleService,
 } from '../../core/services/flash-sale.service';
 import { PermissionService } from '../../core/services/permission.service';
+import { ConfirmService } from '../../core/services/confirm.service';
+import { NoticeService } from '../../core/services/notice.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 
 interface FlashSaleForm {
@@ -238,6 +240,8 @@ const EMPTY_FORM: FlashSaleForm = {
 export class FlashSaleComponent implements OnInit {
   private readonly api = inject(FlashSaleService);
   protected readonly perms = inject(PermissionService);
+  private readonly confirmer = inject(ConfirmService);
+  private readonly notices = inject(NoticeService);
 
   readonly sales      = signal<FlashSaleResponse[]>([]);
   readonly loading     = signal(false);
@@ -340,16 +344,24 @@ export class FlashSaleComponent implements OnInit {
       } else {
         this.sales.update((list) => [...list, saved]);
       }
+      this.notices.success(editId ? 'Flash sale saved' : 'Flash sale added', saved.name);
       this.cancelEdit();
     });
   }
 
-  protected remove(s: FlashSaleResponse): void {
-    if (!confirm(`Delete flash sale "${s.name}"?`)) return;
+  protected async remove(s: FlashSaleResponse): Promise<void> {
+    const ok = await this.confirmer.ask({
+      title: `Delete flash sale "${s.name}"?`,
+      message: 'It stops showing in the shop straight away.',
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     this.api.delete(s.id)
       .pipe(catchError((err) => { this.errorMessage.set(parseApiError(err)); return EMPTY; }))
       .subscribe(() => {
         this.sales.update((list) => list.filter((x) => x.id !== s.id));
+        this.notices.success('Flash sale deleted', s.name);
       });
   }
 

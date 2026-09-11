@@ -26,6 +26,8 @@ export interface OtpVerifyResponse {
 export interface ProductRequest {
   categoryId: number;
   name: string;
+  /** Typed by staff; required, and several products may share one. */
+  productCode: string;
   description: string;
   price: number;
   discountPercentage?: number;
@@ -52,6 +54,8 @@ export interface ProductResponse {
   categoryId: number;
   categoryName: string | null;
   sku: string | null;
+  /** Typed by staff; several products may share one. */
+  productCode: string;
   unit: string | null;
   name: string;
   description: string;
@@ -108,6 +112,7 @@ export interface StockResponse {
   stockQuantity: number;
   stockStatus: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK';
   lowStockThreshold: number | null;
+  productCode: string | null;
 }
 
 export interface InventorySummary {
@@ -206,6 +211,8 @@ export interface OrderItem {
   orderId: string;
   productId: string | null;
   productName: string | null;
+  /** The product code when the order was placed. */
+  productCode: string | null;
   imageUrl: string | null;
   quantity: number;
   priceAtOrder: number;

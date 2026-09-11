@@ -7,6 +7,7 @@ import { StockService } from '../../core/services/stock.service';
 import { BulkStockItem, InventorySummary, StockResponse, StockUpdateRequest } from '../../core/models/api.models';
 import { parseApiError } from '../../core/utils/api-error.util';
 import { PermissionService } from '../../core/services/permission.service';
+import { NoticeService } from '../../core/services/notice.service';
 
 /**
  * The Inventory page. The list is searched and paged by the server; the
@@ -21,6 +22,7 @@ import { PermissionService } from '../../core/services/permission.service';
 })
 export class InventoryComponent implements OnInit, OnDestroy {
   private stockService = inject(StockService);
+  private readonly notices = inject(NoticeService);
   protected readonly perms = inject(PermissionService);
 
   readonly pageSize = 20;
@@ -154,6 +156,7 @@ export class InventoryComponent implements OnInit, OnDestroy {
         this.loadAlertsAndSummary();
         this.updateLoading.set(false);
         this.updateSuccess.set(true);
+        this.notices.success('Stock updated', `${updated.productName}: ${updated.stockQuantity} ${updated.unit}`);
         this.alertsDismissed.set(false); // refresh alerts
         setTimeout(() => this.closeUpdatePanel(), 1200);
       },
@@ -259,6 +262,7 @@ export class InventoryComponent implements OnInit, OnDestroy {
         this.loadAlertsAndSummary();
         this.bulkLoading.set(false);
         this.bulkSuccess.set(true);
+        this.notices.success('Stock updated', `${results.length} product(s)`);
         this.bulkSelections.set([]);
         this.alertsDismissed.set(false);
         setTimeout(() => { this.bulkSuccess.set(false); this.toggleBulkMode(); }, 1500);

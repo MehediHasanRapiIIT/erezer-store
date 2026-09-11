@@ -23,6 +23,10 @@ public class OrderItem extends AbstractBaseEntity<UUID> {
 
     private Long productId;
 
+    /** The product code when the order was placed, kept like the price so later edits don't rewrite invoices. */
+    @Column(name = "product_code", length = 40)
+    private String productCode;
+
     private Integer quantity;
 
     private BigDecimal priceAtOrder;

@@ -67,7 +67,8 @@ public class InventoryServiceImpl implements InventoryService {
                     product.getUnit() != null ? product.getUnit() : "units",
                     product.getStockQuantity(),
                     status,
-                    product.getLowStockThreshold()
+                    product.getLowStockThreshold(),
+                    product.getProductCode()
             );
         }
         return toStockResponseDTO(product, inventory);
@@ -115,7 +116,8 @@ public class InventoryServiceImpl implements InventoryService {
                     product.getUnit() != null ? product.getUnit() : "units",
                     product.getStockQuantity(),
                     status,
-                    product.getLowStockThreshold()
+                    product.getLowStockThreshold(),
+                    product.getProductCode()
             );
         }
         return toStockResponseDTO(product, inventory);
@@ -266,7 +268,8 @@ public class InventoryServiceImpl implements InventoryService {
                 product.getUnit() != null ? product.getUnit() : (inventory.getUnit() != null ? inventory.getUnit() : "units"),
                 inventory.getStockQuantity(),
                 status,
-                inventory.getLowStockThreshold()
+                inventory.getLowStockThreshold(),
+                product.getProductCode()
         );
     }
 

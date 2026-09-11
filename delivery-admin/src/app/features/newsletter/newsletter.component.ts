@@ -13,6 +13,8 @@ import {
   NewsletterSubscriber,
 } from '../../core/services/newsletter.service';
 import { PermissionService } from '../../core/services/permission.service';
+import { ConfirmService } from '../../core/services/confirm.service';
+import { NoticeService } from '../../core/services/notice.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 
 type Tab = 'subscribers' | 'campaigns' | 'compose';
@@ -249,6 +251,8 @@ type Tab = 'subscribers' | 'campaigns' | 'compose';
 export class NewsletterComponent implements OnInit, OnDestroy {
   private readonly api = inject(AdminNewsletterService);
   protected readonly perms = inject(PermissionService);
+  private readonly confirmer = inject(ConfirmService);
+  private readonly notices = inject(NoticeService);
 
   protected readonly tabs: { id: Tab; label: string }[] = [
     { id: 'subscribers', label: 'Subscribers' },
@@ -452,8 +456,13 @@ export class NewsletterComponent implements OnInit, OnDestroy {
 
   // ── send / delete ────────────────────────────────────────────────────────
 
-  protected send(c: NewsletterCampaign): void {
-    if (!confirm(`Send "${c.subject}" to ${c.audience.replace('_', ' ').toLowerCase()}?`)) return;
+  protected async send(c: NewsletterCampaign): Promise<void> {
+    const ok = await this.confirmer.ask({
+      title: `Send "${c.subject}"?`,
+      message: `It goes to ${c.audience.replace('_', ' ').toLowerCase()} and can't be taken back.`,
+      confirmLabel: 'Send now',
+    });
+    if (!ok) return;
     this.acting.set(true);
     this.error.set('');
     this.api.send(c.id).pipe(catchError((err) => {
@@ -465,13 +474,20 @@ export class NewsletterComponent implements OnInit, OnDestroy {
       if (updated) {
         // Updated row will be in SENDING; user can refresh later to see final count.
         this.campaigns.update((list) => list.map((x) => x.id === updated.id ? updated : x));
+        this.notices.success('Sending started', c.subject);
         this.loadCampaigns(this.campPage());
       }
     });
   }
 
-  protected remove(c: NewsletterCampaign): void {
-    if (!confirm(`Delete draft "${c.subject}"?`)) return;
+  protected async remove(c: NewsletterCampaign): Promise<void> {
+    const ok = await this.confirmer.ask({
+      title: `Delete draft "${c.subject}"?`,
+      message: "This can't be undone.",
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     this.acting.set(true);
     this.api.delete(c.id).pipe(catchError((err) => {
       this.error.set(parseApiError(err));
@@ -480,6 +496,7 @@ export class NewsletterComponent implements OnInit, OnDestroy {
     })).subscribe(() => {
       this.acting.set(false);
       this.campaigns.update((list) => list.filter((x) => x.id !== c.id));
+      this.notices.success('Draft deleted', c.subject);
       this.loadCampaigns(this.campPage());
     });
   }

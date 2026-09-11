@@ -229,21 +229,22 @@ public interface ReportRepository extends JpaRepository<Order, UUID> {
 
     /**
      * Top products by units sold on counted orders in the window.
-     * Rows: [productId, name, imageUrl, units, salesValue, orderCount].
+     * Rows: [productId, name, imageUrl, units, salesValue, orderCount, productCode].
      */
     @Query(value =
             "SELECT p.id, p.name, p.image_url," +
             "       COALESCE(SUM(oi.quantity), 0)                                            AS units_sold," +
             "       COALESCE(SUM(oi.quantity * COALESCE(oi.price_at_order, 0)" +
             "                    + COALESCE(oi.custom_surcharge, 0)), 0)                     AS sales_value," +
-            "       COUNT(DISTINCT o.id)                                                     AS order_count " +
+            "       COUNT(DISTINCT o.id)                                                     AS order_count," +
+            "       p.product_code " +
             "FROM order_item oi " +
             "JOIN orders  o ON o.id = oi.order_id " +
             "JOIN product p ON p.id = oi.product_id " +
             "WHERE " + WINDOW +
             "  AND " + COUNTED +
             "  AND COALESCE(oi.deleted, false) = false " +
-            "GROUP BY p.id, p.name, p.image_url " +
+            "GROUP BY p.id, p.name, p.image_url, p.product_code " +
             "ORDER BY units_sold DESC, sales_value DESC, p.name " +
             "LIMIT :limit",
             nativeQuery = true)

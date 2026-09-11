@@ -6,6 +6,8 @@ import { ProductMultiPickerComponent } from '../../shared/product-picker/product
 import { BundleRequest, BundleResponse, BundleService } from '../../core/services/bundle.service';
 import { UploadService } from '../../core/services/upload.service';
 import { PermissionService } from '../../core/services/permission.service';
+import { ConfirmService } from '../../core/services/confirm.service';
+import { NoticeService } from '../../core/services/notice.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 
 interface BundleForm {
@@ -244,6 +246,8 @@ export class BundlesComponent implements OnInit {
   private readonly api = inject(BundleService);
   private readonly uploadApi = inject(UploadService);
   protected readonly perms = inject(PermissionService);
+  private readonly confirmer = inject(ConfirmService);
+  private readonly notices = inject(NoticeService);
 
   readonly bundles = signal<BundleResponse[]>([]);
   readonly loading = signal(false);
@@ -361,14 +365,24 @@ export class BundlesComponent implements OnInit {
         } else {
           this.bundles.update((list) => [...list, saved]);
         }
+        this.notices.success(editId ? 'Bundle saved' : 'Bundle added', saved.name);
         this.cancelEdit();
       });
   }
 
-  protected remove(b: BundleResponse): void {
-    if (!confirm(`Delete bundle "${b.name}"?`)) return;
+  protected async remove(b: BundleResponse): Promise<void> {
+    const ok = await this.confirmer.ask({
+      title: `Delete bundle "${b.name}"?`,
+      message: 'It stops showing in the shop straight away.',
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     this.api.delete(b.id)
       .pipe(catchError((err) => { this.errorMessage.set(parseApiError(err)); return EMPTY; }))
-      .subscribe(() => this.bundles.update((list) => list.filter((x) => x.id !== b.id)));
+      .subscribe(() => {
+        this.bundles.update((list) => list.filter((x) => x.id !== b.id));
+        this.notices.success('Bundle deleted', b.name);
+      });
   }
 }

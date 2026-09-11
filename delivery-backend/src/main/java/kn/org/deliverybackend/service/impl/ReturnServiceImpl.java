@@ -312,13 +312,14 @@ public class ReturnServiceImpl implements ReturnService {
     }
 
     private ReturnItemDTO toItemDTO(ReturnItem i) {
-        String name = i.getProductId() == null ? null
-                : productRepository.findById(i.getProductId()).map(p -> p.getName()).orElse(null);
+        var product = i.getProductId() == null ? java.util.Optional.<kn.org.deliverybackend.entity.Product>empty()
+                : productRepository.findById(i.getProductId());
         return ReturnItemDTO.builder()
                 .id(i.getId())
                 .orderItemId(i.getOrderItemId())
                 .productId(i.getProductId())
-                .productName(name)
+                .productName(product.map(kn.org.deliverybackend.entity.Product::getName).orElse(null))
+                .productCode(product.map(kn.org.deliverybackend.entity.Product::getProductCode).orElse(null))
                 .quantity(i.getQuantity())
                 .condition(i.getCondition())
                 .lineRefundAmount(i.getLineRefundAmount())

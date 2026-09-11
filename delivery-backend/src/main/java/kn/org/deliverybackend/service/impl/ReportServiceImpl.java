@@ -183,6 +183,7 @@ public class ReportServiceImpl implements ReportService {
                         .unitsSold(num(r, 3).longValue())
                         .revenue(bd(r, 4))
                         .orderCount(num(r, 5).longValue())
+                        .productCode((String) r[6])
                         .build())
                 .toList();
     }

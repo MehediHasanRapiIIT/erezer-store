@@ -86,6 +86,8 @@ public class AnalyticsDTO {
         private double price;
         private int stockQuantity;
         private String stockStatus;
+        /** Typed by staff; several products may share one. */
+        private String productCode;
     }
 
     @Data @NoArgsConstructor @AllArgsConstructor

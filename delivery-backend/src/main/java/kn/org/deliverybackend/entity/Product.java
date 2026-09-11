@@ -28,6 +28,10 @@ public class Product extends AbstractBaseEntity<Long> {
     @Column(unique = true)
     private String sku;
 
+    /** Typed by staff; required, and several products may share one. The SKU above stays automatic. */
+    @Column(name = "product_code", nullable = false, length = 40)
+    private String productCode;
+
     private String unit;
 
     private BigDecimal price;
@@ -95,6 +99,13 @@ public class Product extends AbstractBaseEntity<Long> {
      */
     @Column(name = "discount_excluded")
     private Boolean discountExcluded;
+
+    /** Spaces at either end of the product code are never kept. */
+    @PrePersist
+    @PreUpdate
+    void tidyProductCode() {
+        if (productCode != null) productCode = productCode.trim();
+    }
 
     @PostPersist
     public void generateSku() {

@@ -13,6 +13,7 @@ import {
 } from '../../core/services/store-settings.service';
 import { UploadService } from '../../core/services/upload.service';
 import { PermissionService } from '../../core/services/permission.service';
+import { NoticeService } from '../../core/services/notice.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 
 /** Preset icons selectable for "Our promise" footer items. */
@@ -555,6 +556,7 @@ export class StoreSettingsComponent implements OnInit {
   private readonly api = inject(StoreSettingsService);
   private readonly uploads = inject(UploadService);
   protected readonly perms = inject(PermissionService);
+  private readonly notices = inject(NoticeService);
 
   protected readonly promiseIcons = PROMISE_ICONS;
   protected readonly highlightIcons = HIGHLIGHT_ICONS;
@@ -760,6 +762,7 @@ export class StoreSettingsComponent implements OnInit {
       this.saving.set(false);
       if (!s) return;
       this.apply(s);
+      this.notices.success('Settings saved');
       this.savedMessage.set('Saved.');
       setTimeout(() => this.savedMessage.set(''), 2500);
     });

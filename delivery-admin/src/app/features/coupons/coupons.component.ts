@@ -9,6 +9,8 @@ import {
   CouponService,
 } from '../../core/services/coupon.service';
 import { PermissionService } from '../../core/services/permission.service';
+import { ConfirmService } from '../../core/services/confirm.service';
+import { NoticeService } from '../../core/services/notice.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 
 interface CouponForm {
@@ -222,6 +224,8 @@ const EMPTY_FORM: CouponForm = {
 export class CouponsComponent implements OnInit {
   private readonly api = inject(CouponService);
   protected readonly perms = inject(PermissionService);
+  private readonly confirmer = inject(ConfirmService);
+  private readonly notices = inject(NoticeService);
 
   readonly coupons    = signal<CouponResponse[]>([]);
   readonly loading    = signal(false);
@@ -306,16 +310,24 @@ export class CouponsComponent implements OnInit {
       } else {
         this.coupons.update((list) => [...list, saved]);
       }
+      this.notices.success(editId ? 'Coupon saved' : 'Coupon added', saved.code);
       this.cancelEdit();
     });
   }
 
-  protected remove(c: CouponResponse): void {
-    if (!confirm(`Delete coupon "${c.code}"?`)) return;
+  protected async remove(c: CouponResponse): Promise<void> {
+    const ok = await this.confirmer.ask({
+      title: `Delete coupon "${c.code}"?`,
+      message: 'Customers will no longer be able to use this code.',
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     this.api.delete(c.id)
       .pipe(catchError((err) => { this.errorMessage.set(parseApiError(err)); return EMPTY; }))
       .subscribe(() => {
         this.coupons.update((list) => list.filter((x) => x.id !== c.id));
+        this.notices.success('Coupon deleted', c.code);
       });
   }
 

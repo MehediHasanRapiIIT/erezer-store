@@ -7,6 +7,7 @@ import { CategoryService } from '../../../core/services/category.service';
 import { CategoryResponse, ProductRequest } from '../../../core/models/api.models';
 import { parseApiError } from '../../../core/utils/api-error.util';
 import { PermissionService } from '../../../core/services/permission.service';
+import { NoticeService } from '../../../core/services/notice.service';
 
 @Component({
   selector: 'app-add-product',
@@ -19,9 +20,12 @@ export class AddProductComponent implements OnInit {
   private productService = inject(ProductService);
   private categoryService = inject(CategoryService);
   protected readonly perms = inject(PermissionService);
+  private readonly notices = inject(NoticeService);
 
   // Form fields
   productName  = signal('');
+  /** Typed by staff; required, and several products may share one. */
+  productCode  = signal('');
   description  = signal('');
   basePrice    = signal<number | null>(null);
   discount     = signal<number>(0);
@@ -43,7 +47,7 @@ export class AddProductComponent implements OnInit {
   descLength = computed(() => this.description().length);
 
   isDirty = computed(() =>
-    !!this.productName() || !!this.description() || !!this.basePrice()
+    !!this.productName() || !!this.productCode() || !!this.description() || !!this.basePrice()
   );
 
   ngOnInit() {
@@ -61,6 +65,10 @@ export class AddProductComponent implements OnInit {
       this.fieldErrors.set({ name: 'Product name is required.' });
       return;
     }
+    if (!this.productCode().trim()) {
+      this.fieldErrors.set({ productCode: 'Product code is required.' });
+      return;
+    }
     if (!this.basePrice() || this.basePrice()! <= 0) {
       this.fieldErrors.set({ price: 'A valid price is required.' });
       return;
@@ -72,6 +80,7 @@ export class AddProductComponent implements OnInit {
 
     const dto: ProductRequest = {
       name: this.productName().trim(),
+      productCode: this.productCode().trim(),
       description: this.description().trim(),
       price: this.basePrice()!,
       discountPercentage: this.discount() || undefined,
@@ -87,6 +96,7 @@ export class AddProductComponent implements OnInit {
     this.productService.createProduct(dto).subscribe({
       next: (created) => {
         this.isLoading.set(false);
+        this.notices.success('Product added', created.name);
         // Land on the editor so images (gallery) and variants can be added next.
         this.router.navigate(['/products', created.id, 'edit']);
       },

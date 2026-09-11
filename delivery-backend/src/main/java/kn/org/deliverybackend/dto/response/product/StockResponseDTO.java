@@ -17,4 +17,6 @@ public class StockResponseDTO {
     private int stockQuantity;
     private StockStatus stockStatus;
     private Integer lowStockThreshold;
+    /** Typed by staff; several products may share one. */
+    private String productCode;
 }

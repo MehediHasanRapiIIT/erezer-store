@@ -7,6 +7,7 @@ import { CategoryService } from '../../../core/services/category.service';
 import { CategoryResponse } from '../../../core/models/api.models';
 import { parseApiError } from '../../../core/utils/api-error.util';
 import { PermissionService } from '../../../core/services/permission.service';
+import { NoticeService } from '../../../core/services/notice.service';
 
 /** The Categories page. Search and paging are done by the server. */
 @Component({
@@ -17,6 +18,7 @@ import { PermissionService } from '../../../core/services/permission.service';
 })
 export class CategoriesListComponent implements OnInit, OnDestroy {
   private categoryService = inject(CategoryService);
+  private readonly notices = inject(NoticeService);
   private router = inject(Router);
   protected readonly perms = inject(PermissionService);
 
@@ -133,6 +135,8 @@ export class CategoriesListComponent implements OnInit, OnDestroy {
         this.categories.update(list =>
           list.map(c => c.id === cat.id ? { ...c, isActive: updated.isActive } : c)
         );
+        this.notices.success(
+          updated.isActive ? 'Category is visible in the shop' : 'Category hidden from the shop', cat.name);
       },
       error: (err) => this.errorMessage.set(parseApiError(err)),
     });
@@ -154,6 +158,7 @@ export class CategoriesListComponent implements OnInit, OnDestroy {
     this.isDeleting.set(true);
     this.categoryService.deleteCategory(id).subscribe({
       next: () => {
+        this.notices.success('Category deleted');
         this.deleteConfirmId.set(null);
         this.isDeleting.set(false);
         this.loadPage(this.currentPage());

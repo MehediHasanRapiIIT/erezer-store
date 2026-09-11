@@ -379,7 +379,10 @@
                           </div>
                         }
                       </div>
-                      <p class="font-medium text-gray-800 truncate max-w-[180px]">{{ product.name }}</p>
+                      <div class="min-w-0">
+                        <p class="font-medium text-gray-800 truncate max-w-[180px]">{{ product.name }}</p>
+                        @if (product.productCode) { <p class="font-mono text-[11px] text-gray-400">{{ product.productCode }}</p> }
+                      </div>
                     </div>
                   </td>
                   <td class="px-5 py-3.5 font-semibold text-gray-800">৳ {{ product.price.toLocaleString() }}</td>

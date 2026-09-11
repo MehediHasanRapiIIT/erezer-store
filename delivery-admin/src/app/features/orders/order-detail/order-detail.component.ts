@@ -14,6 +14,7 @@ import {
 } from '../../../core/models/api.models';
 import { parseApiError } from '../../../core/utils/api-error.util';
 import { PermissionService } from '../../../core/services/permission.service';
+import { NoticeService } from '../../../core/services/notice.service';
 import { OrderNotesComponent } from '../order-notes/order-notes.component';
 
 // Display order for the lifecycle timeline (PENDING omitted — it's a legacy alias).
@@ -37,10 +38,13 @@ export class OrderDetailComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private orderService = inject(OrderService);
+  private readonly notices = inject(NoticeService);
   private sanitizer = inject(DomSanitizer);
   protected readonly perms = inject(PermissionService);
 
   readonly order = signal<OrderResponse | null>(null);
+  /** A product picture opened full size from the items list. */
+  readonly previewImage = signal<{ url: string; name: string } | null>(null);
   readonly tracking = signal<OrderTrackingResponse | null>(null);
   readonly statusOptions = signal<OrderStatusOption[]>([]);
 
@@ -211,6 +215,7 @@ export class OrderDetailComponent implements OnInit {
       next: (res) => {
         this.invoiceBusy.set(false);
         this.invoiceMessage.set(res.message);
+        this.notices.success('Invoice sent', res.message);
       },
       error: (err) => {
         this.invoiceBusy.set(false);
@@ -303,6 +308,7 @@ export class OrderDetailComponent implements OnInit {
         this.statusNote.set('');
         this.isUpdating.set(false);
         this.updateSuccess.set(true);
+        this.notices.success('Order status updated', this.statusLabel(this.selectedStatus()));
         this.loadTracking(updated.id);
         setTimeout(() => this.updateSuccess.set(false), 3000);
       },

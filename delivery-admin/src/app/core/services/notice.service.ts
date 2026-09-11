@@ -2,7 +2,7 @@ import { Injectable, signal } from '@angular/core';
 
 export interface Notice {
   id: number;
-  kind: 'error' | 'info';
+  kind: 'success' | 'error' | 'info';
   title: string;
   message: string;
 }
@@ -19,6 +19,16 @@ export class NoticeService {
     const notice: Notice = { id: this.nextId++, kind, title, message };
     this.notices.update((list) => [...list, notice]);
     setTimeout(() => this.dismiss(notice.id), durationMs);
+  }
+
+  /** "Saved", "Deleted", "Updated": gone again in a few seconds. */
+  success(title: string, message = ''): void {
+    this.show('success', title, message, 4000);
+  }
+
+  /** Something didn't work; stays longer so it can be read. */
+  error(title: string, message = ''): void {
+    this.show('error', title, message, 7000);
   }
 
   dismiss(id: number): void {

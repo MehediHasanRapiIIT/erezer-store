@@ -128,6 +128,12 @@ function ymd(d: Date): string {
                               {{ e.status === 403 ? 'Refused' : 'Failed' }} ({{ e.status }})
                             </span>
                           }
+                          @if (e.details) {
+                            <details class="mt-1">
+                              <summary class="cursor-pointer text-xs text-blue-600">Show details</summary>
+                              <pre class="mt-1 max-h-72 overflow-auto whitespace-pre-wrap rounded bg-gray-50 p-2 font-sans text-xs text-gray-600">{{ e.details }}</pre>
+                            </details>
+                          }
                         </td>
                         <td class="px-4 py-2.5 text-xs text-gray-500">{{ e.area || '—' }}</td>
                         <td class="px-4 py-2.5 text-xs text-gray-500">

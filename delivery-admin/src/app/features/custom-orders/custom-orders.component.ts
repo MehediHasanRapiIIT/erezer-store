@@ -10,6 +10,8 @@ import {
   CustomOrderSummary,
 } from '../../core/services/custom-order.service';
 import { PermissionService } from '../../core/services/permission.service';
+import { ConfirmService } from '../../core/services/confirm.service';
+import { NoticeService } from '../../core/services/notice.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 
 const STATUSES: CustomOrderStatus[] = ['NEW', 'IN_REVIEW', 'QUOTED', 'CONFIRMED', 'DELIVERED', 'CLOSED'];
@@ -260,6 +262,8 @@ const ACTIVE_FILTER_STATUSES: CustomOrderStatus[] = ['NEW', 'IN_REVIEW', 'QUOTED
 export class CustomOrdersComponent implements OnInit, OnDestroy {
   private readonly api = inject(CustomOrderService);
   protected readonly perms = inject(PermissionService);
+  private readonly confirmer = inject(ConfirmService);
+  private readonly notices = inject(NoticeService);
 
   // Server search: reference, customer name, phone, email, item
   readonly searchQuery = signal('');
@@ -372,18 +376,26 @@ export class CustomOrdersComponent implements OnInit, OnDestroy {
         if (updated) {
           this.detail.set(updated);
           this.orders.update((list) => list.map((x) => x.id === updated.id ? { ...x, status: updated.status } : x));
+          this.notices.success('Request saved', updated.reference);
         }
       });
   }
 
-  protected remove(d: CustomOrderDetail): void {
-    if (!confirm('Delete this request?')) return;
+  protected async remove(d: CustomOrderDetail): Promise<void> {
+    const ok = await this.confirmer.ask({
+      title: 'Delete this request?',
+      message: `${d.reference} — this can't be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     this.acting.set(true);
     this.api.delete(d.id)
       .pipe(catchError((err) => { this.error.set(parseApiError(err)); this.acting.set(false); return EMPTY; }))
       .subscribe(() => {
         this.acting.set(false);
         if (this.detail()?.id === d.id) this.detail.set(null);
+        this.notices.success('Request deleted', d.reference);
         // Reload from the server so the page stays full and the count right.
         this.reload();
       });

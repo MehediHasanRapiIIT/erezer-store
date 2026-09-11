@@ -20,6 +20,9 @@ public class OrderItemDTO {
 
     private String productName;
 
+    /** The product code when the order was placed. */
+    private String productCode;
+
     private String imageUrl;
 
     private Integer quantity;

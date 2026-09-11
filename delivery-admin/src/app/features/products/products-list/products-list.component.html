@@ -9,6 +9,27 @@
         <h1 class="text-xl font-bold text-gray-900">Product Management</h1>
         <p class="text-xs text-gray-400">Manage catalog, pricing, and stock for AmarBazaar delivery.</p>
       </div>
+      <div class="flex items-center gap-2">
+      @if (perms.allows(ACCESS.productPrices)) {
+        <!-- Opens with the category chosen in the list below, if any. -->
+        <a
+          routerLink="/products/prices"
+          [queryParams]="categoryId() != null ? { categoryId: categoryId() } : {}"
+          class="flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-semibold rounded-lg transition-colors"
+        >
+          ৳ Change prices
+        </a>
+      }
+      @if (perms.allows(ACCESS.productCodes)) {
+        <!-- Opens with the category chosen in the list below, if any. -->
+        <a
+          routerLink="/products/codes"
+          [queryParams]="categoryId() != null ? { categoryId: categoryId() } : {}"
+          class="flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-semibold rounded-lg transition-colors"
+        >
+          # Change codes
+        </a>
+      }
       @if (perms.allows(ACCESS.productNew)) {
         <a
           routerLink="/products/new"
@@ -20,6 +41,7 @@
           Add New Product
         </a>
       }
+      </div>
     </header>
 
     <main class="flex-1 overflow-y-auto p-6">
@@ -35,7 +57,7 @@
               type="text"
               [ngModel]="searchQuery()"
               (ngModelChange)="onSearchChange($event)"
-              placeholder="Search by name, SKU or category..."
+              placeholder="Search by name, code, SKU or category..."
               class="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400 placeholder-gray-400"
             />
           </div>
@@ -106,6 +128,7 @@
                   <!-- Product info -->
                   <td class="px-4 py-3.5">
                     <p class="font-semibold text-gray-800 leading-tight">{{ product.name }}</p>
+                    <p class="mt-0.5 font-mono text-xs font-medium text-gray-600">Code: {{ product.productCode }}</p>
                     <p class="text-xs text-gray-400 mt-0.5">
                       @if (product.sku) { <span>SKU: {{ product.sku }}</span> }
                       @if (product.sku && product.unit) { <span class="mx-1">•</span> }

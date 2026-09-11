@@ -10,6 +10,7 @@ import {
   ReturnStatus,
 } from '../../core/services/return.service';
 import { PermissionService } from '../../core/services/permission.service';
+import { NoticeService } from '../../core/services/notice.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 
 /**
@@ -119,7 +120,10 @@ import { parseApiError } from '../../core/utils/api-error.util';
                       @for (i of r.items; track i.id) {
                         <li class="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2">
                           <div>
-                            <p>{{ i.productName || ('Item ' + i.orderItemId) }}</p>
+                            <p>
+                              {{ i.productName || ('Item ' + i.orderItemId) }}
+                              @if (i.productCode) { <span class="ml-1 font-mono text-xs text-gray-400">{{ i.productCode }}</span> }
+                            </p>
                             <p class="text-xs text-gray-500">
                               Qty {{ i.quantity }}
                               @if (i.condition) { &middot; {{ i.condition }} }
@@ -211,6 +215,7 @@ import { parseApiError } from '../../core/utils/api-error.util';
 })
 export class ReturnsComponent implements OnInit, OnDestroy {
   private readonly api = inject(ReturnService);
+  private readonly notices = inject(NoticeService);
   protected readonly perms = inject(PermissionService);
 
   protected readonly pageSize = 20;
@@ -321,6 +326,12 @@ export class ReturnsComponent implements OnInit, OnDestroy {
       if (updated) {
         this.selected.set(updated);
         this.returns.update((list) => list.map((x) => x.id === updated.id ? updated : x));
+        this.notices.success({
+          approve: 'Return approved',
+          reject: 'Return rejected',
+          pickup: 'Marked as picked up',
+          refund: 'Refund recorded',
+        }[action]);
         // Stay on this page; the row may have left the current filter.
         this.loadPage(this.page());
       }

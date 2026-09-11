@@ -156,7 +156,8 @@ public class AdminDashboardController {
                     double price = p != null && p.getPrice() != null ? p.getPrice().doubleValue() : 0;
                     return new AnalyticsDTO.TopProduct(
                             t.getProductId(), t.getProductName(), t.getImageUrl(), price, stock,
-                            stock == 0 ? "OUT_OF_STOCK" : stock <= 10 ? "LOW_STOCK" : "IN_STOCK");
+                            stock == 0 ? "OUT_OF_STOCK" : stock <= 10 ? "LOW_STOCK" : "IN_STOCK",
+                            t.getProductCode());
                 })
                 .toList();
 

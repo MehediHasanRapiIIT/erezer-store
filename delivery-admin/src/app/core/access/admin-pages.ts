@@ -20,6 +20,8 @@ export const ACCESS = {
   products:     { any: ['products.view'] },
   productNew:   { all: ['products.create', 'products.price'] },
   productEdit:  { any: ['products.edit'] },
+  productPrices: { all: ['products.edit', 'products.price'] },
+  productCodes: { any: ['products.edit'] },
   categories:   { any: ['categories.view'] },
   categoryNew:  { any: ['categories.create'] },
   categoryEdit: { any: ['categories.edit'] },

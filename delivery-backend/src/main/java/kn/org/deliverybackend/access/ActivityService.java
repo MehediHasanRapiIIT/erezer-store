@@ -41,6 +41,8 @@ public class ActivityService {
             entry.setTargetId(truncate(target, 100));
             Object custom = request.getAttribute(StaffAccess.ACTIVITY_SUMMARY_ATTRIBUTE);
             entry.setSummary(truncate(custom != null ? custom.toString() : defaultSummary(request, perm, target), 400));
+            Object details = request.getAttribute(StaffAccess.ACTIVITY_DETAILS_ATTRIBUTE);
+            entry.setDetails(details == null ? null : truncate(details.toString(), 200_000));
             entry.setStatus(status);
             entry.setIpAddress(truncate(clientIp(request), 64));
             repository.save(entry);

@@ -16,6 +16,11 @@ public interface VariantRepository extends JpaRepository<Variant, Long> {
             "ORDER BY v.size ASC, v.id ASC")
     List<Variant> findByProductId(@Param("productId") Long productId);
 
+    /** The live sizes of several products at once. */
+    @Query("SELECT v FROM Variant v WHERE v.productId IN :productIds AND v.deleted = false " +
+            "ORDER BY v.productId, v.size, v.id")
+    List<Variant> findLiveByProductIds(@Param("productIds") java.util.Collection<Long> productIds);
+
     @Query("SELECT v FROM Variant v WHERE v.productId = :productId AND v.sku = :sku AND v.deleted = false")
     Optional<Variant> findByProductIdAndSku(@Param("productId") Long productId, @Param("sku") String sku);
 

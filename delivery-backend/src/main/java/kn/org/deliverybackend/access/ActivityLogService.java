@@ -68,6 +68,6 @@ public class ActivityLogService {
     private ActivityEntryDTO toDTO(AdminActivity a) {
         return new ActivityEntryDTO(a.getId(), SHOWN.format(calendar.fromUtc(a.getOccurredAt())),
                 a.getStaffId(), a.getStaffName(), a.getStaffUsername(), a.getMethod(), a.getPath(),
-                a.getPermKey(), a.getArea(), a.getTargetId(), a.getSummary(), a.getStatus());
+                a.getPermKey(), a.getArea(), a.getTargetId(), a.getSummary(), a.getStatus(), a.getDetails());
     }
 }

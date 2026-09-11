@@ -67,7 +67,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @WebMvcTest(controllers = {AdminCouponController.class, AdminOrderController.class, AdminMeController.class,
         AdminCustomerController.class, AdminStoreSettingsController.class,
-        kn.org.deliverybackend.controller.CategoryController.class})
+        kn.org.deliverybackend.controller.CategoryController.class,
+        kn.org.deliverybackend.controller.AdminPriceChangeController.class})
 @Import({SecurityConfig.class, JwtTokenProvider.class, CorsConfig.class, StaffDirectory.class, ActivityService.class})
 @TestPropertySource(properties = {
         "app.jwt.secret=" + CustomerAccessSecurityTest.SECRET,
@@ -307,6 +308,50 @@ class AdminPermissionSecurityTest {
         as("mod", put("/api/categories/5").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"Tops\",\"isActive\":true,\"discountExcluded\":true}"))
                 .andExpect(status().isOk());
+    }
+
+    // ── category price changes ──────────────────────────────────────────────
+
+    @MockBean private kn.org.deliverybackend.service.PriceChangeService priceChangeService;
+
+    private static final String PRICE_CHANGE = "{\"categoryId\":7,\"priceMode\":\"RAISE_PERCENT\",\"priceValue\":10,"
+            + "\"saleMode\":\"KEEP\",\"productIds\":[1]}";
+
+    @Test
+    void changingPricesByCategoryNeedsChangePricesAsWellAsEditProducts() throws Exception {
+        moderator("products.edit");
+        as("mod", get("/admin/products/price-change/preview?categoryId=7&priceMode=RAISE_PERCENT"
+                + "&priceValue=10&saleMode=KEEP")).andExpect(status().isForbidden());
+        as("mod", org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/admin/products/price-change")
+                .contentType(MediaType.APPLICATION_JSON).content(PRICE_CHANGE))
+                .andExpect(status().isForbidden());
+        verify(priceChangeService, never()).preview(any(), any(),
+                org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt());
+        verify(priceChangeService, never()).apply(any());
+    }
+
+    @Test
+    void aCategoryPriceChangeIsLoggedWithEveryOldAndNewPrice() throws Exception {
+        moderator("products.edit", "products.price");
+        var size = new kn.org.deliverybackend.dto.response.product.PriceChangePreviewDTO.SizeRow(
+                11L, "XXL", new java.math.BigDecimal("1500"), new java.math.BigDecimal("1650"));
+        var row = new kn.org.deliverybackend.dto.response.product.PriceChangePreviewDTO.Row(
+                1L, "Classic Hoodie", "CL-00001", "H-1", null,
+                new java.math.BigDecimal("1400"), new java.math.BigDecimal("1540.00"),
+                new java.math.BigDecimal("1260"), new java.math.BigDecimal("1386.00"),
+                java.util.List.of(size), true, null);
+        when(priceChangeService.apply(any())).thenReturn(new kn.org.deliverybackend.dto.response.product
+                .PriceChangePreviewDTO(7L, "Hoodies", 1, 1, 0, java.util.List.of(1L), 0, 1, 1, 1,
+                java.util.List.of(row)));
+
+        as("mod", org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/admin/products/price-change")
+                .contentType(MediaType.APPLICATION_JSON).content(PRICE_CHANGE))
+                .andExpect(status().isOk());
+        verify(activityRepository).save(argThat(a -> "products.price".equals(a.getPermKey())
+                && a.getSummary().startsWith("Changed prices in Hoodies")
+                && a.getSummary().endsWith("price raised by 10%; sale kept")
+                && "Classic Hoodie [code H-1]: price ৳1,400 → ৳1,540; sale ৳1,260 → ৳1,386; size XXL ৳1,500 → ৳1,650"
+                        .equals(a.getDetails())));
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────

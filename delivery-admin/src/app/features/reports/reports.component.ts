@@ -345,6 +345,7 @@ const STATUS_ORDER = ['PLACED', 'ACCEPTED', 'IN_PRODUCTION', 'PROCESSING', 'SHIP
                               <span class="w-5 text-xs text-gray-400">{{ i + 1 }}.</span>
                               @if (p.imageUrl) { <img [src]="p.imageUrl" [alt]="p.productName" class="w-8 h-8 rounded object-cover bg-gray-100" /> }
                               <span class="truncate max-w-[220px]">{{ p.productName }}</span>
+                              @if (p.productCode) { <span class="font-mono text-xs text-gray-400">{{ p.productCode }}</span> }
                             </div>
                           </td>
                           <td class="py-2 text-right">{{ num(p.unitsSold) }}</td>
@@ -609,8 +610,8 @@ export class ReportsComponent implements OnInit {
     rows.push(['Payment method', 'Orders', 'Revenue', 'Delivered orders', 'Delivered revenue', 'Undelivered orders', 'To collect', 'Cancelled orders']);
     for (const p of r.byPayment) rows.push([this.paymentLabel(p.method), p.orders, p.revenue, p.deliveredOrders, p.deliveredRevenue, p.undeliveredOrders, p.undeliveredValue, p.cancelledOrders]);
     rows.push([]);
-    rows.push(['Top product', 'Units', 'Orders', 'Sales value']);
-    for (const p of r.topProducts) rows.push([p.productName, p.unitsSold, p.orderCount, p.revenue]);
+    rows.push(['Top product', 'Code', 'Units', 'Orders', 'Sales value']);
+    for (const p of r.topProducts) rows.push([p.productName, p.productCode ?? '', p.unitsSold, p.orderCount, p.revenue]);
     rows.push([]);
     rows.push(['Top category', 'Units', 'Orders', 'Sales value']);
     for (const c of r.topCategories) rows.push([c.categoryName, c.unitsSold, c.orderCount, c.revenue]);

@@ -8,6 +8,8 @@ import {
 } from '../../../core/services/variant.service';
 import { parseApiError } from '../../../core/utils/api-error.util';
 import { PermissionService } from '../../../core/services/permission.service';
+import { ConfirmService } from '../../../core/services/confirm.service';
+import { NoticeService } from '../../../core/services/notice.service';
 
 interface VariantForm {
   size: string;
@@ -160,6 +162,8 @@ export class VariantManagerComponent implements OnChanges {
 
   private readonly api = inject(VariantService);
   protected readonly perms = inject(PermissionService);
+  private readonly confirmer = inject(ConfirmService);
+  private readonly notices = inject(NoticeService);
 
   readonly variants  = signal<VariantResponse[]>([]);
   readonly loading   = signal(false);
@@ -243,12 +247,20 @@ export class VariantManagerComponent implements OnChanges {
       } else {
         this.variants.update((list) => [...list, saved]);
       }
+      this.notices.success(editId != null ? 'Size saved' : 'Size added', saved.size || saved.sku || '');
       this.cancelEdit();
     });
   }
 
-  remove(v: VariantResponse): void {
-    if (!confirm(`Delete variant "${v.name || v.size || v.id}"?`)) return;
+  async remove(v: VariantResponse): Promise<void> {
+    const label = v.name || v.size || String(v.id);
+    const ok = await this.confirmer.ask({
+      title: `Delete size "${label}"?`,
+      message: 'Its stock is removed with it.',
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
     this.api.delete(this.productId(), v.id)
       .pipe(catchError((err) => {
         this.error.set(parseApiError(err));
@@ -256,6 +268,7 @@ export class VariantManagerComponent implements OnChanges {
       }))
       .subscribe(() => {
         this.variants.update((list) => list.filter((x) => x.id !== v.id));
+        this.notices.success('Size deleted', label);
       });
   }
 }

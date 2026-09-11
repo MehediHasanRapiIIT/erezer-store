@@ -17,6 +17,7 @@ public class ReturnItemDTO {
     private UUID orderItemId;
     private Long productId;
     private String productName;
+    private String productCode;
     private Integer quantity;
     private String condition;
     private BigDecimal lineRefundAmount;
