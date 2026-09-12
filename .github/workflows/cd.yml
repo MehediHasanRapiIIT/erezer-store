@@ -223,9 +223,18 @@ jobs:
         if: env.STOREFRONT_HOST != '' && env.API_HOST != ''
         run: |
           set -e
-          for url in "https://$STOREFRONT_HOST" "https://$API_HOST/actuator/health"; do
+          # Not /actuator/health: deploy/Caddyfile deliberately 404s /actuator/*
+          # so the management endpoints are never exposed to the internet. Hit a
+          # real public route instead, which also proves the backend reached
+          # Postgres rather than merely that the JVM is up.
+          for url in "https://$STOREFRONT_HOST" "https://$API_HOST/api/products"; do
             printf 'checking %s ... ' "$url"
-            code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 --retry 5 --retry-delay 6 --retry-connrefused "$url")"
+            # --retry-all-errors, not --retry-connrefused: on a first deploy
+            # Caddy is still provisioning the Let's Encrypt certificate and
+            # answers the handshake with "tlsv1 alert internal error", which
+            # --retry-connrefused does not treat as retryable.
+            code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
+                      --retry 10 --retry-delay 10 --retry-all-errors "$url" || echo 000)"
             echo "$code"
             [[ "$code" == "200" ]] || { echo "::error::$url returned $code"; exit 1; }
           done
