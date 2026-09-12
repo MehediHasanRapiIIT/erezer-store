@@ -13,13 +13,32 @@ the shop runs on, and the backend they share. Everything runs in Docker.
 | `delivery-backend` | The API, database migrations and Keycloak setup (Spring Boot, Java 21) |
 | `deploy` | Production compose files, Caddy, and the check scripts |
 
+## What you need first
+
+Nothing is installed on your machine except these — Java, Node and Postgres all
+live inside the containers.
+
+| | Windows | Linux |
+|---|---|---|
+| Docker | [Docker Desktop](https://docs.docker.com/desktop/install/windows-install/) | Docker Engine + the Compose plugin (`docker compose version` must work) |
+| Git | [git-scm.com](https://git-scm.com/download/win) | your package manager |
+| Python 3 | [python.org](https://www.python.org/downloads/) | usually already there |
+
+Python is only needed for the Keycloak step below and the check scripts, and
+uses nothing outside its standard library.
+
 ## Start it
 
 ```bash
+git clone https://github.com/MehediHasanRapiIIT/erezer-store.git
+cd erezer-store
 cp .env.example .env             # works as-is for local; keep your own secrets out of git
 docker compose up -d --build     # the first build takes a few minutes
 docker compose ps                # every service should reach "healthy"
 ```
+
+On Windows use Git Bash or WSL for those commands. In PowerShell the copy is
+`Copy-Item .env.example .env`; the rest is the same.
 
 | What | Address | Sign in |
 |---|---|---|
