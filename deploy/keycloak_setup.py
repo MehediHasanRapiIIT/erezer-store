@@ -15,10 +15,21 @@ Usage, from the repo root with the stack running:
     python deploy/keycloak_setup.py
 
 Reads the master admin login from .env (KEYCLOAK_ADMIN / KEYCLOAK_ADMIN_PASSWORD).
+
+In PRODUCTION, point it at Keycloak directly rather than at the public
+hostname. deploy/Caddyfile answers /admin/* with 403 on purpose - the admin
+console and the admin REST API are not meant to face the internet - so going
+through auth.<domain> fails with a bare 403 before Keycloak ever sees the
+request. Override the address for one run:
+
+    KEYCLOAK_URL=http://$(docker inspect -f \
+      '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
+      erezer-keycloak):9090 python3 deploy/keycloak_setup.py
 """
 from __future__ import annotations
 
 import json
+import os
 import sys
 import urllib.error
 import urllib.parse
@@ -52,7 +63,11 @@ def write_env(key: str, value: str) -> None:
 
 
 ENV = read_env()
-BASE = ENV.get("PUBLIC_KEYCLOAK_URL", "http://localhost:9090").rstrip("/")
+# KEYCLOAK_URL in the real environment wins over PUBLIC_KEYCLOAK_URL in .env, so
+# a production run can reach Keycloak on the internal network without editing
+# (and having to remember to un-edit) the .env file.
+BASE = (os.environ.get("KEYCLOAK_URL")
+        or ENV.get("PUBLIC_KEYCLOAK_URL", "http://localhost:9090")).rstrip("/")
 REALM = ENV.get("KEYCLOAK_REALM", "delivery-admin")
 
 
