@@ -108,7 +108,7 @@ services:
       # falling back to a development one.
       SPRING_PROFILES_ACTIVE: prod
 
-      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-erezer}
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-delivery_app_v1}
       DB_USERNAME: ${POSTGRES_USER:-postgres}
       DB_PASSWORD: ${POSTGRES_PASSWORD:?required}
 
@@ -217,7 +217,7 @@ services:
       PGHOST: postgres
       PGUSER: ${POSTGRES_USER:-postgres}
       PGPASSWORD: ${POSTGRES_PASSWORD}
-      PGDATABASE: ${POSTGRES_DB:-erezer}
+      PGDATABASE: ${POSTGRES_DB:-delivery_app_v1}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
       # Optional off-host copy. Blank keeps backups on the volume only, which
       # does NOT protect against losing the host - set these for real safety.

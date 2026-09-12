@@ -71,6 +71,9 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.example
+# Template only - every value in it is a placeholder, and the VM's real .env
+# (which IS ignored, by the two rules above) is created by hand from it.
+!.env.prod.example
 
 # ==============================
 # Coverage

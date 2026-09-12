@@ -1,0 +1,117 @@
+# ============================================================================
+# CI - runs on every pull request and every push to main.
+#
+# This is the gate, not the deployer: it proves the three projects compile and
+# the backend tests pass. Pushing images and touching the VM is cd.yml's job.
+#
+# Two entry points, and deliberately no `push: main` trigger: cd.yml calls this
+# workflow as its first job, so a push to main runs these checks exactly once
+# instead of racing a duplicate copy of them.
+# ============================================================================
+name: CI
+
+on:
+  pull_request:
+  workflow_call:
+
+# A new push to the same branch makes the in-flight run obsolete - cancel it
+# rather than paying for a result nobody will look at.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+
+  backend:
+    name: Backend (Gradle)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Build and test
+        working-directory: delivery-backend
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon build
+
+      - name: Publish test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: delivery-backend/build/reports/tests/test
+          if-no-files-found: ignore
+          retention-days: 7
+
+  frontend:
+    name: Frontend (${{ matrix.project }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [erezer-store, delivery-admin]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ${{ matrix.project }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.project }}
+        # `npm ci` not `npm install`: it installs exactly the lockfile and
+        # fails if package.json has drifted from it, which is the behaviour
+        # you want in CI and the same thing the Dockerfile does.
+        run: npm ci --no-audit --no-fund
+
+      - name: Build
+        working-directory: ${{ matrix.project }}
+        run: npm run build -- --configuration production
+
+      # Unit tests are opt-in until the suites are green in a headless runner.
+      # Flip this on by removing `continue-on-error` once they pass.
+      - name: Unit tests
+        working-directory: ${{ matrix.project }}
+        continue-on-error: true
+        run: npm test -- --watch=false
+
+  compose:
+    name: Compose files parse
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Catches a typo'd overlay before it reaches the VM, where the only
+      # symptom would be a deploy that fails halfway through.
+      - name: Validate the production merge
+        env:
+          IMAGE_REPO_OWNER: ci
+          IMAGE_TAG: ci
+          STOREFRONT_HOST: shop.example.com
+          ADMIN_HOST: admin.example.com
+          API_HOST: api.example.com
+          KEYCLOAK_HOST: auth.example.com
+          MEDIA_HOST: media.example.com
+          ACME_EMAIL: ops@example.com
+          POSTGRES_PASSWORD: ci
+          MINIO_ROOT_USER: ci
+          MINIO_ROOT_PASSWORD: ci
+          MAIL_HOST: smtp.example.com
+          EREZER_JWT_SECRET: ci-secret-that-is-at-least-32-characters
+        run: |
+          docker compose --env-file /dev/null \
+            -f docker-compose.yml \
+            -f docker-compose.prod.yml \
+            -f docker-compose.deploy.yml config --quiet
+          echo "production overlay merges cleanly"

@@ -67,7 +67,7 @@ services:
 
   # -- MinIO (product images, banners, return photos, custom designs) --------
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     container_name: erezer-minio
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
@@ -89,7 +89,7 @@ services:
 
   # -- One-shot bucket bootstrap (creates buckets, then exits) ---------------
   minio-init:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     container_name: erezer-minio-init
     depends_on:
       minio:

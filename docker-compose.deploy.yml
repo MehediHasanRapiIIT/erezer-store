@@ -1,0 +1,39 @@
+# ============================================================================
+# Erezer - REGISTRY overlay (what CI/CD deploys on the VM)
+#
+#   docker compose -f docker-compose.yml \
+#                  -f docker-compose.prod.yml \
+#                  -f docker-compose.deploy.yml up -d
+#
+# The base file carries a `build:` section for every first-party service. That
+# is right on a developer machine and wrong on the VM: the VM has no source
+# tree, no JDK and no Node, and a production host should run exactly the bytes
+# CI built and tested - not a fresh build of its own that might differ.
+#
+# `!reset null` removes the inherited build section, leaving only `image:`, so
+# compose resolves each service straight from Docker Hub. `pull_policy: always`
+# makes `up` re-check the registry even when the tag already exists locally,
+# which is what makes a re-pushed tag actually take effect.
+#
+# Both coordinates come from the environment, exported by deploy/deploy.sh:
+#   IMAGE_REPO_OWNER  your Docker Hub account (the part before the slash)
+#   IMAGE_TAG         the git SHA CI pushed, so a deploy is reproducible
+# ============================================================================
+
+services:
+
+  backend:
+    build: !reset null
+    pull_policy: always
+
+  store:
+    build: !reset null
+    pull_policy: always
+
+  admin:
+    build: !reset null
+    pull_policy: always
+
+  keycloak:
+    build: !reset null
+    pull_policy: always

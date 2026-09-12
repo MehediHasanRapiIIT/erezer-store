@@ -1,0 +1,223 @@
+# ============================================================================
+# CD - build four images, push them to Docker Hub, roll them out on the VM.
+#
+# Trigger: every push to main, or manually from the Actions tab (where you can
+# also type an older tag to redeploy, which is how you roll back).
+#
+# The images are environment-agnostic by design: the Angular bundles read their
+# API and Keycloak URLs from /env.js, written at container start, so the exact
+# image CI built is the one production runs. Nothing is rebuilt on the VM.
+# ============================================================================
+name: CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Existing tag to deploy (leave blank to build from this commit)'
+        required: false
+        type: string
+
+# Never let two rollouts touch the VM at once, and never cancel one midway -
+# a half-applied deploy is worse than a queued one.
+concurrency:
+  group: cd-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+
+  # ── Agree on one tag that every image and the deploy step share ───────────
+  prepare:
+    name: Resolve image tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      build_needed: ${{ steps.tag.outputs.build_needed }}
+    steps:
+      - id: tag
+        env:
+          # Through the environment, never interpolated straight into the
+          # script: `${{ }}` is substituted as raw text before bash ever sees
+          # it, so a crafted input would otherwise execute here as shell.
+          REQUESTED_TAG: ${{ inputs.image_tag }}
+        run: |
+          if [[ -n "$REQUESTED_TAG" ]]; then
+            # This value ends up in a docker tag and in a command run over SSH,
+            # so hold it to what a Docker tag may legally contain.
+            [[ "$REQUESTED_TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$ ]] \
+              || { echo "::error::invalid image tag: $REQUESTED_TAG"; exit 1; }
+            echo "tag=$REQUESTED_TAG" >> "$GITHUB_OUTPUT"
+            echo "build_needed=false" >> "$GITHUB_OUTPUT"
+            echo "Redeploying existing tag: $REQUESTED_TAG"
+          else
+            echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+            echo "build_needed=true"    >> "$GITHUB_OUTPUT"
+            echo "Building new tag: ${GITHUB_SHA::7}"
+          fi
+
+  # ── Run the full CI suite before anything is published ────────────────────
+  # Skipped when redeploying an existing tag: those images were already tested
+  # when they were built, and re-running the suite proves nothing new.
+  test:
+    name: CI
+    needs: prepare
+    if: needs.prepare.outputs.build_needed == 'true'
+    uses: ./.github/workflows/ci.yml
+
+  # ── Build and push all four images in parallel ────────────────────────────
+  build:
+    name: Build ${{ matrix.image }}
+    needs: [prepare, test]
+    # An explicit `if` replaces the implicit success() gate on `needs`, so the
+    # test result has to be checked by hand here or a red suite would still ship.
+    if: needs.prepare.outputs.build_needed == 'true' && needs.test.result == 'success'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: delivery-backend
+            context: ./delivery-backend
+          - image: erezer-store
+            context: ./erezer-store
+          - image: delivery-admin
+            context: ./delivery-admin
+          # Keycloak with the Erezer login theme baked in. Without this image
+          # the admin login page silently falls back to Keycloak's default.
+          - image: keycloak
+            context: ./delivery-admin/keycloak-theme
+    steps:
+      - uses: actions/checkout@v4
+
+      # Needed for the BuildKit cache mounts the Dockerfiles rely on, and for
+      # the registry cache below.
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          # Two tags per image: the immutable SHA is what the VM actually runs
+          # (so a deploy is reproducible and rollback is exact), while `latest`
+          # is the convenience pointer for humans pulling by hand.
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}:${{ needs.prepare.outputs.tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}:latest
+          # Single-arch on purpose: the VM is x86_64 and a second architecture
+          # roughly doubles build time. Add linux/arm64 here for an ARM VM.
+          platforms: linux/amd64
+          # Layer cache kept in the registry, so a rebuild of unchanged
+          # dependencies is a pull instead of a full Gradle/npm install.
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}:buildcache,mode=max
+          provenance: false
+
+  # ── Ship the compose files, then roll the images out ──────────────────────
+  deploy:
+    name: Deploy to VM
+    needs: [prepare, test, build]
+    # `always()` plus explicit result checks: this must still run for a
+    # workflow_dispatch redeploy, where `test` and `build` are skipped rather
+    # than passed - but a failed OR cancelled build must never reach the VM.
+    if: >-
+      always()
+      && needs.prepare.result == 'success'
+      && needs.test.result != 'failure' && needs.test.result != 'cancelled'
+      && needs.build.result != 'failure' && needs.build.result != 'cancelled'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.VM_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VM_KNOWN_HOSTS }}
+          VM_HOST: ${{ secrets.VM_HOST }}
+          VM_SSH_PORT: ${{ secrets.VM_SSH_PORT || '22' }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          if [[ -n "$KNOWN_HOSTS" ]]; then
+            printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            # Trust-on-first-use. Works, but it cannot detect a man-in-the-
+            # middle on this very first connection - set VM_KNOWN_HOSTS to
+            # pin the host key properly.
+            echo "::warning::VM_KNOWN_HOSTS is not set; falling back to ssh-keyscan"
+            ssh-keyscan -p "$VM_SSH_PORT" -H "$VM_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Copy compose files and deploy scripts to the VM
+        env:
+          VM_HOST: ${{ secrets.VM_HOST }}
+          VM_USER: ${{ secrets.VM_USER }}
+          VM_SSH_PORT: ${{ secrets.VM_SSH_PORT || '22' }}
+          APP_DIR: ${{ vars.APP_DIR || '/opt/erezer' }}
+        # Only what the VM needs at runtime: the three compose files, the whole
+        # deploy/ directory (Caddyfile, the Postgres init hook, the backup
+        # script, deploy.sh and the post-install helpers such as
+        # keycloak_setup.py) and the Keycloak realm import. No application
+        # source code - the VM never builds anything.
+        #
+        # .env is deliberately NOT in this list. It lives only on the VM, so a
+        # deploy can never overwrite production secrets with repo contents.
+        run: |
+          tar czf - \
+            docker-compose.yml \
+            docker-compose.prod.yml \
+            docker-compose.deploy.yml \
+            deploy \
+            delivery-backend/keycloak \
+          | ssh -i ~/.ssh/deploy_key -p "$VM_SSH_PORT" "$VM_USER@$VM_HOST" \
+              "mkdir -p '$APP_DIR' && tar xzf - -C '$APP_DIR' && chmod +x '$APP_DIR/deploy/deploy.sh'"
+
+      - name: Roll out
+        env:
+          VM_HOST: ${{ secrets.VM_HOST }}
+          VM_USER: ${{ secrets.VM_USER }}
+          VM_SSH_PORT: ${{ secrets.VM_SSH_PORT || '22' }}
+          APP_DIR: ${{ vars.APP_DIR || '/opt/erezer' }}
+          IMAGE_TAG: ${{ needs.prepare.outputs.tag }}
+          IMAGE_REPO_OWNER: ${{ secrets.DOCKERHUB_USERNAME }}
+        # -o SendEnv is not used because sshd would have to allow it; passing
+        # the two non-secret coordinates inline is simpler and they are not
+        # sensitive. The script fails loudly and rolls back on its own.
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$VM_SSH_PORT" "$VM_USER@$VM_HOST" \
+            "APP_DIR='$APP_DIR' IMAGE_TAG='$IMAGE_TAG' IMAGE_REPO_OWNER='$IMAGE_REPO_OWNER' bash '$APP_DIR/deploy/deploy.sh'"
+
+      - name: Smoke-test the public endpoints
+        env:
+          STOREFRONT_HOST: ${{ vars.STOREFRONT_HOST }}
+          API_HOST: ${{ vars.API_HOST }}
+        # Health inside the VM is not the same thing as reachable from the
+        # internet: DNS, the firewall and Caddy's certificate all sit in
+        # between, and none of them are exercised by a container healthcheck.
+        if: env.STOREFRONT_HOST != '' && env.API_HOST != ''
+        run: |
+          set -e
+          for url in "https://$STOREFRONT_HOST" "https://$API_HOST/actuator/health"; do
+            printf 'checking %s ... ' "$url"
+            code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 --retry 5 --retry-delay 6 --retry-connrefused "$url")"
+            echo "$code"
+            [[ "$code" == "200" ]] || { echo "::error::$url returned $code"; exit 1; }
+          done
+
+      - name: Clean up the deploy key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
