@@ -114,7 +114,35 @@ def main() -> int:
                     "minimumQuickLoginWaitSeconds": 60, "sslRequired": "external"})
     print("lockout after 5 wrong passwords: on; SSL required outside local networks")
 
-    # 3. The staff-accounts client and its service account.
+    # 3. The admin UI client has to accept the production admin URL.
+    #
+    # The realm JSON whitelists only http://localhost:4300 and :4200, because
+    # that is what a developer runs. It is imported on Keycloak's FIRST boot and
+    # never again, so a production install inherits those localhost-only values
+    # and every real login dies with:
+    #
+    #   LOGIN_ERROR ... error="invalid_redirect_uri"
+    #       redirect_uri="https://admin.<domain>/login"
+    #
+    # Existing entries are kept rather than replaced, so one Keycloak can serve
+    # a production host and a developer's localhost at the same time.
+    ui_client = ENV.get("KEYCLOAK_CLIENT_ID", "delivery-admin-ui")
+    hosts = [h for h in (ENV.get("ADMIN_HOST", ""), ENV.get("STOREFRONT_HOST", "")) if h]
+    if hosts:
+        found_ui = api("GET", f"/clients?clientId={ui_client}")
+        if not found_ui:
+            print(f"client '{ui_client}' not found - skipping redirect URI update")
+        else:
+            ui = found_ui[0]
+            redirects = sorted(set(ui.get("redirectUris") or []) | {f"https://{h}/*" for h in hosts})
+            origins = sorted(set(ui.get("webOrigins") or []) | {f"https://{h}" for h in hosts})
+            if redirects != sorted(ui.get("redirectUris") or []) or origins != sorted(ui.get("webOrigins") or []):
+                api("PUT", f"/clients/{ui['id']}", {**ui, "redirectUris": redirects, "webOrigins": origins})
+                print(f"client '{ui_client}' now accepts:", ", ".join(f"https://{h}" for h in hosts))
+            else:
+                print(f"client '{ui_client}' already accepts:", ", ".join(f"https://{h}" for h in hosts))
+
+    # 4. The staff-accounts client and its service account.
     found = api("GET", f"/clients?clientId={CLIENT_ID}")
     if not found:
         api("POST", "/clients", {
@@ -139,7 +167,7 @@ def main() -> int:
     else:
         print("service account already has:", ", ".join(SERVICE_ROLES))
 
-    # 4. The secret, for the backend.
+    # 5. The secret, for the backend.
     secret = api("GET", f"/clients/{client_uuid}/client-secret")["value"]
     write_env("KEYCLOAK_ADMIN_CLIENT_ID", CLIENT_ID)
     write_env("KEYCLOAK_ADMIN_CLIENT_SECRET", secret)
