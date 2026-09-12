@@ -149,8 +149,20 @@ jobs:
           VM_SSH_PORT: ${{ secrets.VM_SSH_PORT || '22' }}
         run: |
           install -d -m 700 ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          # tr -d '\r' strips carriage returns: a key pasted through a Windows
+          # editor or clipboard arrives CRLF-terminated, and OpenSSH rejects it
+          # with the near-useless "error in libcrypto".
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+
+          # Prove the key parses before we try to use it, so a bad paste says so
+          # in one line instead of surfacing as "Permission denied (publickey)"
+          # three steps later.
+          if ! ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null 2>&1; then
+            echo "::error::VM_SSH_KEY is not a valid OpenSSH private key. Re-copy the WHOLE file (\`cat ~/.ssh/erezer_deploy\`), including the BEGIN and END lines, with no leading/trailing spaces and no line re-wrapping."
+            exit 1
+          fi
+          echo "deploy key loaded: $(ssh-keygen -lf ~/.ssh/deploy_key)"
           if [[ -n "$KNOWN_HOSTS" ]]; then
             printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           else
@@ -183,7 +195,7 @@ jobs:
             docker-compose.deploy.yml \
             deploy \
             delivery-backend/keycloak \
-          | ssh -i ~/.ssh/deploy_key -p "$VM_SSH_PORT" "$VM_USER@$VM_HOST" \
+          | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o PreferredAuthentications=publickey -p "$VM_SSH_PORT" "$VM_USER@$VM_HOST" \
               "mkdir -p '$APP_DIR' && tar xzf - -C '$APP_DIR' && chmod +x '$APP_DIR/deploy/deploy.sh'"
 
       - name: Roll out
@@ -198,7 +210,7 @@ jobs:
         # the two non-secret coordinates inline is simpler and they are not
         # sensitive. The script fails loudly and rolls back on its own.
         run: |
-          ssh -i ~/.ssh/deploy_key -p "$VM_SSH_PORT" "$VM_USER@$VM_HOST" \
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o PreferredAuthentications=publickey -p "$VM_SSH_PORT" "$VM_USER@$VM_HOST" \
             "APP_DIR='$APP_DIR' IMAGE_TAG='$IMAGE_TAG' IMAGE_REPO_OWNER='$IMAGE_REPO_OWNER' bash '$APP_DIR/deploy/deploy.sh'"
 
       - name: Smoke-test the public endpoints
