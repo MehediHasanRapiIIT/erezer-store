@@ -189,14 +189,32 @@ jobs:
         # .env is deliberately NOT in this list. It lives only on the VM, so a
         # deploy can never overwrite production secrets with repo contents.
         run: |
-          tar czf - \
-            docker-compose.yml \
-            docker-compose.prod.yml \
-            docker-compose.deploy.yml \
-            deploy \
-            delivery-backend/keycloak \
-          | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o PreferredAuthentications=publickey -p "$VM_SSH_PORT" "$VM_USER@$VM_HOST" \
-              "mkdir -p '$APP_DIR' && tar xzf - -C '$APP_DIR' && chmod +x '$APP_DIR/deploy/deploy.sh'"
+          # Retry the whole transfer: the hop from a GitHub runner to a VPS can
+          # drop a TCP connect outright ("connect to host ... port 22:
+          # Connection timed out"), and a deploy should not fail because one
+          # packet went missing. Each attempt is capped by ConnectTimeout so a
+          # black-holed connection fails in 20s instead of hanging for two
+          # minutes on the kernel default.
+          for attempt in 1 2 3; do
+            echo "transfer attempt $attempt"
+            if tar czf - \
+                 docker-compose.yml \
+                 docker-compose.prod.yml \
+                 docker-compose.deploy.yml \
+                 deploy \
+                 delivery-backend/keycloak \
+               | ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o PreferredAuthentications=publickey \
+                     -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
+                     -p "$VM_SSH_PORT" "$VM_USER@$VM_HOST" \
+                     "mkdir -p '$APP_DIR' && tar xzf - -C '$APP_DIR' && chmod +x '$APP_DIR/deploy/deploy.sh'"
+            then
+              echo "transfer succeeded"; exit 0
+            fi
+            echo "::warning::transfer attempt $attempt failed"
+            sleep $((attempt * 15))
+          done
+          echo "::error::could not reach $VM_USER@***:$VM_SSH_PORT after 3 attempts. SSH reachability from the runner is the problem, not the key - Configure SSH already validated it."
+          exit 1
 
       - name: Roll out
         env:
@@ -210,7 +228,13 @@ jobs:
         # the two non-secret coordinates inline is simpler and they are not
         # sensitive. The script fails loudly and rolls back on its own.
         run: |
-          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o PreferredAuthentications=publickey -p "$VM_SSH_PORT" "$VM_USER@$VM_HOST" \
+          # Only the CONNECT is retried, never a rollout that already started:
+          # deploy.sh is not safe to run twice concurrently, and a second copy
+          # racing the first would fight over the same containers.
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o PreferredAuthentications=publickey \
+              -o ConnectTimeout=20 -o ConnectionAttempts=3 \
+              -o ServerAliveInterval=15 -o ServerAliveCountMax=20 \
+              -p "$VM_SSH_PORT" "$VM_USER@$VM_HOST" \
             "APP_DIR='$APP_DIR' IMAGE_TAG='$IMAGE_TAG' IMAGE_REPO_OWNER='$IMAGE_REPO_OWNER' bash '$APP_DIR/deploy/deploy.sh'"
 
       - name: Smoke-test the public endpoints
