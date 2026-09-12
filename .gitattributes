@@ -1,0 +1,23 @@
+# Keep line endings stable on every machine.
+#
+# Everything is stored with LF. Windows checkouts must keep LF for anything that
+# runs inside a Linux container: a script whose first line ends with CR fails with
+# "not found", which silently breaks the storefront and admin containers.
+* text=auto eol=lf
+
+# Windows-only scripts genuinely need CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Never touch these.
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
