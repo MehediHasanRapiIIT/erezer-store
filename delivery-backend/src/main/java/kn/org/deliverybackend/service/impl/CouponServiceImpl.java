@@ -6,12 +6,14 @@ import kn.org.deliverybackend.dto.coupon.CouponValidateRequestDTO;
 import kn.org.deliverybackend.dto.coupon.CouponValidateResponseDTO;
 import kn.org.deliverybackend.entity.Coupon;
 import kn.org.deliverybackend.entity.CouponRedemption;
+import kn.org.deliverybackend.entity.StoreSettings;
 import kn.org.deliverybackend.enumeration.CouponDiscountType;
 import kn.org.deliverybackend.exception.DuplicateResourceException;
 import kn.org.deliverybackend.exception.InvalidStockOperationException;
 import kn.org.deliverybackend.exception.ResourceNotFoundException;
 import kn.org.deliverybackend.repository.CouponRedemptionRepository;
 import kn.org.deliverybackend.repository.CouponRepository;
+import kn.org.deliverybackend.repository.StoreSettingsRepository;
 import kn.org.deliverybackend.service.CouponService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -31,6 +33,10 @@ public class CouponServiceImpl implements CouponService {
 
     private final CouponRepository couponRepository;
     private final CouponRedemptionRepository redemptionRepository;
+    private final StoreSettingsRepository storeSettingsRepository;
+
+    /** What a customer is told while the promo code switch is off. */
+    static final String CODES_OFF = "Promo codes aren't available right now.";
 
     // ── Admin CRUD ─────────────────────────────────────────────────────────────
 
@@ -120,6 +126,9 @@ public class CouponServiceImpl implements CouponService {
     @Override
     @Transactional(readOnly = true)
     public CouponValidateResponseDTO validate(CouponValidateRequestDTO request) {
+        if (!codesEnabled()) {
+            return reject(CODES_OFF);
+        }
         BigDecimal subtotal = request.getCartSubtotal() != null
                 ? request.getCartSubtotal() : BigDecimal.ZERO;
 
@@ -147,6 +156,11 @@ public class CouponServiceImpl implements CouponService {
     @Override
     @Transactional(readOnly = true)
     public Coupon getActiveByCode(String code) {
+        // Checkout pricing reaches coupons through here, so switching codes off
+        // also stops a code that was applied earlier or sent straight to the API.
+        if (!codesEnabled()) {
+            throw new InvalidStockOperationException(CODES_OFF);
+        }
         Coupon c = couponRepository.findByCodeIgnoreCase(code)
                 .orElseThrow(() -> new ResourceNotFoundException("Coupon code is invalid."));
         String reason = checkPolicy(c, BigDecimal.ZERO, null);
@@ -177,6 +191,13 @@ public class CouponServiceImpl implements CouponService {
     // ── helpers ────────────────────────────────────────────────────────────────
 
     /** Returns null if the coupon is currently usable; a human reason otherwise. */
+    /** The promo code master switch; a missing settings row or null value means on. */
+    private boolean codesEnabled() {
+        return storeSettingsRepository.findById(StoreSettings.SINGLETON_ID)
+                .map(s -> !Boolean.FALSE.equals(s.getCouponsEnabled()))
+                .orElse(true);
+    }
+
     private String checkPolicy(Coupon c, BigDecimal subtotal, UUID userId) {
         if (Boolean.FALSE.equals(c.getIsActive())) {
             return "Coupon is no longer active.";

@@ -718,6 +718,8 @@ export interface ApiStoreSettings {
   paymentCodEnabled: boolean | null;
   paymentBkashEnabled: boolean | null;
   paymentCardEnabled: boolean | null;
+  /** Promo codes on or off for the whole shop; null means on. */
+  couponsEnabled?: boolean | null;
 }
 
 export type ApiDiscountScope = 'PRODUCT' | 'CATEGORY' | 'GLOBAL';

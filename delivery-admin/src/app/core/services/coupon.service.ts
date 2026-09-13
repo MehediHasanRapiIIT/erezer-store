@@ -33,6 +33,11 @@ export interface CouponResponse {
   description: string | null;
 }
 
+/** The shop-wide promo code switch. Null means on. */
+export interface CouponSwitch {
+  couponsEnabled: boolean | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class CouponService {
   private http = inject(HttpClient);
@@ -52,5 +57,13 @@ export class CouponService {
 
   delete(id: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/admin/coupons/${id}`);
+  }
+
+  getSwitch(): Observable<CouponSwitch> {
+    return this.http.get<CouponSwitch>(`${this.base}/admin/coupons/switch`);
+  }
+
+  updateSwitch(change: CouponSwitch): Observable<CouponSwitch> {
+    return this.http.put<CouponSwitch>(`${this.base}/admin/coupons/switch`, change);
   }
 }

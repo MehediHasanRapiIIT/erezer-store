@@ -340,6 +340,9 @@ export class CheckoutPage implements OnInit, OnDestroy {
   private selectedLat: number | null = null;
   private selectedLng: number | null = null;
 
+  /** Promo codes on for the shop; null (not loaded yet, or an older row) counts as on. */
+  protected readonly codesOn = computed(() => this.settingsStore.settings()?.couponsEnabled !== false);
+
   /** Payment methods the admin has enabled (in store settings). Null flags (settings
    *  not yet loaded) are treated as enabled so nothing flickers off on first paint. */
   protected readonly paymentMethods = computed<PaymentMethod[]>(() => {
@@ -403,7 +406,7 @@ export class CheckoutPage implements OnInit, OnDestroy {
       const items = this.effItems();
       const zoneId = this.selectedZoneId();
       const address = this.checkoutForm.controls.address.value;
-      const code = this.bundleMode() ? null : this.store.promoCode();
+      const code = this.bundleMode() || !this.codesOn() ? null : this.store.promoCode();
       if (items.length === 0) {
         this.quote.set(null);
         return;
@@ -607,7 +610,7 @@ export class CheckoutPage implements OnInit, OnDestroy {
         variantId: i.variantId,
         customMeasurements: i.customMeasurements ?? undefined,
       })),
-      couponCode:      this.bundleMode() ? undefined : (this.store.promoCode() || undefined),
+      couponCode:      this.bundleMode() || !this.codesOn() ? undefined : (this.store.promoCode() || undefined),
       shippingZoneId:  this.selectedZoneId() ?? undefined,
       bundleId:        this.bundleCheckout.pending()?.bundleId,
     };

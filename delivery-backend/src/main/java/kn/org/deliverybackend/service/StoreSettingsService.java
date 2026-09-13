@@ -1,5 +1,6 @@
 package kn.org.deliverybackend.service;
 
+import kn.org.deliverybackend.dto.coupon.CouponSwitchDTO;
 import kn.org.deliverybackend.dto.discount.DiscountSwitchesDTO;
 import kn.org.deliverybackend.dto.settings.StoreSettingsDTO;
 
@@ -16,4 +17,10 @@ public interface StoreSettingsService {
 
     /** Changes the discount switches; a null field is left as it is. */
     DiscountSwitchesDTO updateDiscountSwitches(DiscountSwitchesDTO change);
+
+    /** Whether promo codes are on. */
+    CouponSwitchDTO getCouponSwitch();
+
+    /** Turns promo codes on or off; a null field leaves it as it is. */
+    CouponSwitchDTO updateCouponSwitch(CouponSwitchDTO change);
 }

@@ -82,6 +82,8 @@ public enum Perm {
     COUPONS_CREATE("coupons.create", "Coupons", "Add coupons", null),
     COUPONS_EDIT("coupons.edit", "Coupons", "Edit coupons", null),
     COUPONS_DELETE("coupons.delete", "Coupons", "Delete coupons", null),
+    COUPONS_SWITCH("coupons.switch", "Coupons", "Turn promo codes on or off",
+            "Off hides the promo code box in the shop and stops every code from applying."),
 
     DISCOUNTS_VIEW("discounts.view", "Discounts", "See discount rules", null),
     DISCOUNTS_CREATE("discounts.create", "Discounts", "Add discount rules", null),

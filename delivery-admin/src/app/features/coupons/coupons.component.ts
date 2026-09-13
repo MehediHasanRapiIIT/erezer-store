@@ -7,6 +7,7 @@ import {
   CouponRequest,
   CouponResponse,
   CouponService,
+  CouponSwitch,
 } from '../../core/services/coupon.service';
 import { PermissionService } from '../../core/services/permission.service';
 import { ConfirmService } from '../../core/services/confirm.service';
@@ -68,6 +69,42 @@ const EMPTY_FORM: CouponForm = {
               <p class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{{ errorMessage() }}</p>
             }
 
+            <!-- Shop-wide promo code switch. Coupons are kept while it is off. -->
+            @if (promoSwitch(); as sw) {
+              <section class="rounded-xl border bg-white overflow-hidden"
+                [class.border-red-300]="!codesOn()" [class.border-gray-200]="codesOn()">
+                <div class="flex items-center justify-between gap-4 px-5 py-4" [class.bg-red-50]="!codesOn()">
+                  <div>
+                    <h2 class="font-bold text-gray-900">
+                      Promo codes are
+                      <span [class.text-emerald-600]="codesOn()" [class.text-red-600]="!codesOn()">
+                        {{ codesOn() ? 'ON' : 'OFF' }}
+                      </span>
+                    </h2>
+                    <p class="text-xs text-gray-500 mt-0.5">
+                      @if (codesOn()) {
+                        Customers see the promo code box in the cart, and active coupons below apply.
+                      } @else {
+                        The promo code box is hidden in the shop and no code applies at checkout. Nothing is deleted.
+                      }
+                    </p>
+                    @if (!perms.can('coupons.switch')) {
+                      <p class="text-xs text-gray-400 mt-1">Needs the “Turn promo codes on or off” permission.</p>
+                    }
+                  </div>
+                  <button type="button" role="switch" [attr.aria-checked]="codesOn()" (click)="toggleCodes()"
+                    [disabled]="savingSwitch() || !perms.can('coupons.switch')"
+                    class="relative inline-flex h-7 flex-shrink-0 rounded-full transition-colors disabled:opacity-50"
+                    [class.bg-emerald-500]="codesOn()" [class.bg-gray-300]="!codesOn()"
+                    [attr.aria-label]="codesOn() ? 'Switch promo codes off' : 'Switch promo codes on'"
+                    style="width:3.25rem">
+                    <span class="absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all"
+                      [style.left]="codesOn() ? '1.75rem' : '0.25rem'"></span>
+                  </button>
+                </div>
+              </section>
+            }
+
             <!-- List -->
             <section class="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <table class="w-full text-sm">
@@ -110,9 +147,22 @@ const EMPTY_FORM: CouponForm = {
                         } @else { — }
                       </td>
                       <td class="px-4 py-2.5 text-center">
-                        <span class="inline-block h-2.5 w-2.5 rounded-full"
-                          [class.bg-emerald-500]="c.isActive"
-                          [class.bg-gray-300]="!c.isActive"></span>
+                        @if (perms.can('coupons.edit')) {
+                          <button type="button" role="switch" [attr.aria-checked]="c.isActive"
+                            (click)="toggleActive(c)" [disabled]="togglingId() === c.id"
+                            [attr.aria-label]="(c.isActive ? 'Switch off ' : 'Switch on ') + c.code"
+                            [title]="c.isActive ? 'Active - click to switch off' : 'Off - click to switch on'"
+                            class="relative inline-flex h-5 w-9 rounded-full transition-colors disabled:opacity-50"
+                            [class.bg-emerald-500]="c.isActive" [class.bg-gray-300]="!c.isActive">
+                            <span class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all"
+                              [style.left]="c.isActive ? '1.125rem' : '0.125rem'"></span>
+                          </button>
+                        } @else {
+                          <span class="inline-block h-2.5 w-2.5 rounded-full"
+                            [class.bg-emerald-500]="c.isActive"
+                            [class.bg-gray-300]="!c.isActive"
+                            [title]="c.isActive ? 'Active' : 'Off'"></span>
+                        }
                       </td>
                       <td class="px-4 py-2.5">
                         <div class="flex items-center justify-end gap-2">
@@ -236,8 +286,87 @@ export class CouponsComponent implements OnInit {
 
   protected form: CouponForm = { ...EMPTY_FORM };
 
+  // ── shop-wide promo code switch ────────────────────────────────────────────
+
+  readonly promoSwitch = signal<CouponSwitch | null>(null);
+  readonly savingSwitch = signal(false);
+  readonly togglingId = signal<string | null>(null);
+
+  /** Null means on, so a database from before this switch keeps codes working. */
+  protected codesOn(): boolean {
+    return this.promoSwitch()?.couponsEnabled !== false;
+  }
+
+  protected async toggleCodes(): Promise<void> {
+    const current = this.promoSwitch();
+    if (!current || this.savingSwitch() || !this.perms.can('coupons.switch')) return;
+    const turnOn = !this.codesOn();
+    if (!turnOn) {
+      const ok = await this.confirmer.ask({
+        title: 'Turn promo codes off?',
+        message: 'The promo code box disappears from the cart, and no code applies at checkout '
+          + '- including codes customers already entered. Your coupons are kept.',
+        confirmLabel: 'Turn off',
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    this.savingSwitch.set(true);
+    // Optimistic: the switch flips at once and reverts if the save fails.
+    this.promoSwitch.set({ couponsEnabled: turnOn });
+    this.api.updateSwitch({ couponsEnabled: turnOn }).subscribe({
+      next: (saved) => {
+        this.promoSwitch.set(saved);
+        this.savingSwitch.set(false);
+        this.notices.success(turnOn ? 'Promo codes turned on' : 'Promo codes turned off',
+          turnOn ? 'The promo code box is back in the cart.' : 'The promo code box is hidden in the shop.');
+      },
+      error: (err) => {
+        this.promoSwitch.set(current);
+        this.savingSwitch.set(false);
+        this.errorMessage.set(parseApiError(err));
+      },
+    });
+  }
+
+  /** One coupon on or off from the list, without opening the edit form. */
+  protected toggleActive(c: CouponResponse): void {
+    if (this.togglingId() || !this.perms.can('coupons.edit')) return;
+    this.togglingId.set(c.id);
+    this.api.update(c.id, { ...this.requestFrom(c), isActive: !c.isActive })
+      .pipe(catchError((err) => {
+        this.errorMessage.set(parseApiError(err));
+        this.togglingId.set(null);
+        return EMPTY;
+      }))
+      .subscribe((saved) => {
+        this.coupons.update((list) => list.map((x) => (x.id === saved.id ? saved : x)));
+        this.togglingId.set(null);
+        this.notices.success(saved.isActive ? 'Coupon switched on' : 'Coupon switched off', saved.code);
+      });
+  }
+
+  /** A coupon as it is now, in the shape the update endpoint takes. */
+  private requestFrom(c: CouponResponse): CouponRequest {
+    return {
+      code: c.code,
+      discountType: c.discountType,
+      discountValue: c.discountValue,
+      minOrderAmount: c.minOrderAmount,
+      usageLimit: c.usageLimit,
+      perUserLimit: c.perUserLimit,
+      validFrom: c.validFrom,
+      validTo: c.validTo,
+      description: c.description,
+      isActive: c.isActive,
+    };
+  }
+
   ngOnInit(): void {
     this.reload();
+    this.api.getSwitch()
+      .pipe(catchError(() => of(null)))
+      .subscribe((s) => this.promoSwitch.set(s));
   }
 
   reload(): void {

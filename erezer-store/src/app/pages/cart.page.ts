@@ -1,11 +1,12 @@
 import { CurrencyPipe } from '@angular/common';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { catchError, of } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { CouponValidateResponse } from '../core/api.models';
 import { EcommerceStore } from '../core/store/ecommerce.store';
+import { SettingsStore } from '../core/store/settings.store';
 import { AuthService } from '../core/auth.service';
 import { RevealDirective } from '../core/reveal.directive';
 
@@ -123,37 +124,40 @@ import { RevealDirective } from '../core/reveal.directive';
         <aside class="app-card h-fit p-6 lg:sticky lg:top-24" appReveal>
           <h2 class="mb-5 text-lg font-semibold">Order summary</h2>
 
-          <div class="mb-5">
-            <p class="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Promo code</p>
-            <div class="flex gap-2">
-              <input
-                [ngModel]="codeInput()"
-                (ngModelChange)="codeInput.set($event)"
-                placeholder="e.g. WELCOME10"
-                [disabled]="couponLocked()"
-                class="w-full rounded-full border border-neutral-300 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-neutral-500 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900"
-              />
-              @if (couponLocked()) {
-                <button type="button" class="btn-secondary shrink-0 !rounded-full !px-4 !py-2 text-xs" (click)="removeCoupon()">Remove</button>
-              } @else {
-                <button type="button" class="btn-secondary shrink-0 !rounded-full !px-4 !py-2 text-xs"
-                  (click)="applyCoupon()" [disabled]="applying() || !codeInput().trim()">
-                  {{ applying() ? '…' : 'Apply' }}
-                </button>
+          <!-- Hidden while an admin has promo codes switched off. -->
+          @if (codesOn()) {
+            <div class="mb-5">
+              <p class="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 dark:text-neutral-400">Promo code</p>
+              <div class="flex gap-2">
+                <input
+                  [ngModel]="codeInput()"
+                  (ngModelChange)="codeInput.set($event)"
+                  placeholder="e.g. WELCOME10"
+                  [disabled]="couponLocked()"
+                  class="w-full rounded-full border border-neutral-300 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-neutral-500 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900"
+                />
+                @if (couponLocked()) {
+                  <button type="button" class="btn-secondary shrink-0 !rounded-full !px-4 !py-2 text-xs" (click)="removeCoupon()">Remove</button>
+                } @else {
+                  <button type="button" class="btn-secondary shrink-0 !rounded-full !px-4 !py-2 text-xs"
+                    (click)="applyCoupon()" [disabled]="applying() || !codeInput().trim()">
+                    {{ applying() ? '…' : 'Apply' }}
+                  </button>
+                }
+              </div>
+              @if (appliedCoupon(); as c) {
+                @if (c.valid) {
+                  <p class="mt-2 flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                    Coupon <strong>{{ c.code }}</strong> applied@if (c.removesShipping) { · free shipping }
+                  </p>
+                } @else if (c.reason) {
+                  <p class="mt-2 text-xs text-red-500">{{ c.reason }}</p>
+                }
               }
             </div>
-            @if (appliedCoupon(); as c) {
-              @if (c.valid) {
-                <p class="mt-2 flex items-center gap-1.5 text-xs font-medium text-emerald-600">
-                  <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                  Coupon <strong>{{ c.code }}</strong> applied@if (c.removesShipping) { · free shipping }
-                </p>
-              } @else if (c.reason) {
-                <p class="mt-2 text-xs text-red-500">{{ c.reason }}</p>
-              }
-            }
-          </div>
 
+          }
           <div class="space-y-2.5 text-sm">
             <div class="flex justify-between"><span class="app-muted">Subtotal</span><span class="tabular-nums">{{ store.cartSubtotal() | currency:'BDT':'৳' }}</span></div>
             <div class="flex justify-between"><span class="app-muted">Shipping</span><span class="tabular-nums">{{ effectiveShipping() | currency:'BDT':'৳' }}</span></div>
@@ -195,6 +199,23 @@ export class CartPage implements OnInit {
   protected readonly appliedCoupon = signal<CouponValidateResponse | null>(null);
 
   protected readonly couponLocked = computed(() => !!this.appliedCoupon()?.valid);
+
+  private readonly settingsStore = inject(SettingsStore);
+
+  /** Promo codes on for the shop. Null (settings not loaded yet, or an older row) counts as on. */
+  protected readonly codesOn = computed(() => this.settingsStore.settings()?.couponsEnabled !== false);
+
+  constructor() {
+    // Switched off by an admin: drop any code already applied, so neither the
+    // cart nor checkout carries a discount the server will refuse.
+    effect(() => {
+      if (!this.codesOn()) {
+        this.appliedCoupon.set(null);
+        this.codeInput.set('');
+        this.store.clearPromoCode();
+      }
+    });
+  }
 
   /** Distinct line items in the cart. */
   protected readonly itemCount = computed(() => this.store.cartItemsDetailed().length);
@@ -268,7 +289,7 @@ export class CartPage implements OnInit {
       if (!result) return;
       this.appliedCoupon.set(result);
       if (result.valid) {
-        this.store.setPromoCode(code);
+        this.store.setPromoCode(result.code || code);
       }
     });
   }

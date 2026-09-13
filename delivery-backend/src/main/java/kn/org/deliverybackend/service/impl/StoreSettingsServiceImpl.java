@@ -14,6 +14,7 @@ import kn.org.deliverybackend.dto.settings.MarqueeDTO;
 import kn.org.deliverybackend.dto.settings.SizeChartCellDTO;
 import kn.org.deliverybackend.dto.settings.SizeChartDTO;
 import kn.org.deliverybackend.dto.settings.SizeChartRowDTO;
+import kn.org.deliverybackend.dto.coupon.CouponSwitchDTO;
 import kn.org.deliverybackend.dto.discount.DiscountSwitchesDTO;
 import kn.org.deliverybackend.dto.settings.StoreSettingsDTO;
 import kn.org.deliverybackend.entity.StoreSettings;
@@ -90,9 +91,9 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
         settings.setPaymentCodEnabled(request.getPaymentCodEnabled() == null || request.getPaymentCodEnabled());
         settings.setPaymentBkashEnabled(request.getPaymentBkashEnabled() == null || request.getPaymentBkashEnabled());
         settings.setPaymentCardEnabled(request.getPaymentCardEnabled() == null || request.getPaymentCardEnabled());
-        // The discount switches are not saved here: they have their own
-        // endpoint and permission (updateDiscountSwitches), so saving the
-        // settings page can never turn discounting on or off.
+        // The discount switches and the promo code switch are not saved here:
+        // they have their own endpoints and permissions, so saving the settings
+        // page can never turn discounting or promo codes on or off.
 
         return toDTO(repository.save(settings));
     }
@@ -113,6 +114,21 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
         if (change.discountsCategoryEnabled() != null) settings.setDiscountsCategoryEnabled(change.discountsCategoryEnabled());
         if (change.discountsProductEnabled() != null) settings.setDiscountsProductEnabled(change.discountsProductEnabled());
         return DiscountSwitchesDTO.from(toDTO(repository.save(settings)));
+    }
+
+    @Override
+    @Transactional
+    public CouponSwitchDTO getCouponSwitch() {
+        return new CouponSwitchDTO(get().getCouponsEnabled());
+    }
+
+    @Override
+    @Transactional
+    public CouponSwitchDTO updateCouponSwitch(CouponSwitchDTO change) {
+        StoreSettings settings = repository.findById(StoreSettings.SINGLETON_ID)
+                .orElseGet(this::seedDefaults);
+        if (change.couponsEnabled() != null) settings.setCouponsEnabled(change.couponsEnabled());
+        return new CouponSwitchDTO(toDTO(repository.save(settings)).getCouponsEnabled());
     }
 
     // ── helpers ────────────────────────────────────────────────────────────────
@@ -139,6 +155,7 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
                 .discountsGlobalEnabled(true)
                 .discountsCategoryEnabled(true)
                 .discountsProductEnabled(true)
+                .couponsEnabled(true)
                 .build();
         return repository.save(settings);
     }
@@ -312,6 +329,7 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
                 .discountsGlobalEnabled(s.getDiscountsGlobalEnabled() == null || s.getDiscountsGlobalEnabled())
                 .discountsCategoryEnabled(s.getDiscountsCategoryEnabled() == null || s.getDiscountsCategoryEnabled())
                 .discountsProductEnabled(s.getDiscountsProductEnabled() == null || s.getDiscountsProductEnabled())
+                .couponsEnabled(s.getCouponsEnabled() == null || s.getCouponsEnabled())
                 .build();
     }
 }

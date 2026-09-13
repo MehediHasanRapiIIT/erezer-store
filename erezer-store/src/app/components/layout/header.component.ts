@@ -68,6 +68,7 @@ const HERO_FADE_PX = 24;
                 type="button"
                 (click)="setLang(l.id)"
                 class="rounded-full border px-2.5 py-1 text-xs font-medium transition"
+                [class.pill-solid]="translate.lang() === l.id"
                 [class.border-black]="translate.lang() === l.id"
                 [class.dark:border-white]="translate.lang() === l.id"
                 [class.bg-black]="translate.lang() === l.id"
@@ -119,7 +120,7 @@ const HERO_FADE_PX = 24;
           } @else {
             <a
               routerLink="/account"
-              class="ml-1 hidden rounded-full bg-black px-4 py-1.5 text-xs font-semibold text-white transition hover:opacity-90 dark:bg-white dark:text-black sm:inline-flex"
+              class="pill-solid ml-1 hidden rounded-full bg-black px-4 py-1.5 text-xs font-semibold text-white transition hover:opacity-90 dark:bg-white dark:text-black sm:inline-flex"
             >Sign in</a>
           }
         </div>
@@ -209,18 +210,18 @@ const HERO_FADE_PX = 24;
      *
      * The hero carries its own dark scrim, so everything in the bar is forced
      * to white for contrast. Scoped to this one state - the header keeps its
-     * normal light/dark theming everywhere else. Elements that already carry
-     * their own solid background (the Sign in pill, the active language chip)
-     * are left alone, which is why this targets colour and border rather than
-     * blanket-styling every child.
+     * normal light/dark theming everywhere else. Elements that carry their own
+     * solid background (the Sign in pill, the chosen language chip) are marked
+     * .pill-solid and keep their own text colour: in dark mode those pills are
+     * white, and forcing their text white too made them unreadable.
      */
     .header-over-hero,
-    .header-over-hero a,
-    .header-over-hero button {
+    .header-over-hero a:not(.pill-solid),
+    .header-over-hero button:not(.pill-solid) {
       color: #fff;
     }
-    .header-over-hero a:hover,
-    .header-over-hero button:hover {
+    .header-over-hero a:not(.pill-solid):hover,
+    .header-over-hero button:not(.pill-solid):hover {
       color: #fff;
     }
     /* Outlined controls need a visible edge against photography. */

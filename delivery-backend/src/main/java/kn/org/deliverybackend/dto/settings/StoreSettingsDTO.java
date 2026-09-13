@@ -41,4 +41,7 @@ public class StoreSettingsDTO {
     private Boolean discountsGlobalEnabled;
     private Boolean discountsCategoryEnabled;
     private Boolean discountsProductEnabled;
+
+    /** Promo codes on or off. Read-only here: it has its own endpoint and permission. */
+    private Boolean couponsEnabled;
 }

@@ -101,4 +101,8 @@ public class StoreSettings extends AbstractBaseEntity<Long> {
     /** False suspends discounts whose scope is PRODUCT. */
     @Column(name = "discounts_product_enabled")
     private Boolean discountsProductEnabled;
+
+    /** Master switch for promo codes. False hides the promo box and refuses every code; null means on. */
+    @Column(name = "coupons_enabled")
+    private Boolean couponsEnabled;
 }
