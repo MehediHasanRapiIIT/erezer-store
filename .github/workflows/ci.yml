@@ -118,3 +118,13 @@ jobs:
             -f docker-compose.prod.yml \
             -f docker-compose.deploy.yml config --quiet
           echo "production overlay merges cleanly"
+
+      # deploy.sh validates it again on the VM, but a typo is cheaper to see here.
+      - name: Validate the Caddyfile
+        run: |
+          docker run --rm \
+            -e STOREFRONT_HOST=shop.example.com -e ADMIN_HOST=admin.example.com \
+            -e API_HOST=api.example.com -e KEYCLOAK_HOST=auth.example.com \
+            -e MEDIA_HOST=media.example.com -e ACME_EMAIL=ops@example.com \
+            -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2.8-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile

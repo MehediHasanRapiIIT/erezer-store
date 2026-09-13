@@ -124,6 +124,11 @@ def main() -> int:
     #   LOGIN_ERROR ... error="invalid_redirect_uri"
     #       redirect_uri="https://admin.<domain>/login"
     #
+    # Logout has its OWN list - "post.logout.redirect.uris", '##'-separated -
+    # and the realm JSON pins that to localhost too. Updating only the login
+    # list above left every production logout on Keycloak's
+    # "Invalid redirect uri" page.
+    #
     # Existing entries are kept rather than replaced, so one Keycloak can serve
     # a production host and a developer's localhost at the same time.
     ui_client = ENV.get("KEYCLOAK_CLIENT_ID", "delivery-admin-ui")
@@ -134,13 +139,22 @@ def main() -> int:
             print(f"client '{ui_client}' not found - skipping redirect URI update")
         else:
             ui = found_ui[0]
+            attributes = dict(ui.get("attributes") or {})
+            old_logout = [u for u in (attributes.get("post.logout.redirect.uris") or "").split("##") if u]
             redirects = sorted(set(ui.get("redirectUris") or []) | {f"https://{h}/*" for h in hosts})
             origins = sorted(set(ui.get("webOrigins") or []) | {f"https://{h}" for h in hosts})
-            if redirects != sorted(ui.get("redirectUris") or []) or origins != sorted(ui.get("webOrigins") or []):
-                api("PUT", f"/clients/{ui['id']}", {**ui, "redirectUris": redirects, "webOrigins": origins})
-                print(f"client '{ui_client}' now accepts:", ", ".join(f"https://{h}" for h in hosts))
+            logout = sorted(set(old_logout) | {f"https://{h}/*" for h in hosts})
+            if (redirects != sorted(ui.get("redirectUris") or [])
+                    or origins != sorted(ui.get("webOrigins") or [])
+                    or logout != sorted(old_logout)):
+                attributes["post.logout.redirect.uris"] = "##".join(logout)
+                api("PUT", f"/clients/{ui['id']}",
+                    {**ui, "redirectUris": redirects, "webOrigins": origins, "attributes": attributes})
+                print(f"client '{ui_client}' now accepts login and logout for:",
+                      ", ".join(f"https://{h}" for h in hosts))
             else:
-                print(f"client '{ui_client}' already accepts:", ", ".join(f"https://{h}" for h in hosts))
+                print(f"client '{ui_client}' already accepts login and logout for:",
+                      ", ".join(f"https://{h}" for h in hosts))
 
     # 4. The staff-accounts client and its service account.
     found = api("GET", f"/clients?clientId={CLIENT_ID}")

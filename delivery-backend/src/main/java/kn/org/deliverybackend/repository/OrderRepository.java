@@ -15,6 +15,15 @@ import java.util.UUID;
 @Repository
 public interface OrderRepository extends JpaRepository<Order, UUID> {
 
+    /**
+     * Ids of live orders starting with {@code prefix} (lower-case hex and dashes
+     * only - the caller checks, so no LIKE wildcard can get in). At most two:
+     * enough to tell one match from an ambiguous one.
+     */
+    @Query(value = "SELECT CAST(o.id AS text) FROM orders o WHERE o.deleted = false "
+            + "AND CAST(o.id AS text) LIKE :prefix || '%' LIMIT 2", nativeQuery = true)
+    List<String> findIdsStartingWith(@Param("prefix") String prefix);
+
     @Query("SELECT o FROM Order o WHERE o.clientId = :clientId AND o.deleted = false ORDER BY o.createdAt DESC")
     List<Order> findByClientId(UUID clientId);
 

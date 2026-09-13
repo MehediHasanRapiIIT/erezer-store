@@ -45,8 +45,17 @@
 {$ADMIN_HOST} {
 	encode zstd gzip
 	import common_headers
-	# The admin panel is never legitimately framed, so deny it outright.
-	header X-Frame-Options "DENY"
+	# The admin panel is never framed by another site, so deny framing - with one
+	# exception. keycloak-js checks for an existing login by loading
+	# /silent-check-sso.html in a hidden iframe on this same origin and waiting,
+	# with no timeout, for it to report back. Under DENY the browser refuses to
+	# render it, so anyone with a live session reopened the panel to a blank page.
+	# SAMEORIGIN still refuses every other site. The two matchers never overlap,
+	# because Caddy gives no fixed order to two `header` lines for one field.
+	@silent_sso path /silent-check-sso.html
+	@not_silent_sso not path /silent-check-sso.html
+	header @not_silent_sso X-Frame-Options "DENY"
+	header @silent_sso X-Frame-Options "SAMEORIGIN"
 	header Referrer-Policy "no-referrer"
 	reverse_proxy admin:80
 }

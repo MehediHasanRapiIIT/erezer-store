@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/support")
@@ -26,10 +25,10 @@ public class ContactController {
     public ResponseEntity<MessageResponseDTO> submit(
             @Valid @RequestBody ContactMessageRequestDTO request,
             HttpServletRequest http) {
-        if (!rateLimiter.tryAcquireAuth("support:" + clientIp(http))) {
-            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
-                    "Too many messages from this address. Please try again later.");
-        }
+        // enforceAuth, not tryAcquireAuth + ResponseStatusException: the global
+        // handler's catch-all turned that exception into a 500 "Internal server
+        // error", whereas RateLimitExceededException has its own 429 handler.
+        rateLimiter.enforceAuth("support:" + clientIp(http));
         contactService.submit(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(MessageResponseDTO.of("Thanks — we'll get back to you soon."));

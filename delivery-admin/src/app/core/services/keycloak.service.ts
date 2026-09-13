@@ -10,21 +10,34 @@ const url = runtimeConfig('KEYCLOAK_URL', 'http://localhost:9090');
 const realm = runtimeConfig('KEYCLOAK_REALM', 'delivery-admin');
 const clientId = runtimeConfig('KEYCLOAK_CLIENT_ID', 'delivery-admin-ui');
 
+/** How long to wait for the silent login check before falling back to a redirect. */
+const INIT_TIMEOUT_MS = 10_000;
+
 @Injectable({ providedIn: 'root' })
 export class KeycloakService {
   private keycloak = new Keycloak({ url, realm, clientId });
 
   init(): Promise<boolean> {
-    return this.keycloak
-      .init({
-        onLoad: 'check-sso',
-        silentCheckSsoRedirectUri:
-          window.location.origin + '/silent-check-sso.html',
-      })
+    // keycloak-js waits, with no time limit, for /silent-check-sso.html to report
+    // back from a hidden iframe. Anything that stops that page rendering - a
+    // proxy's X-Frame-Options, a browser extension - left the app never starting,
+    // on a blank page. Past the limit, do the full redirect instead: with a live
+    // Keycloak session it returns at once, logged in.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Keycloak silent check timed out')), INIT_TIMEOUT_MS);
+    });
+    const init = this.keycloak.init({
+      onLoad: 'check-sso',
+      silentCheckSsoRedirectUri:
+        window.location.origin + '/silent-check-sso.html',
+    });
+    return Promise.race([init, timeout])
       .catch(() => {
         this.login();
         return false;
-      });
+      })
+      .finally(() => clearTimeout(timer));
   }
 
   isAuthenticated(): boolean {

@@ -4,9 +4,11 @@ import kn.org.deliverybackend.dto.contact.ContactMessageDTO;
 import kn.org.deliverybackend.dto.contact.ContactMessageRequestDTO;
 import kn.org.deliverybackend.dto.contact.ContactStatusUpdateDTO;
 import kn.org.deliverybackend.entity.ContactMessage;
+import kn.org.deliverybackend.exception.InvalidRequestException;
 import kn.org.deliverybackend.exception.InvalidStockOperationException;
 import kn.org.deliverybackend.exception.ResourceNotFoundException;
 import kn.org.deliverybackend.repository.ContactMessageRepository;
+import kn.org.deliverybackend.repository.OrderRepository;
 import kn.org.deliverybackend.service.ContactMessageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,8 +18,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Service
 @Slf4j
@@ -26,7 +31,11 @@ public class ContactMessageServiceImpl implements ContactMessageService {
 
     private static final Set<String> ALLOWED_STATUSES = Set.of("NEW", "READ", "RESOLVED");
 
+    /** The start of an order id: at least the 8 characters an SMS shows, at most the whole id. */
+    private static final Pattern ORDER_ID_PREFIX = Pattern.compile("[0-9a-f][0-9a-f-]{7,35}");
+
     private final ContactMessageRepository repository;
+    private final OrderRepository orderRepository;
 
     @Override
     @Transactional
@@ -36,10 +45,38 @@ public class ContactMessageServiceImpl implements ContactMessageService {
                 .email(request.getEmail().trim().toLowerCase())
                 .subject(request.getSubject() == null ? null : request.getSubject().trim())
                 .message(request.getMessage().trim())
-                .orderId(request.getOrderId())
+                .orderId(resolveOrderId(request.getOrderId()))
                 .status("NEW")
                 .build();
         return toDTO(repository.save(m));
+    }
+
+    /**
+     * The order the customer typed, as they typed it: "#" and spaces are ignored,
+     * and the short id from an SMS works as well as the full one. Blank means no
+     * order. Anything that doesn't name exactly one order is refused with a
+     * sentence the contact form can show, rather than silently dropping the link.
+     */
+    UUID resolveOrderId(String typed) {
+        if (typed == null) {
+            return null;
+        }
+        String ref = typed.trim().replaceFirst("^#\\s*", "").toLowerCase(Locale.ROOT);
+        if (ref.isEmpty()) {
+            return null;
+        }
+        List<String> matches = ORDER_ID_PREFIX.matcher(ref).matches()
+                ? orderRepository.findIdsStartingWith(ref)
+                : List.of();
+        if (matches.size() == 1) {
+            return UUID.fromString(matches.get(0));
+        }
+        if (matches.isEmpty()) {
+            throw new InvalidRequestException("We couldn't find an order with the ID \"" + typed.trim()
+                    + "\". Copy it from your Orders page, or leave the Order ID blank.");
+        }
+        throw new InvalidRequestException("More than one order starts with \"" + typed.trim()
+                + "\". Please enter more of the order ID.");
     }
 
     @Override

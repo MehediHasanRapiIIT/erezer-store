@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, of } from 'rxjs';
@@ -173,11 +173,14 @@ export class RequestReturnPage implements OnInit {
   protected reason: ReturnReason | '' = '';
   protected customerNotes = '';
 
-  protected readonly canSubmit = computed(() => {
+  // A plain method, not computed(): `reason` and each row's `selected` are
+  // changed by ngModel, not through signals. A computed() never saw those
+  // changes, so it kept its first answer (false) and the button stayed
+  // disabled however the form was filled in.
+  protected canSubmit(): boolean {
     if (!this.reason) return false;
-    const selected = this.items().filter((i) => i.selected && i.quantity > 0);
-    return selected.length > 0;
-  });
+    return this.items().some((i) => i.selected && i.quantity > 0);
+  }
 
   ngOnInit(): void {
     const oid = this.route.snapshot.paramMap.get('orderId');

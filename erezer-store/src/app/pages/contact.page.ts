@@ -108,7 +108,7 @@ export class ContactPage {
       message: this.message.trim(),
     }).pipe(catchError((err) => {
       this.submitting.set(false);
-      this.error.set(err?.error?.message ?? 'Could not send your message. Please try again.');
+      this.error.set(this.describeError(err));
       return of(null);
     })).subscribe((response) => {
       this.submitting.set(false);
@@ -117,5 +117,16 @@ export class ContactPage {
         this.pixel.contact();
       }
     });
+  }
+
+  // A rejected field comes back as { errors: { email: '…' } } with no message,
+  // which used to leave the customer with "Could not send your message".
+  private describeError(err: any): string {
+    const fields: Record<string, string> = err?.error?.errors ?? {};
+    if (fields['email']) return 'Please check your email address — it doesn’t look right.';
+    const labels: Record<string, string> = { name: 'your name', subject: 'the subject', orderId: 'the Order ID', message: 'your message' };
+    const named = Object.keys(fields).map((f) => labels[f] ?? f);
+    if (named.length) return `Please check ${named.join(' and ')}.`;
+    return err?.error?.message ?? 'Could not send your message. Please try again.';
   }
 }

@@ -7,8 +7,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.UUID;
-
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -30,6 +28,12 @@ public class ContactMessageRequestDTO {
     @Size(max = 4000)
     private String message;
 
-    /** Optional — when the customer is asking about a specific order. */
-    private UUID orderId;
+    /**
+     * Optional — when the customer is asking about a specific order. Text, not a
+     * UUID: customers paste it the way they see it ("#<id>" on the Orders page,
+     * the 8-character "#4a35228f" from an SMS), and a UUID field turned all of
+     * those into an unreadable-body 400. The service resolves it to the order.
+     */
+    @Size(max = 64)
+    private String orderId;
 }

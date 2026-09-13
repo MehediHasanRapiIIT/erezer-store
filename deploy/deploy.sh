@@ -18,6 +18,7 @@ set -euo pipefail
 APP_DIR="${APP_DIR:-/opt/erezer}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-300}"
 STATE_FILE="$APP_DIR/.deployed-tag"
+CADDY_STATE_FILE="$APP_DIR/.deployed-caddyfile-sha"
 
 # Services that must report healthy before a rollout counts as successful.
 # postgres/redis/minio are covered transitively: the backend depends on all
@@ -83,6 +84,22 @@ rollback() {
 
 log "Deploying ${IMAGE_REPO_OWNER}/*:${IMAGE_TAG}  (previous: ${PREVIOUS_TAG:-none})"
 
+# ── Caddyfile: check it before anything changes ─────────────────────────────
+# CI copies deploy/Caddyfile across, but a running Caddy never notices: it does
+# not watch its config, and a single-file bind mount keeps showing the container
+# the old file once tar has replaced it. So a changed Caddyfile is validated
+# here, where a mistake can still stop the deploy, and applied after the health
+# gate below with a restart.
+CADDYFILE_SHA="$(sha256sum deploy/Caddyfile | cut -d' ' -f1)"
+CADDYFILE_CHANGED=false
+if [[ "$CADDYFILE_SHA" != "$(cat "$CADDY_STATE_FILE" 2>/dev/null || true)" ]]; then
+  CADDYFILE_CHANGED=true
+  log "Caddyfile changed - validating it"
+  "${COMPOSE[@]}" run --rm --no-deps -T --entrypoint caddy caddy \
+      validate --config /etc/caddy/Caddyfile --adapter caddyfile \
+    || die "deploy/Caddyfile is invalid - nothing was changed on the VM"
+fi
+
 log "Pulling images from Docker Hub"
 "${COMPOSE[@]}" pull --quiet backend store admin keycloak \
   || die "pull failed - check the tag exists and, for private repos, that this VM is logged in (docker login)"
@@ -107,6 +124,15 @@ if (( ${#failed[@]} > 0 )); then
 fi
 
 echo "$IMAGE_TAG" > "$STATE_FILE"
+
+if [[ "$CADDYFILE_CHANGED" == true ]]; then
+  log "Restarting Caddy to apply the new Caddyfile"
+  # A restart re-binds the mount, so Caddy reads the file that is on disk now.
+  # Certificates live in the caddy-data volume and survive it.
+  "${COMPOSE[@]}" restart caddy
+  wait_for_health caddy || die "Caddy did not come back after the Caddyfile change"
+  echo "$CADDYFILE_SHA" > "$CADDY_STATE_FILE"
+fi
 
 log "Reclaiming disk from superseded images"
 # Dangling only: never touches a tagged image, so the previous release stays
