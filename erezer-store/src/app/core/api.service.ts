@@ -14,6 +14,7 @@ import {
   ApiCategory,
   ApiHomeData,
   ApiOrder,
+  PublicOrderTracking,
   ApiPage,
   ApiProduct,
   ApiProductBrowse,
@@ -319,6 +320,11 @@ export class ApiService {
 
   createGuestOrder(payload: GuestOrderPayload): Observable<ApiOrder> {
     return this.http.post<ApiOrder>(`${BASE}/app/consumer/guest/orders`, payload);
+  }
+
+  /** Track Order page: any order by its number (EZ-482915), status and items only. */
+  trackOrderByNumber(number: string): Observable<PublicOrderTracking> {
+    return this.http.get<PublicOrderTracking>(`${BASE}/api/orders/track`, { params: { number } });
   }
 
   /** The customer's orders one page at a time, newest first. */

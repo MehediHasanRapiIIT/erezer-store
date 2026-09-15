@@ -19,6 +19,7 @@ import java.util.Map;
 public class ReturnEmailListener {
 
     private final EmailService emailService;
+    private final kn.org.deliverybackend.repository.OrderRepository orderRepository;
 
     @Value("${app.frontend.store-url}")
     private String storeUrl;
@@ -29,7 +30,8 @@ public class ReturnEmailListener {
             return;
         }
         Map<String, Object> vars = new HashMap<>();
-        vars.put("orderId", event.getOrderId());
+        vars.put("orderNumber", orderRepository.findById(event.getOrderId())
+                .map(o -> o.getOrderNumber()).orElse(event.getOrderId().toString()));
         vars.put("returnId", event.getReturnRequestId());
         vars.put("statusLabel", humanLabel(event.getStatus()));
         vars.put("headline", headlineFor(event.getStatus()));

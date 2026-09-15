@@ -56,7 +56,7 @@ import { RevealDirective } from '../core/reveal.directive';
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.66-.84H14.25M16.5 18.75h-6V5.25A1.125 1.125 0 009.375 4.125H4.5"/></svg>
                   </span>
                   <div>
-                    <p class="font-medium">Order #{{ order.id }}</p>
+                    <p class="font-medium">Order {{ order.orderNumber || '#' + order.id }}</p>
                     <p class="text-sm text-neutral-500 dark:text-neutral-400">{{ order.createdAt | date: 'medium' }}</p>
                   </div>
                 </div>

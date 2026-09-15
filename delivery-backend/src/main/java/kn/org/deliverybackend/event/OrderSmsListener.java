@@ -41,30 +41,35 @@ public class OrderSmsListener {
             return;
         }
         Order order = orderRepository.findById(event.getOrderId()).orElse(null);
-        if (order == null || order.getClientId() == null) {
-            return; // guest or missing — no number to text
+        if (order == null) {
+            return;
         }
-        String phone = usersRepository.findById(order.getClientId())
-                .map(u -> u.getPhoneNumber())
-                .orElse(null);
+        // Account holders by their profile number; guests by the phone they gave at checkout.
+        String phone = order.getClientId() != null
+                ? usersRepository.findById(order.getClientId()).map(u -> u.getPhoneNumber()).orElse(order.getCustomerPhone())
+                : order.getCustomerPhone();
         if (phone == null || phone.isBlank()) {
             return;
         }
-        smsService.send(phone, messageFor(to, event));
+        smsService.send(phone, messageFor(to, event, order));
     }
 
-    private String messageFor(OrderStatus to, OrderStatusChangedEvent event) {
-        String shortId = event.getOrderId().toString().substring(0, 8);
+    private String messageFor(OrderStatus to, OrderStatusChangedEvent event, Order order) {
+        String shortId = order.getOrderNumber() != null ? order.getOrderNumber()
+                : event.getOrderId().toString().substring(0, 8);
+        String trackUrl = order.getClientId() == null && order.getOrderNumber() != null
+                ? storeUrl + "/track-order?number=" + order.getOrderNumber()
+                : storeUrl + "/orders/" + event.getOrderId();
         return switch (to) {
-            case SHIPPED -> "Erezer: your order #" + shortId + " has shipped"
+            case SHIPPED -> "Erezer: your order " + shortId + " has shipped"
                     + (event.getTrackingNumber() != null && !event.getTrackingNumber().isBlank()
                         ? " (tracking " + event.getTrackingNumber() + ")" : "")
-                    + ". Track: " + storeUrl + "/orders/" + event.getOrderId();
-            case OUT_FOR_DELIVERY -> "Erezer: your order #" + shortId
+                    + ". Track: " + trackUrl;
+            case OUT_FOR_DELIVERY -> "Erezer: your order " + shortId
                     + " is out for delivery today. Please keep your phone reachable.";
-            case DELIVERED -> "Erezer: your order #" + shortId
+            case DELIVERED -> "Erezer: your order " + shortId
                     + " has been delivered. Thank you for shopping with us!";
-            default -> "Erezer: update on your order #" + shortId + ".";
+            default -> "Erezer: update on your order " + shortId + ".";
         };
     }
 }

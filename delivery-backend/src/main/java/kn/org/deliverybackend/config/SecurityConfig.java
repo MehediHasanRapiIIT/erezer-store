@@ -127,6 +127,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/meta/**").permitAll()
                         .requestMatchers("/api/payments/bkash/**").permitAll()
                         .requestMatchers("/api/support/contact").permitAll()
+                        // Track Order page: by order number, showing status and items only.
+                        .requestMatchers(HttpMethod.GET, "/api/orders/track").permitAll()
                         .requestMatchers("/api/newsletter/**").permitAll()
                         // Custom design studio: assets, artwork upload, quote
                         // requests and shared-design lookup are all guest-usable.

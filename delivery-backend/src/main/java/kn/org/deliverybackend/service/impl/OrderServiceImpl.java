@@ -1,5 +1,6 @@
 package kn.org.deliverybackend.service.impl;
 
+import kn.org.deliverybackend.util.OrderNumbers;
 import kn.org.deliverybackend.dto.OrderDTO;
 import kn.org.deliverybackend.dto.OrderItemDTO;
 import kn.org.deliverybackend.dto.order.CancelOrderRequestDTO;
@@ -57,6 +58,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final OrderStatusHistoryRepository statusHistoryRepository;
+    private final OrderNumbers orderNumbers;
     private final UsersRepository usersRepository;
     private final InventoryService inventoryService;
     private final OrderStockRestorer stockRestorer;
@@ -102,6 +104,7 @@ public class OrderServiceImpl implements OrderService {
                 bundleDiscount);
 
         Order order = new Order();
+        order.setOrderNumber(orderNumbers.next());
         order.setClientId(request.getClientId());
         order.setDeliveryAddress(request.getDeliveryAddress());
         order.setPaymentMethod(request.getPaymentMethod());
@@ -175,6 +178,7 @@ public class OrderServiceImpl implements OrderService {
                 bundleDiscount);
 
         Order order = new Order();
+        order.setOrderNumber(orderNumbers.next());
         order.setClientId(null); // guest — no Users row
         order.setDeliveryAddress(request.getDeliveryAddress());
         order.setPaymentMethod(request.getPaymentMethod());
@@ -244,15 +248,13 @@ public class OrderServiceImpl implements OrderService {
                         .orElse(shippingService.resolveZone(deliveryAddress))
                 : shippingService.resolveZone(deliveryAddress);
         out.shippingZoneId = zone != null ? zone.getId() : null;
-        BigDecimal shipping = shippingService.computeFee(zone, out.subtotal);
 
         // Bundle offer: fixed deal, exclusive of coupons/auto-discounts.
         if (bundleDiscount != null) {
-            // Judge the free-shipping threshold on the bundle price actually paid,
-            // not the inflated pre-discount list subtotal (see CheckoutQuoteService).
+            // Free shipping is judged on the bundle price actually paid (see CheckoutQuoteService).
             BigDecimal bundleGoods = out.subtotal.subtract(bundleDiscount);
             if (bundleGoods.signum() < 0) bundleGoods = BigDecimal.ZERO;
-            shipping = shippingService.computeFee(zone, bundleGoods);
+            BigDecimal shipping = shippingService.quoteShipping(zone, bundleGoods).fee();
             out.shippingFee = shipping;
             out.discountAmount = bundleDiscount;
             out.total = bundleGoods.add(shipping).add(surcharge);
@@ -266,6 +268,7 @@ public class OrderServiceImpl implements OrderService {
 
         // Coupon (re-validated server-side)
         BigDecimal couponDiscount = BigDecimal.ZERO;
+        boolean couponFreeShipping = false;
         if (couponCode != null && !couponCode.isBlank()) {
             try {
                 Coupon coupon = couponService.getActiveByCode(couponCode);
@@ -273,9 +276,7 @@ public class OrderServiceImpl implements OrderService {
                         .orElseThrow(() -> new InvalidStockOperationException(
                                 "Stored coupon has bad type: " + coupon.getDiscountType()));
                 couponDiscount = computeDiscount(type, coupon.getDiscountValue(), couponBase);
-                if (type == CouponDiscountType.FREE_SHIPPING) {
-                    shipping = BigDecimal.ZERO;
-                }
+                couponFreeShipping = type == CouponDiscountType.FREE_SHIPPING;
                 out.appliedCoupon = coupon;
                 out.couponId = coupon.getId();
                 out.couponCode = coupon.getCode();
@@ -286,8 +287,13 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        out.shippingFee = shipping;
         out.discountAmount = auto.add(couponDiscount);
+        // Shipping is judged on what the customer pays for the goods after every
+        // discount, the same rule checkout shows (CheckoutQuoteService).
+        BigDecimal goods = out.subtotal.subtract(out.discountAmount);
+        if (goods.signum() < 0) goods = BigDecimal.ZERO;
+        BigDecimal shipping = couponFreeShipping ? BigDecimal.ZERO : shippingService.quoteShipping(zone, goods).fee();
+        out.shippingFee = shipping;
         // Custom-size surcharge is a service fee — added after discounts (not discounted).
         out.total = out.subtotal.subtract(out.discountAmount).add(shipping).add(surcharge);
         if (out.total.signum() < 0) out.total = BigDecimal.ZERO;
@@ -628,6 +634,7 @@ public class OrderServiceImpl implements OrderService {
     private OrderDTO toOrderDTO(Order order) {
         OrderDTO dto = new OrderDTO();
         dto.setId(order.getId());
+        dto.setOrderNumber(order.getOrderNumber());
         dto.setClientId(order.getClientId());
         dto.setDeliveryAddress(order.getDeliveryAddress());
         dto.setPaymentMethod(order.getPaymentMethod());
@@ -643,6 +650,7 @@ public class OrderServiceImpl implements OrderService {
         dto.setOrderItems(itemDTOs);
         dto.setCustomerName(order.getCustomerName());
         dto.setCustomerPhone(order.getCustomerPhone());
+        dto.setCustomerEmail(order.getCustomerEmail());
         return dto;
     }
 

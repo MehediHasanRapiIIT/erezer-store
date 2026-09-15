@@ -87,6 +87,18 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/unsubscribe.page').then((m) => m.UnsubscribePage)
   },
   {
+    path: 'track-order',
+    loadComponent: () => import('./pages/track-order.page').then((m) => m.TrackOrderPage)
+  },
+  {
+    path: 'order-placed',
+    loadComponent: () => import('./pages/order-placed.page').then((m) => m.OrderPlacedPage)
+  },
+  {
+    path: 'about',
+    loadComponent: () => import('./pages/about.page').then((m) => m.AboutPage)
+  },
+  {
     path: 'categories',
     loadComponent: () => import('./pages/categories.page').then((m) => m.CategoriesPage)
   },

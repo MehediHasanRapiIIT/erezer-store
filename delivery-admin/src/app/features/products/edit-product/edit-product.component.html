@@ -12,7 +12,7 @@
               <path d="M1 8a1 1 0 0 1 1-1h13a1 1 0 0 1 1 1v1h2.382a1 1 0 0 1 .894.553l1.618 3.235A1 1 0 0 1 21 13v3a1 1 0 0 1-1 1h-1.07A2 2 0 0 1 15 17a2 2 0 0 1-3.93-.5H9.93A2 2 0 0 1 6 17a2 2 0 0 1-3.93-.5H2a1 1 0 0 1-1-1V8z"/>
             </svg>
           </div>
-          <span class="font-bold text-gray-900 text-sm">AmarBazaar Admin</span>
+          <span class="font-bold text-gray-900 text-sm">Erezer Admin</span>
         </div>
       </div>
       <div class="flex items-center gap-5 text-sm">
@@ -317,6 +317,22 @@
                   @if (!perms.can('discounts.switches')) {
                     <p class="text-xs text-gray-400">Needs the “Turn discounts on or off” permission.</p>
                   }
+                  <div class="mt-4 border-t border-gray-100 pt-4" role="radiogroup" aria-labelledby="stock-display-label">
+                    <p class="text-sm font-medium text-gray-700" id="stock-display-label">Stock on the product page</p>
+                    <p class="text-xs text-gray-400 mb-2">Show the real number (“12 in stock”) or the labels (In stock / Only a few left / Out of stock).</p>
+                    @for (opt of stockDisplayOptions; track opt.value) {
+                      <label class="mt-1.5 flex items-start gap-2 cursor-pointer">
+                        <input type="radio" name="stockDisplay" [value]="opt.value" [checked]="stockDisplay() === opt.value"
+                          (change)="stockDisplay.set(opt.value)" class="mt-0.5 accent-blue-600" />
+                        <span class="text-sm text-gray-700">
+                          {{ opt.label }}
+                          @if (opt.value === 'CATEGORY') {
+                            <span class="text-xs text-gray-500">— {{ categoryStockHint() }}</span>
+                          }
+                        </span>
+                      </label>
+                    }
+                  </div>
                 </div>
               </div>
             </div>

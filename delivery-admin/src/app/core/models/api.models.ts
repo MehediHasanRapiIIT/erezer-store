@@ -47,6 +47,7 @@ export interface ProductRequest {
   customSizeNote?: string | null;
   /** Keep this product at full price, ignoring every automatic discount. */
   discountExcluded?: boolean;
+  stockDisplay?: StockDisplay;
 }
 
 export interface ProductResponse {
@@ -82,6 +83,8 @@ export interface ProductResponse {
   discountExcluded: boolean | null;
   /** Its category is excluded, which keeps it at full price too. Read-only. */
   categoryDiscountExcluded: boolean | null;
+  stockDisplay?: StockDisplay | null;
+  showStockQuantity?: boolean | null;
 }
 
 // --- Stock ---
@@ -134,6 +137,8 @@ export interface CategoryRequest {
   homeSortOrder?: number;
   /** Keep every product in this category at full price. */
   discountExcluded?: boolean;
+  /** Product pages in this category show the stock quantity instead of labels. */
+  showStockQuantity?: boolean;
 }
 
 export interface CategoryResponse {
@@ -146,7 +151,11 @@ export interface CategoryResponse {
   showOnHome?: boolean;
   homeSortOrder?: number;
   discountExcluded?: boolean;
+  showStockQuantity?: boolean | null;
 }
+
+/** Stock on a product page: follow the category, show the quantity, or show labels. */
+export type StockDisplay = 'CATEGORY' | 'QUANTITY' | 'LABEL';
 
 // --- Banners ---
 
@@ -225,6 +234,8 @@ export interface OrderItem {
 
 export interface OrderResponse {
   id: string;
+  /** What the customer sees and tracks by, e.g. EZ-482915. */
+  orderNumber?: string | null;
   clientId: string;
   deliveryAddress: string;
   totalAmount: number;

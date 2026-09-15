@@ -204,6 +204,14 @@ body {
 .animate-overlay-in {
   animation: overlayIn 0.25s ease both;
 }
+/* Categories panel: the same entrance, from the left edge. */
+@keyframes drawerInLeft {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+.animate-drawer-in-left {
+  animation: drawerInLeft 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
@@ -212,7 +220,7 @@ body {
     animation: none !important;
   }
   .hero-word, .hero-fade { opacity: 1 !important; transform: none !important; }
-  .animate-drawer-in, .animate-overlay-in { animation: none !important; }
+  .animate-drawer-in, .animate-drawer-in-left, .animate-overlay-in { animation: none !important; }
 }
 
 /*

@@ -317,15 +317,21 @@ export class EcommerceStore {
     meta?: {
       variantId?: number | null; unitPrice?: number; name?: string; image?: string | null;
       customMeasurements?: string | null; customSurcharge?: number | null;
+      /** Stock when the caller knows it; used when the catalogue list doesn't hold the product. */
+      stock?: number | null;
     },
   ): void {
     this.cart.update((items) => {
       const product = this.products().find((p) => p.id === productId);
-      if (!product || product.inStock <= 0) return items;
+      // A product outside the loaded catalogue list can still be added when the
+      // caller brings its price and name (the product page, cart suggestions).
+      if (!product && (meta?.unitPrice == null || !meta?.name)) return items;
+      const inStock   = product?.inStock ?? meta?.stock ?? 99;
+      if (inStock <= 0) return items;
       const variantId = meta?.variantId ?? null;
-      const unitPrice = meta?.unitPrice ?? product.price;
-      const name      = meta?.name ?? product.name;
-      const image     = meta?.image ?? product.image;
+      const unitPrice = meta?.unitPrice ?? product!.price;
+      const name      = meta?.name ?? product!.name;
+      const image     = meta?.image ?? product?.image ?? null;
       const customMeasurements = meta?.customMeasurements ?? null;
       const customSurcharge    = meta?.customSurcharge ?? null;
       // Custom (made-to-order) lines are always distinct — never merge them, so
@@ -335,12 +341,12 @@ export class EcommerceStore {
         if (existing) {
           return items.map((i) =>
             i === existing
-              ? { ...i, quantity: Math.min(product.inStock, i.quantity + quantity) }
+              ? { ...i, quantity: Math.min(inStock, i.quantity + quantity) }
               : i
           );
         }
       }
-      return [...items, { productId, variantId, size, quantity: Math.min(product.inStock, quantity), unitPrice, name, image, customMeasurements, customSurcharge }];
+      return [...items, { productId, variantId, size, quantity: Math.min(inStock, quantity), unitPrice, name, image, customMeasurements, customSurcharge }];
     });
   }
 

@@ -34,7 +34,7 @@ const TIMELINE_STEPS: { status: OrderStatus; label: string }[] = [
             <a routerLink="/orders" class="text-sm text-neutral-600 underline underline-offset-4 dark:text-neutral-300">
               Back to orders
             </a>
-            <h1 class="app-section-title mt-2">{{ o.id }}</h1>
+            <h1 class="app-section-title mt-2">{{ o.orderNumber || o.id }}</h1>
           </div>
           <p class="text-sm text-neutral-500 dark:text-neutral-400">{{ o.createdAt | date: 'medium' }}</p>
         </header>

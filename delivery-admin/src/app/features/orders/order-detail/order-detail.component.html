@@ -31,7 +31,7 @@
         <div class="flex items-start justify-between mb-6">
           <div>
             <div class="flex items-center gap-3">
-              <h1 class="text-2xl font-extrabold text-gray-900">Order {{ shortId(order()!.id) }}</h1>
+              <h1 class="text-2xl font-extrabold text-gray-900">Order {{ order()!.orderNumber || shortId(order()!.id) }}</h1>
               <span
                 class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold"
                 [class]="statusBadgeClass(currentStatus())"
@@ -216,6 +216,17 @@
                 <div>
                   <p class="text-xs text-gray-400">Phone Number</p>
                   <p class="text-sm font-semibold text-gray-800 mt-0.5">{{ order()!.customerPhone || '—' }}</p>
+                </div>
+                <div class="col-span-2">
+                  <p class="text-xs text-gray-400">Email</p>
+                  @if (order()!.customerEmail) {
+                    <a [href]="'mailto:' + order()!.customerEmail" class="text-sm font-semibold text-gray-800 mt-0.5 break-all hover:underline" data-testid="customer-email">{{ order()!.customerEmail }}</a>
+                  } @else {
+                    <p class="text-sm font-semibold text-gray-800 mt-0.5">—</p>
+                  }
+                  @if (!order()!.clientId) {
+                    <span class="ml-2 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 align-middle">Guest order · no account</span>
+                  }
                 </div>
                 <div class="col-span-2">
                   <p class="text-xs text-gray-400">Delivery Address</p>
@@ -426,7 +437,7 @@
         <div>
           <h3 class="text-sm font-semibold text-gray-800">Invoice preview</h3>
           <p class="text-xs text-gray-400">
-            {{ order() ? shortId(order()!.id) : '' }} · review before sending
+            {{ order() ? (order()!.orderNumber || shortId(order()!.id)) : '' }} · review before sending
           </p>
         </div>
         <button

@@ -53,4 +53,8 @@ public class Category extends AbstractBaseEntity<Long> {
      */
     @Column(name = "discount_excluded")
     private Boolean discountExcluded;
+
+    /** Product pages in this category show the stock quantity instead of labels. Null means off. */
+    @Column(name = "show_stock_quantity")
+    private Boolean showStockQuantity;
 }

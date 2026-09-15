@@ -17,7 +17,6 @@ public class ShippingZoneDTO {
     private String displayName;
     private String countryCode;
     private BigDecimal flatFee;
-    private BigDecimal freeAbove;
     private Boolean isDefault;
     private Boolean isActive;
 }

@@ -57,4 +57,9 @@ public class ProductResponseDTO {
      * "never automatically discounted".
      */
     private Boolean categoryDiscountExcluded;
+
+    /** The product's own choice, for the edit form: CATEGORY, QUANTITY or LABEL. */
+    private kn.org.deliverybackend.enumeration.StockDisplay stockDisplay;
+    /** Whether the product page shows the quantity, with the category already taken into account. */
+    private Boolean showStockQuantity;
 }

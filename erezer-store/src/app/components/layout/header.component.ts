@@ -9,6 +9,8 @@ import { TranslateService } from '../../core/i18n/translate.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { Lang } from '../../core/i18n/dictionaries';
 import { ThemeToggleComponent } from '../shared/theme-toggle.component';
+import { CategoriesPanelComponent } from './categories-panel.component';
+import { CartPanelComponent } from './cart-panel.component';
 
 interface NavLink {
   route: string;
@@ -21,7 +23,7 @@ const HERO_FADE_PX = 24;
 
 @Component({
   selector: 'app-header',
-  imports: [RouterLink, RouterLinkActive, TranslatePipe, ThemeToggleComponent],
+  imports: [RouterLink, RouterLinkActive, TranslatePipe, ThemeToggleComponent, CategoriesPanelComponent, CartPanelComponent],
   template: `
     <header
       class="sticky top-0 z-40 transition-colors duration-300"
@@ -46,6 +48,14 @@ const HERO_FADE_PX = 24;
 
         <!-- Desktop nav -->
         <nav class="ml-2 hidden items-center gap-1 text-sm md:flex">
+          <button type="button" (click)="openCategories()"
+            class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-neutral-600 transition hover:text-black dark:text-neutral-300 dark:hover:text-white"
+            aria-haspopup="dialog" [attr.aria-expanded]="categoriesOpen()">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
+            </svg>
+            {{ 'header.categories' | t }}
+          </button>
           @for (link of visibleLinks(); track link.route) {
             <a
               [routerLink]="link.route"
@@ -53,11 +63,6 @@ const HERO_FADE_PX = 24;
               class="rounded-full px-3 py-1.5 text-neutral-600 transition hover:text-black dark:text-neutral-300 dark:hover:text-white"
             >{{ link.key | t }}</a>
           }
-          <a
-            routerLink="/admin"
-            routerLinkActive="bg-neutral-100 text-black dark:bg-neutral-800 dark:!text-white"
-            class="rounded-full px-3 py-1.5 text-neutral-600 transition hover:text-black dark:text-neutral-300 dark:hover:text-white"
-          >Admin</a>
         </nav>
 
         <div class="ml-auto flex items-center gap-1 sm:gap-2">
@@ -97,18 +102,19 @@ const HERO_FADE_PX = 24;
             }
           </a>
 
-          <!-- Cart (icon + badge) -->
-          <a
-            routerLink="/cart"
+          <!-- Cart (icon + badge): opens the cart panel -->
+          <button
+            type="button"
+            (click)="openCart()"
             class="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-700 transition hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
-            routerLinkActive="bg-neutral-100 dark:bg-neutral-800"
             [attr.aria-label]="('header.cart' | t)"
+            aria-haspopup="dialog" [attr.aria-expanded]="cartOpen()"
           >
             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" /></svg>
             @if (store.cartCount() > 0) {
               <span class="absolute -right-0.5 -top-0.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-black px-1 py-0.5 text-[10px] font-semibold leading-none text-white dark:bg-white dark:text-black">{{ store.cartCount() }}</span>
             }
-          </a>
+          </button>
 
           <!-- Auth (sm+) -->
           @if (auth.isAuthenticated()) {
@@ -155,6 +161,13 @@ const HERO_FADE_PX = 24;
       </div>
 
       <nav class="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4 text-base">
+        <button type="button" (click)="openCategories()"
+          class="flex items-center gap-2 rounded-xl px-4 py-3 text-left text-neutral-700 transition hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
+          </svg>
+          {{ 'header.categories' | t }}
+        </button>
         @for (link of visibleLinks(); track link.route) {
           <a
             [routerLink]="link.route"
@@ -163,12 +176,6 @@ const HERO_FADE_PX = 24;
             class="rounded-xl px-4 py-3 text-neutral-700 transition hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
           >{{ link.key | t }}</a>
         }
-        <a
-          routerLink="/admin"
-          (click)="closeMenu()"
-          routerLinkActive="bg-neutral-100 font-medium text-black dark:bg-neutral-800 dark:!text-white"
-          class="rounded-xl px-4 py-3 text-neutral-700 transition hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
-        >Admin</a>
       </nav>
 
       <div class="space-y-4 border-t border-neutral-200 px-5 py-4 dark:border-neutral-800">
@@ -203,6 +210,9 @@ const HERO_FADE_PX = 24;
       </div>
     </aside>
     }
+
+    <app-categories-panel [open]="categoriesOpen()" (closed)="categoriesOpen.set(false)" />
+    <app-cart-panel [open]="cartOpen()" (closed)="cartOpen.set(false)" />
   `,
   styles: [`
     /*
@@ -246,6 +256,8 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
   private resizeObserver?: ResizeObserver;
 
   protected readonly menuOpen = signal(false);
+  protected readonly categoriesOpen = signal(false);
+  protected readonly cartOpen = signal(false);
 
   /**
    * True while the bar floats over the home page's hero photo: on "/" and
@@ -307,6 +319,7 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
     { route: '/wishlist', key: 'header.wishlist', authOnly: false },
     { route: '/orders', key: 'header.orders', authOnly: true },
     { route: '/account', key: 'header.account', authOnly: true },
+    { route: '/track-order', key: 'header.track_order', authOnly: false },
     { route: '/contact', key: 'header.contact', authOnly: false },
   ];
 
@@ -328,15 +341,17 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
       )
       .subscribe((e) => {
         this.menuOpen.set(false);
+        this.categoriesOpen.set(false);
+        this.cartOpen.set(false);
         this.onHome.set(this.isHomeUrl(e.urlAfterRedirects));
         this.atTop.set(this.readScrollY() <= HERO_FADE_PX);
       });
 
-    // Lock body scroll while the mobile drawer is open.
+    // Lock body scroll while the mobile drawer or the categories panel is open.
     effect(() => {
       const body = this.document.body;
       if (!body) return;
-      body.style.overflow = this.menuOpen() ? 'hidden' : '';
+      body.style.overflow = this.menuOpen() || this.categoriesOpen() || this.cartOpen() ? 'hidden' : '';
     });
   }
 
@@ -346,6 +361,18 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
 
   protected closeMenu(): void {
     this.menuOpen.set(false);
+  }
+
+  protected openCart(): void {
+    this.menuOpen.set(false);
+    this.categoriesOpen.set(false);
+    this.cartOpen.set(true);
+  }
+
+  /** Opens the categories panel; from the mobile menu, the menu gives way to it. */
+  protected openCategories(): void {
+    this.menuOpen.set(false);
+    this.categoriesOpen.set(true);
   }
 
   protected setLang(lang: Lang): void {

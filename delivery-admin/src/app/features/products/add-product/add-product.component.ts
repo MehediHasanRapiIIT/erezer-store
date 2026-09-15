@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { SidebarComponent } from '../../../shared/sidebar/sidebar.component';
 import { ProductService } from '../../../core/services/product.service';
 import { CategoryService } from '../../../core/services/category.service';
-import { CategoryResponse, ProductRequest } from '../../../core/models/api.models';
+import { StockDisplay, CategoryResponse, ProductRequest } from '../../../core/models/api.models';
 import { parseApiError } from '../../../core/utils/api-error.util';
 import { PermissionService } from '../../../core/services/permission.service';
 import { NoticeService } from '../../../core/services/notice.service';
@@ -36,6 +36,20 @@ export class AddProductComponent implements OnInit {
   isFeatured   = signal(false);
   /** Keep this product at full price, ignoring every automatic discount. */
   discountExcluded = signal(false);
+  /** Stock on the product page: follow the category (default), the quantity, or labels. */
+  stockDisplay = signal<StockDisplay>('CATEGORY');
+  protected readonly stockDisplayOptions: { value: StockDisplay; label: string }[] = [
+    { value: 'CATEGORY', label: 'Same as category' },
+    { value: 'QUANTITY', label: 'Show quantity' },
+    { value: 'LABEL', label: 'Show labels' },
+  ];
+  /** What "Same as category" means right now, for the chosen category. */
+  protected readonly categoryStockHint = computed(() => {
+    const cat = this.categories().find((c) => c.id === this.categoryId());
+    if (!cat) return 'choose a category';
+    return cat.showStockQuantity ? `${cat.name} shows quantities` : `${cat.name} shows labels`;
+  });
+
 
   // State
   categories   = signal<CategoryResponse[]>([]);
@@ -90,6 +104,7 @@ export class AddProductComponent implements OnInit {
       isNewArrival: this.isNewArrival(),
       isFeatured: this.isFeatured(),
       discountExcluded: this.discountExcluded(),
+      stockDisplay: this.stockDisplay(),
     };
 
     this.isLoading.set(true);

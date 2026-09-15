@@ -32,6 +32,7 @@ export class AddCategoryComponent {
   showOnHome   = signal(false);
   /** Keep every product in this category at full price. */
   discountExcluded = signal(false);
+  showStockQuantity = signal(false);
   homeSortOrder = signal(0);
   uploading    = signal(false);
   isLoading    = signal(false);
@@ -70,6 +71,7 @@ export class AddCategoryComponent {
       imageUrl: this.imageUrl() || null,
       showOnHome: this.showOnHome(),
       discountExcluded: this.discountExcluded(),
+      showStockQuantity: this.showStockQuantity(),
       homeSortOrder: this.homeSortOrder(),
     }).subscribe({
       next: () => {

@@ -260,7 +260,7 @@ import { RevealDirective } from '../core/reveal.directive';
                       [class.bg-amber-500]="status === 'LOW_STOCK'"
                       [class.bg-red-500]="status === 'OUT_OF_STOCK'"></span>
                   </span>
-                  {{ status === 'IN_STOCK' ? 'In stock' : status === 'LOW_STOCK' ? 'Only a few left' : 'Out of stock' }}
+                  {{ stockText(status) }}
                 </span>
               }
 
@@ -924,6 +924,28 @@ export class ProductDetailPage implements OnInit {
     }
     return s.isAvailable === false ? 'OUT_OF_STOCK' : 'IN_STOCK';
   });
+
+  /**
+   * How many are left for what the customer is looking at: the chosen size, or
+   * every size together before one is chosen. Null when stock isn't counted.
+   */
+  protected readonly stockCount = computed<number | null>(() => {
+    const variant = this.selectedVariant();
+    if (variant) return variant.stockQuantity ?? null;
+    const counted = this.variants().map((v) => v.stockQuantity).filter((q): q is number => q != null);
+    if (counted.length > 0) return counted.reduce((sum, q) => sum + Math.max(0, q), 0);
+    return this.stockStatus()?.stockQuantity ?? null;
+  });
+
+  /** The stock line: the real number when the admin turned quantities on for this product or its category. */
+  protected stockText(status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK'): string {
+    if (status === 'OUT_OF_STOCK') return 'Out of stock';
+    const count = this.stockCount();
+    if (this.product()?.showStockQuantity && count != null && count > 0) {
+      return status === 'LOW_STOCK' ? `Only ${count} left` : `${count} in stock`;
+    }
+    return status === 'IN_STOCK' ? 'In stock' : 'Only a few left';
+  }
 
   protected readonly canAddToCart = computed(() => {
     // Custom (made-to-order): only requires all measurements filled.

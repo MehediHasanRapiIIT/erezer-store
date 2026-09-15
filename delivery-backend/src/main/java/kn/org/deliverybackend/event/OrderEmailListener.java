@@ -67,11 +67,13 @@ public class OrderEmailListener {
         }
         OrderStatus to = event.getToStatus();
         Map<String, Object> vars = new HashMap<>();
-        vars.put("orderId", event.getOrderId());
+        Order order = orderRepository.findById(event.getOrderId()).orElse(null);
+        vars.put("orderNumber", order != null && order.getOrderNumber() != null
+                ? order.getOrderNumber() : event.getOrderId().toString());
         vars.put("statusLabel", humanLabel(to));
         vars.put("headline", headlineFor(to));
         vars.put("statusMessage", messageFor(to, event.getNote()));
-        vars.put("orderUrl", storeUrl + "/orders/" + event.getOrderId());
+        vars.put("orderUrl", order != null ? orderUrl(order) : storeUrl + "/track-order");
         vars.put("courier", emptyToNull(event.getCourierName()));
         vars.put("trackingNumber", emptyToNull(event.getTrackingNumber()));
 
@@ -82,6 +84,14 @@ public class OrderEmailListener {
     }
 
     // ── helpers ────────────────────────────────────────────────────────────────
+
+    /** Account orders open in the customer's order history; guest orders on the Track Order page. */
+    private String orderUrl(Order order) {
+        if (order.getClientId() == null && order.getOrderNumber() != null) {
+            return storeUrl + "/track-order?number=" + order.getOrderNumber();
+        }
+        return storeUrl + "/orders/" + order.getId();
+    }
 
     private Map<String, Object> buildOrderPlacedVars(Order order) {
         NumberFormat currency = NumberFormat.getCurrencyInstance(Locale.US);
@@ -110,7 +120,7 @@ public class OrderEmailListener {
                         : BigDecimal.ZERO);
 
         Map<String, Object> vars = new HashMap<>();
-        vars.put("orderId", order.getId());
+        vars.put("orderNumber", order.getOrderNumber() != null ? order.getOrderNumber() : order.getId().toString());
         vars.put("placedAt", order.getCreatedAt() != null
                 ? DateTimeFormatter.ofPattern("MMM d, yyyy 'at' h:mma")
                         .format(order.getCreatedAt().toInstant()
@@ -121,7 +131,7 @@ public class OrderEmailListener {
         vars.put("shipping", currency.format(shipping));
         vars.put("total", currency.format(
                 order.getTotalAmount() != null ? order.getTotalAmount() : subtotal.add(shipping)));
-        vars.put("orderUrl", storeUrl + "/orders/" + order.getId());
+        vars.put("orderUrl", orderUrl(order));
         return vars;
     }
 

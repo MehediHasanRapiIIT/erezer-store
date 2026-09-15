@@ -15,6 +15,10 @@ import java.util.UUID;
 @Repository
 public interface OrderRepository extends JpaRepository<Order, UUID> {
 
+    boolean existsByOrderNumber(String orderNumber);
+
+    Optional<Order> findByOrderNumberAndDeletedFalse(String orderNumber);
+
     /**
      * Ids of live orders starting with {@code prefix} (lower-case hex and dashes
      * only - the caller checks, so no LIKE wildcard can get in). At most two:
@@ -51,7 +55,7 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             "AND (:payment IS NULL OR o.payment_method = :payment OR o.payment_method = :paymentAlias) " +
             "AND (:fromUtc IS NULL OR o.created_at >= CAST(:fromUtc AS timestamp)) " +
             "AND (:toUtc IS NULL OR o.created_at < CAST(:toUtc AS timestamp)) " +
-            "AND (:q IS NULL OR CAST(o.id AS text) ILIKE :q OR o.customer_name ILIKE :q " +
+            "AND (:q IS NULL OR CAST(o.id AS text) ILIKE :q OR o.order_number ILIKE :q OR o.customer_name ILIKE :q " +
             "  OR o.customer_phone ILIKE :q OR o.customer_email ILIKE :q OR o.delivery_address ILIKE :q " +
             "  OR o.client_id IN (SELECT u.id FROM users u WHERE " +
             "    TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) ILIKE :q " +

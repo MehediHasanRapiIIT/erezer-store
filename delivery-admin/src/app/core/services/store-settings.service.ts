@@ -74,6 +74,22 @@ export interface Highlight {
   description: string;
 }
 
+export interface AboutSection {
+  heading: string | null;
+  body: string | null;
+  imageUrl: string | null;
+}
+
+/** The storefront About Us page. */
+export interface AboutPage {
+  title: string | null;
+  intro: string | null;
+  heroImageUrl: string | null;
+  sections: AboutSection[] | null;
+  ctaLabel: string | null;
+  ctaLink: string | null;
+}
+
 export interface StoreSettings {
   returnPolicyText: string | null;
   exchangeWindowDays: number | null;
@@ -82,6 +98,7 @@ export interface StoreSettings {
   supportHours: string | null;
   sizeChart: SizeChart | null;
   brandStory: BrandStory | null;
+  aboutPage?: AboutPage | null;
   footer: Footer | null;
   marquee: Marquee | null;
   highlights: Highlight[] | null;

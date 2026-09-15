@@ -40,6 +40,9 @@ public interface ProductService {
     /** Toggle the "Featured products" home flag only (leaves pricing/stock untouched). */
     ProductResponseDTO setFeatured(Long id, boolean value);
 
+    /** What the product page shows about stock, without touching anything else. */
+    ProductResponseDTO setStockDisplay(Long id, kn.org.deliverybackend.enumeration.StockDisplay value);
+
     void deleteProduct(Long id);
 
     /** Up to {@code limit} products in the same category as {@code id}, excluding the caller. */

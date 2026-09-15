@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { PageResponse, ProductRequest, ProductResponse } from '../models/api.models';
+import { StockDisplay, PageResponse, ProductRequest, ProductResponse } from '../models/api.models';
 
 @Injectable({ providedIn: 'root' })
 export class ProductService {
@@ -89,6 +89,7 @@ export class ProductService {
     if (dto.customSizeSurcharge != null) formData.append('customSizeSurcharge', String(dto.customSizeSurcharge));
     if (dto.customSizeNote != null)      formData.append('customSizeNote', dto.customSizeNote);
     if (dto.discountExcluded != null)    formData.append('discountExcluded', String(dto.discountExcluded));
+    if (dto.stockDisplay != null)        formData.append('stockDisplay', dto.stockDisplay);
     if (image) {
       formData.append('image', image);
     }
@@ -99,6 +100,12 @@ export class ProductService {
   setFeatured(id: number, value: boolean): Observable<ProductResponse> {
     return this.http.patch<ProductResponse>(
       `${this.baseUrl}/admin/products/${id}/featured`, null, { params: { value } });
+  }
+
+  /** The products list's "Show qty" switch: quantity or labels on this product's page. */
+  setStockDisplay(id: number, value: StockDisplay): Observable<ProductResponse> {
+    return this.http.patch<ProductResponse>(
+      `${this.baseUrl}/admin/products/${id}/stock-display`, null, { params: { value } });
   }
 
   deleteProduct(id: number): Observable<void> {

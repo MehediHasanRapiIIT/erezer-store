@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { SidebarComponent } from '../../../shared/sidebar/sidebar.component';
 import { ProductService } from '../../../core/services/product.service';
 import { CategoryService } from '../../../core/services/category.service';
-import { CategoryResponse, ProductRequest } from '../../../core/models/api.models';
+import { StockDisplay, CategoryResponse, ProductRequest } from '../../../core/models/api.models';
 import { parseApiError } from '../../../core/utils/api-error.util';
 import { salePercent } from '../../../core/utils/price.util';
 import { VariantManagerComponent } from '../variant-manager/variant-manager.component';
@@ -48,6 +48,20 @@ export class EditProductComponent implements OnInit {
   isFeatured     = signal(false);
   /** Keep this product at full price, ignoring every automatic discount. */
   discountExcluded = signal(false);
+  /** Stock on the product page: follow the category (default), the quantity, or labels. */
+  stockDisplay = signal<StockDisplay>('CATEGORY');
+  protected readonly stockDisplayOptions: { value: StockDisplay; label: string }[] = [
+    { value: 'CATEGORY', label: 'Same as category' },
+    { value: 'QUANTITY', label: 'Show quantity' },
+    { value: 'LABEL', label: 'Show labels' },
+  ];
+  /** What "Same as category" means right now, for the chosen category. */
+  protected readonly categoryStockHint = computed(() => {
+    const cat = this.categories().find((c) => c.id === this.categoryId());
+    if (!cat) return 'choose a category';
+    return cat.showStockQuantity ? `${cat.name} shows quantities` : `${cat.name} shows labels`;
+  });
+
   // Clothing / catalog attributes
   unit            = signal('');
   lowStockThreshold = signal<number | null>(null);
@@ -90,6 +104,7 @@ export class EditProductComponent implements OnInit {
         this.isNewArrival.set(!!p.isNewArrival);
         this.isFeatured.set(!!p.isFeatured);
         this.discountExcluded.set(!!p.discountExcluded);
+        this.stockDisplay.set(p.stockDisplay ?? 'CATEGORY');
         this.unit.set(p.unit ?? '');
         this.lowStockThreshold.set(p.lowStockThreshold ?? null);
         this.brand.set(p.brand ?? '');
@@ -144,6 +159,7 @@ export class EditProductComponent implements OnInit {
       isNewArrival: this.isNewArrival(),
       isFeatured: this.isFeatured(),
       discountExcluded: this.discountExcluded(),
+      stockDisplay: this.stockDisplay(),
       unit: this.unit().trim() || undefined,
       lowStockThreshold: this.lowStockThreshold() ?? undefined,
       brand: this.brand().trim() || undefined,

@@ -206,6 +206,29 @@ export class ProductsListComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** Product id whose "Show qty" switch is saving. */
+  readonly stockSaving = signal<number | null>(null);
+
+  /**
+   * Flips what this product's page shows. The switch mirrors what customers see
+   * now (the category's setting included), and a click makes it this product's
+   * own choice; "Same as category" is back on the product's edit page.
+   */
+  toggleStockQuantity(product: ProductResponse): void {
+    const next = product.showStockQuantity ? 'LABEL' : 'QUANTITY';
+    this.stockSaving.set(product.id);
+    this.productService.setStockDisplay(product.id, next).subscribe({
+      next: (updated) => {
+        this.products.update(list => list.map(p => p.id === product.id
+          ? { ...p, stockDisplay: updated.stockDisplay, showStockQuantity: updated.showStockQuantity } : p));
+        this.stockSaving.set(null);
+        this.notices.success(
+          updated.showStockQuantity ? 'Product page shows the quantity' : 'Product page shows stock labels', product.name);
+      },
+      error: (err) => { this.stockSaving.set(null); this.errorMessage.set(parseApiError(err)); },
+    });
+  }
+
   editProduct(id: number): void {
     this.router.navigate(['/products', id, 'edit']);
   }

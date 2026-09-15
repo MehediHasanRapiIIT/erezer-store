@@ -7,6 +7,7 @@ import { ApiService } from '../core/api.service';
 import { CouponValidateResponse } from '../core/api.models';
 import { EcommerceStore } from '../core/store/ecommerce.store';
 import { SettingsStore } from '../core/store/settings.store';
+import { CartActionsService } from '../core/cart-actions.service';
 import { AuthService } from '../core/auth.service';
 import { RevealDirective } from '../core/reveal.directive';
 
@@ -160,7 +161,14 @@ import { RevealDirective } from '../core/reveal.directive';
           }
           <div class="space-y-2.5 text-sm">
             <div class="flex justify-between"><span class="app-muted">Subtotal</span><span class="tabular-nums">{{ store.cartSubtotal() | currency:'BDT':'৳' }}</span></div>
-            <div class="flex justify-between"><span class="app-muted">Shipping</span><span class="tabular-nums">{{ effectiveShipping() | currency:'BDT':'৳' }}</span></div>
+            <div class="flex justify-between">
+              <span class="app-muted">Shipping</span>
+              @if (shipsFree()) {
+                <span class="font-medium text-emerald-600">Free</span>
+              } @else {
+                <span class="app-muted text-xs">Calculated at checkout</span>
+              }
+            </div>
             @if (effectiveDiscount() > 0) {
               <div class="flex justify-between text-emerald-600"><span>Discount</span><span class="tabular-nums">−{{ effectiveDiscount() | currency:'BDT':'৳' }}</span></div>
             }
@@ -170,7 +178,17 @@ import { RevealDirective } from '../core/reveal.directive';
             <span class="font-semibold">Estimated total</span>
             <span class="text-xl font-semibold tabular-nums">{{ estimatedTotal() | currency:'BDT':'৳' }}</span>
           </div>
-          <p class="mt-1.5 text-xs app-muted">Final shipping is calculated at checkout based on your delivery address.</p>
+          @if (offerGap() > 0) {
+            <p class="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+              Add {{ offerGap() | currency:'BDT':'৳' }} more for free shipping
+            </p>
+          } @else if (shipsFree()) {
+            <p class="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+              Your order ships free
+            </p>
+          } @else {
+            <p class="mt-1.5 text-xs app-muted">Shipping is added at checkout based on your delivery area.</p>
+          }
 
           @if (auth.isAuthenticated()) {
             <a routerLink="/checkout" class="btn-primary mt-5 w-full !rounded-full">Continue to checkout</a>
@@ -189,6 +207,7 @@ import { RevealDirective } from '../core/reveal.directive';
 })
 export class CartPage implements OnInit {
   protected readonly store = inject(EcommerceStore);
+  private readonly settingsStore = inject(SettingsStore);
   private readonly api = inject(ApiService);
   protected readonly auth = inject(AuthService);
 
@@ -200,7 +219,6 @@ export class CartPage implements OnInit {
 
   protected readonly couponLocked = computed(() => !!this.appliedCoupon()?.valid);
 
-  private readonly settingsStore = inject(SettingsStore);
 
   /** Promo codes on for the shop. Null (settings not loaded yet, or an older row) counts as on. */
   protected readonly codesOn = computed(() => this.settingsStore.settings()?.couponsEnabled !== false);
@@ -239,22 +257,33 @@ export class CartPage implements OnInit {
     return c?.valid ? c.discountAmount : 0;
   });
 
-  protected readonly effectiveShipping = computed(() => {
+  /** What the customer pays for the products; the free-shipping offer is judged on this. */
+  private readonly goodsTotal = computed(() => Math.max(0, this.store.cartSubtotal() - this.effectiveDiscount()));
+
+  /**
+   * Whether this cart ships free under the admin's shipping rules. The price of
+   * shipping itself depends on the delivery area, so it is only known at checkout.
+   */
+  protected readonly shipsFree = computed(() => {
+    const s = this.settingsStore.settings();
     const c = this.appliedCoupon();
-    if (c?.valid && c.removesShipping) return 0;
-    return this.store.shippingFee();
+    if (c?.valid && c.removesShipping) return true;
+    if (s?.shippingFreeAll) return true;
+    return !!s?.shippingOfferEnabled && !!s.shippingOfferMin && this.goodsTotal() >= s.shippingOfferMin;
   });
 
-  protected readonly estimatedTotal = computed(() =>
-    Math.max(0, this.store.cartSubtotal() - this.effectiveDiscount() + this.effectiveShipping())
-  );
+  /** How much more earns free shipping under the offer; 0 when there is no offer or it is already met. */
+  protected readonly offerGap = computed(() => {
+    const s = this.settingsStore.settings();
+    if (!s?.shippingOfferEnabled || !s.shippingOfferMin || s.shippingFreeAll || this.shipsFree()) return 0;
+    return Math.max(0, s.shippingOfferMin - this.goodsTotal());
+  });
 
-  // map productId+'|'+variantId → API cart item id (needed for PATCH/DELETE)
-  private readonly apiCartMap = signal<Map<string, string>>(new Map());
+  /** Products after discount; shipping is added at checkout. */
+  protected readonly estimatedTotal = computed(() => this.goodsTotal());
 
-  private cartItemId(productId: string, variantId: number | null): string | undefined {
-    return this.apiCartMap().get(productId + '|' + (variantId ?? ''));
-  }
+  /** Quantity, remove and the server copy of a signed-in customer's cart, shared with the cart panel. */
+  private readonly cartActions = inject(CartActionsService);
 
   ngOnInit(): void {
     // Rehydrate previously-applied promo code so the customer doesn't lose state on refresh.
@@ -302,11 +331,7 @@ export class CartPage implements OnInit {
 
   private loadApiCart(userId: string): void {
     this.loading.set(true);
-    this.api.getCart(userId).pipe(catchError(() => of([]))).subscribe((items) => {
-      this.store.loadApiCart(items);
-      const map = new Map<string, string>();
-      items.forEach((i) => map.set(String(i.productId) + '|' + (i.variantId ?? ''), i.cartItemId));
-      this.apiCartMap.set(map);
+    this.cartActions.refresh().subscribe(() => {
       this.loading.set(false);
       this.validateStock(userId);
     });
@@ -321,33 +346,14 @@ export class CartPage implements OnInit {
   }
 
   protected increaseQty(productId: string, variantId: number | null, size: string, current: number): void {
-    this.store.updateCartQuantity(productId, size, current + 1);
-    const userId = this.auth.userId();
-    const id = this.cartItemId(productId, variantId);
-    if (userId && id) {
-      this.api.incrementCartItem(userId, id).pipe(catchError(() => of(null))).subscribe();
-    }
+    this.cartActions.increase(productId, variantId, size, current);
   }
 
   protected decreaseQty(productId: string, variantId: number | null, size: string, current: number): void {
-    if (current <= 1) {
-      this.removeItem(productId, variantId, size);
-      return;
-    }
-    this.store.updateCartQuantity(productId, size, current - 1);
-    const userId = this.auth.userId();
-    const id = this.cartItemId(productId, variantId);
-    if (userId && id) {
-      this.api.decrementCartItem(userId, id).pipe(catchError(() => of(null))).subscribe();
-    }
+    this.cartActions.decrease(productId, variantId, size, current);
   }
 
   protected removeItem(productId: string, variantId: number | null, size: string): void {
-    this.store.removeFromCart(productId, size);
-    const userId = this.auth.userId();
-    const id = this.cartItemId(productId, variantId);
-    if (userId && id) {
-      this.api.removeCartItem(userId, id).pipe(catchError(() => of(null))).subscribe();
-    }
+    this.cartActions.remove(productId, variantId, size);
   }
 }

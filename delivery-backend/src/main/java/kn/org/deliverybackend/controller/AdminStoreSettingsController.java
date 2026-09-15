@@ -36,7 +36,7 @@ public class AdminStoreSettingsController {
         return ResponseEntity.ok(storeSettingsService.get());
     }
 
-    @RequiresPermission(value = {Perm.SETTINGS_STORE, Perm.SETTINGS_HOMEPAGE, Perm.SETTINGS_FOOTER, Perm.SETTINGS_SIZECHART, Perm.SETTINGS_PAYMENTS}, mode = RequiresPermission.Mode.ANY)
+    @RequiresPermission(value = {Perm.SETTINGS_STORE, Perm.SETTINGS_HOMEPAGE, Perm.SETTINGS_FOOTER, Perm.SETTINGS_SIZECHART, Perm.SETTINGS_PAYMENTS, Perm.SETTINGS_ABOUT}, mode = RequiresPermission.Mode.ANY)
     @PutMapping
     public ResponseEntity<StoreSettingsDTO> update(@RequestBody StoreSettingsDTO request) {
         requireSectionPermissions(storeSettingsService.get(), request);
@@ -62,6 +62,9 @@ public class AdminStoreSettingsController {
                         && Objects.equals(current.getHighlights(), request.getHighlights()));
         track(changed, Perm.SETTINGS_FOOTER, Objects.equals(current.getFooter(), request.getFooter()));
         track(changed, Perm.SETTINGS_SIZECHART, Objects.equals(current.getSizeChart(), request.getSizeChart()));
+        // Null means an older admin panel that doesn't send the About page; it is left as it is.
+        track(changed, Perm.SETTINGS_ABOUT,
+                request.getAboutPage() == null || Objects.equals(current.getAboutPage(), request.getAboutPage()));
         track(changed, Perm.SETTINGS_PAYMENTS,
                 on(current.getPaymentCodEnabled()) == on(request.getPaymentCodEnabled())
                         && on(current.getPaymentBkashEnabled()) == on(request.getPaymentBkashEnabled())
@@ -90,6 +93,7 @@ public class AdminStoreSettingsController {
             case SETTINGS_FOOTER -> "footer";
             case SETTINGS_SIZECHART -> "size chart";
             case SETTINGS_PAYMENTS -> "payment methods";
+            case SETTINGS_ABOUT -> "About page";
             default -> section.label();
         };
     }

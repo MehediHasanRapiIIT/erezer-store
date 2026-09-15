@@ -3,6 +3,9 @@ package kn.org.deliverybackend.service.impl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import kn.org.deliverybackend.dto.settings.AboutPageDTO;
+import kn.org.deliverybackend.dto.settings.AboutSectionDTO;
+import kn.org.deliverybackend.exception.InvalidRequestException;
 import kn.org.deliverybackend.dto.settings.BrandStoryDTO;
 import kn.org.deliverybackend.dto.settings.FooterColumnDTO;
 import kn.org.deliverybackend.dto.settings.FooterDTO;
@@ -45,6 +48,10 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
         // footer on a DB seeded by an earlier version), so the storefront always
         // gets sensible defaults until an admin customises them.
         boolean changed = false;
+        if (settings.getAboutPageJson() == null || settings.getAboutPageJson().isBlank()) {
+            settings.setAboutPageJson(write(defaultAboutPage()));
+            changed = true;
+        }
         if (settings.getBrandStoryJson() == null || settings.getBrandStoryJson().isBlank()) {
             settings.setBrandStoryJson(write(defaultBrandStory()));
             changed = true;
@@ -84,6 +91,10 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
         settings.setSupportHours(request.getSupportHours());
         settings.setSizeChartJson(write(request.getSizeChart()));
         settings.setBrandStoryJson(write(request.getBrandStory()));
+        // An older admin panel that doesn't know the About page must not wipe it.
+        if (request.getAboutPage() != null) {
+            settings.setAboutPageJson(write(checkedAboutPage(request.getAboutPage())));
+        }
         settings.setFooterJson(write(request.getFooter()));
         settings.setMarqueeJson(write(request.getMarquee()));
         settings.setHighlightsJson(write(request.getHighlights()));
@@ -145,6 +156,7 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
                 .supportHours("Sat–Thu, 10:00–19:00")
                 .sizeChartJson(write(defaultChart()))
                 .brandStoryJson(write(defaultBrandStory()))
+                .aboutPageJson(write(defaultAboutPage()))
                 .footerJson(write(defaultFooter()))
                 .marqueeJson(write(defaultMarquee()))
                 .highlightsJson(write(defaultHighlights()))
@@ -199,6 +211,95 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
                         row("XL", 111,  43.7,  74,  29.1),
                         row("XXL",116,  45.7,  76,  29.9)
                 ))
+                .build();
+    }
+
+    /** Longest lengths the About page accepts, so one paste can't bloat every page load. */
+    private static final int ABOUT_TITLE_MAX = 150;
+    private static final int ABOUT_INTRO_MAX = 1_000;
+    private static final int ABOUT_BODY_MAX = 5_000;
+    private static final int ABOUT_SECTIONS_MAX = 12;
+
+    /**
+     * Trims the About page and refuses what the storefront should never render:
+     * over-long text, too many sections, or a link or image that is not a web
+     * address or a page of this shop (a "javascript:" link, for instance).
+     */
+    private AboutPageDTO checkedAboutPage(AboutPageDTO page) {
+        List<AboutSectionDTO> sections = page.getSections() == null ? List.of() : page.getSections().stream()
+                .filter(s -> s != null && (notBlank(s.getHeading()) || notBlank(s.getBody()) || notBlank(s.getImageUrl())))
+                .map(s -> AboutSectionDTO.builder()
+                        .heading(limited(s.getHeading(), ABOUT_TITLE_MAX, "A section heading"))
+                        .body(limited(s.getBody(), ABOUT_BODY_MAX, "A section's text"))
+                        .imageUrl(webAddress(s.getImageUrl(), false, "A section photo"))
+                        .build())
+                .toList();
+        if (sections.size() > ABOUT_SECTIONS_MAX) {
+            throw new InvalidRequestException("The About page can have at most " + ABOUT_SECTIONS_MAX + " sections.");
+        }
+        return AboutPageDTO.builder()
+                .title(limited(page.getTitle(), ABOUT_TITLE_MAX, "The title"))
+                .intro(limited(page.getIntro(), ABOUT_INTRO_MAX, "The intro"))
+                .heroImageUrl(webAddress(page.getHeroImageUrl(), false, "The main photo"))
+                .sections(sections)
+                .ctaLabel(limited(page.getCtaLabel(), ABOUT_TITLE_MAX, "The button label"))
+                .ctaLink(webAddress(page.getCtaLink(), true, "The button link"))
+                .build();
+    }
+
+    private static boolean notBlank(String s) {
+        return s != null && !s.isBlank();
+    }
+
+    private static String limited(String text, int max, String what) {
+        if (text == null || text.isBlank()) return null;
+        String t = text.trim();
+        if (t.length() > max) {
+            throw new InvalidRequestException(what + " is too long (at most " + max + " characters).");
+        }
+        return t;
+    }
+
+    /** An http(s) address, or (for links) a page of this shop such as "/shop". */
+    private static String webAddress(String value, boolean allowShopPage, String what) {
+        if (value == null || value.isBlank()) return null;
+        String v = value.trim();
+        String lower = v.toLowerCase(java.util.Locale.ROOT);
+        boolean web = lower.startsWith("https://") || lower.startsWith("http://");
+        boolean shopPage = allowShopPage && v.startsWith("/") && !v.startsWith("//");
+        if (!web && !shopPage || v.length() > 2_000) {
+            throw new InvalidRequestException(what + " must be a web address (https://…)"
+                    + (allowShopPage ? " or a page of the shop, like /shop." : "."));
+        }
+        return v;
+    }
+
+    private AboutPageDTO defaultAboutPage() {
+        return AboutPageDTO.builder()
+                .title("About Erezer")
+                .intro("Erezer is an apparel brand from Dhaka, making considered everyday clothing "
+                        + "that is designed to be worn for years, not seasons.")
+                .heroImageUrl("https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=1600&q=80")
+                .sections(List.of(
+                        AboutSectionDTO.builder()
+                                .heading("Our story")
+                                .body("We started Erezer with a simple idea: clothing should feel good, look good "
+                                        + "and last. Every piece begins with fabric we would wear ourselves.")
+                                .imageUrl("https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=80")
+                                .build(),
+                        AboutSectionDTO.builder()
+                                .heading("Made with care")
+                                .body("We work closely with our makers, keep our collections small, and price "
+                                        + "honestly - so you pay for quality, not for marketing.")
+                                .imageUrl("https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=900&q=80")
+                                .build(),
+                        AboutSectionDTO.builder()
+                                .heading("Visit us")
+                                .body("Come and see the collection in person at our flagship store, "
+                                        + "or reach our team any time through the Contact page.")
+                                .build()))
+                .ctaLabel("Shop the collection")
+                .ctaLink("/shop")
                 .build();
     }
 
@@ -317,6 +418,7 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
                 .supportHours(s.getSupportHours())
                 .sizeChart(read(s.getSizeChartJson(), SizeChartDTO.class))
                 .brandStory(read(s.getBrandStoryJson(), BrandStoryDTO.class))
+                .aboutPage(read(s.getAboutPageJson(), AboutPageDTO.class))
                 .footer(read(s.getFooterJson(), FooterDTO.class))
                 .marquee(read(s.getMarqueeJson(), MarqueeDTO.class))
                 .highlights(readList(s.getHighlightsJson(), new TypeReference<List<HighlightDTO>>() {}))
@@ -330,6 +432,10 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
                 .discountsCategoryEnabled(s.getDiscountsCategoryEnabled() == null || s.getDiscountsCategoryEnabled())
                 .discountsProductEnabled(s.getDiscountsProductEnabled() == null || s.getDiscountsProductEnabled())
                 .couponsEnabled(s.getCouponsEnabled() == null || s.getCouponsEnabled())
+                // Shipping rules: null means off, so shipping is charged.
+                .shippingFreeAll(Boolean.TRUE.equals(s.getShippingFreeAll()))
+                .shippingOfferEnabled(Boolean.TRUE.equals(s.getShippingOfferEnabled()))
+                .shippingOfferMin(s.getShippingOfferMin())
                 .build();
     }
 }

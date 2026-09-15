@@ -98,6 +98,8 @@ public class CategoryServiceImpl implements CategoryService {
         category.setShowOnHome(Boolean.TRUE.equals(dto.getShowOnHome()));
         category.setHomeSortOrder(dto.getHomeSortOrder() != null ? dto.getHomeSortOrder() : 0);
         category.setDiscountExcluded(Boolean.TRUE.equals(dto.getDiscountExcluded()));
+        // Null leaves it as it is, so a save that doesn't know the switch can't turn it off.
+        if (dto.getShowStockQuantity() != null) category.setShowStockQuantity(dto.getShowStockQuantity());
 
         String requested = dto.getSlug() != null && !dto.getSlug().isBlank()
                 ? dto.getSlug()

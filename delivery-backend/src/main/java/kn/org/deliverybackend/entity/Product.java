@@ -100,6 +100,11 @@ public class Product extends AbstractBaseEntity<Long> {
     @Column(name = "discount_excluded")
     private Boolean discountExcluded;
 
+    /** Stock on this product's page: follow the category, the quantity, or labels. Null means follow the category. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "stock_display", length = 20)
+    private kn.org.deliverybackend.enumeration.StockDisplay stockDisplay;
+
     /** Spaces at either end of the product code are never kept. */
     @PrePersist
     @PreUpdate

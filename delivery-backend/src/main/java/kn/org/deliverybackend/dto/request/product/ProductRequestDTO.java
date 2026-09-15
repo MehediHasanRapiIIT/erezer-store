@@ -68,4 +68,7 @@ public class ProductRequestDTO {
 
     /** True to keep this product at full price, ignoring every automatic discount. */
     private Boolean discountExcluded;
+
+    /** Stock on the product page: CATEGORY (follow it), QUANTITY or LABEL. Null leaves it unchanged. */
+    private kn.org.deliverybackend.enumeration.StockDisplay stockDisplay;
 }

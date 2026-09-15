@@ -29,11 +29,11 @@ type State = 'verifying' | 'success' | 'failed' | 'cancelled' | 'invalid';
             <p class="text-green-600">
               Payment received. Transaction <strong>{{ trxId() }}</strong>.
             </p>
-            <a [routerLink]="['/orders', orderId() ?? '']" class="btn-primary inline-block">View order</a>
+            <a [routerLink]="orderLink().path" [queryParams]="orderLink().query" class="btn-primary inline-block">View order</a>
           }
           @case ('failed') {
             <p class="text-red-500">{{ errorMessage() || 'Payment did not complete.' }}</p>
-            <a [routerLink]="['/orders', orderId() ?? '']" class="btn-secondary inline-block">View order</a>
+            <a [routerLink]="orderLink().path" [queryParams]="orderLink().query" class="btn-secondary inline-block">View order</a>
           }
           @case ('cancelled') {
             <p class="text-amber-600">Payment was cancelled.</p>
@@ -58,6 +58,23 @@ export class BkashCallbackPage implements OnInit {
   protected readonly orderId      = signal<string | null>(null);
   protected readonly trxId        = signal<string | null>(null);
   protected readonly errorMessage = signal<string>('');
+
+  /** The order number when this payment belongs to a guest order placed in this browser tab. */
+  private guestOrder(orderId: string): string | null {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem('erezer-guest-order') ?? 'null');
+      return saved?.id === orderId ? saved.number : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Where "View order" goes: the order page, or tracking for a guest order. */
+  protected orderLink(): { path: string[]; query: Record<string, string> } {
+    const oid = this.orderId() ?? '';
+    const guest = oid ? this.guestOrder(oid) : null;
+    return guest ? { path: ['/track-order'], query: { number: guest } } : { path: ['/orders', oid], query: {} };
+  }
 
   ngOnInit(): void {
     const qp = this.route.snapshot.queryParamMap;
@@ -87,7 +104,10 @@ export class BkashCallbackPage implements OnInit {
           // Money has moved: report the purchase parked by the checkout page.
           if (oid) this.pixel.purchaseDeferred(oid, response.amount);
           if (oid) {
-            setTimeout(() => void this.router.navigateByUrl(`/orders/${oid}`), 1500);
+            const guest = this.guestOrder(oid);
+            setTimeout(() => void (guest
+              ? this.router.navigate(['/order-placed'], { queryParams: { number: guest } })
+              : this.router.navigateByUrl(`/orders/${oid}`)), 1500);
           }
         } else {
           this.errorMessage.set(response.errorMessage ?? 'Payment was not completed.');

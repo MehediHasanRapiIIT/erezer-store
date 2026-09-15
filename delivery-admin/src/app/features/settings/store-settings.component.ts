@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { catchError, of } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import {
+  AboutPage,
   BrandStory,
   Footer,
   Highlight,
@@ -40,6 +41,10 @@ const EMPTY_BRAND: BrandStory = {
   ctaLink: '/shop', socialHandle: '', socialUrl: '', images: [],
 };
 
+const EMPTY_ABOUT: AboutPage = {
+  title: '', intro: '', heroImageUrl: '', sections: [], ctaLabel: '', ctaLink: '',
+};
+
 const EMPTY_FOOTER: Footer = {
   brandName: 'EREZER', blurb: '', columns: [], promises: [], outlets: [], copyright: '', tagline: '',
 };
@@ -57,7 +62,7 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
       <div class="flex-1 flex flex-col overflow-hidden">
         <header class="bg-white border-b border-gray-200 px-6 h-14 flex items-center justify-between flex-shrink-0">
           <h1 class="text-lg font-bold text-gray-900">Store settings</h1>
-          @if (perms.canAny('settings.store', 'settings.homepage', 'settings.footer', 'settings.sizechart', 'settings.payments')) {
+          @if (perms.canAny('settings.store', 'settings.homepage', 'settings.footer', 'settings.sizechart', 'settings.payments', 'settings.about')) {
             <button (click)="save()" [disabled]="saving() || loading()"
               class="px-3 py-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50">
               {{ saving() ? 'Saving…' : 'Save changes' }}
@@ -299,6 +304,112 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                   <p class="text-xs text-gray-400">No images yet.</p>
                 }
               </div>
+              </fieldset>
+            </section>
+
+            <!-- About page -->
+            <section class="bg-white rounded-xl border border-gray-200 p-5 space-y-4" aria-labelledby="about-page-heading">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <h2 id="about-page-heading" class="text-base font-semibold">About page</h2>
+                  <p class="text-xs text-gray-500">The shop's About Us page (/about). Parts you leave empty are not shown.</p>
+                  @if (!perms.can('settings.about')) {
+                    <p class="text-xs text-gray-400">Needs the “Edit the About page” permission.</p>
+                  }
+                </div>
+              </div>
+              <fieldset [disabled]="!perms.can('settings.about')" class="min-w-0 space-y-4 disabled:opacity-60">
+                <div class="grid grid-cols-1 gap-3">
+                  <label class="text-xs font-medium text-gray-600">
+                    Title
+                    <input [(ngModel)]="about.title" name="aboutTitle" maxlength="150" placeholder="About Erezer"
+                      class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                  </label>
+                  <label class="text-xs font-medium text-gray-600">
+                    Intro
+                    <textarea [(ngModel)]="about.intro" name="aboutIntro" rows="3" maxlength="1000"
+                      class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"></textarea>
+                  </label>
+                </div>
+
+                <!-- Main photo -->
+                <div class="space-y-2">
+                  <p class="text-xs font-medium text-gray-600">Main photo</p>
+                  <div class="flex flex-wrap items-center gap-3">
+                    @if (about.heroImageUrl) {
+                      <img [src]="about.heroImageUrl" alt="Main photo" class="h-20 w-32 rounded-lg object-cover border border-gray-200" />
+                    }
+                    <label class="px-2.5 py-1.5 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 cursor-pointer">
+                      {{ uploadingAbout() === 'hero' ? 'Uploading…' : (about.heroImageUrl ? 'Replace photo' : 'Upload photo') }}
+                      <input type="file" accept="image/*" class="hidden" aria-label="Upload main photo"
+                        (change)="onAboutImage($event, 'hero')" [disabled]="uploadingAbout() !== null" />
+                    </label>
+                    @if (about.heroImageUrl) {
+                      <button type="button" (click)="about.heroImageUrl = ''" class="text-xs text-red-600 hover:underline">Remove photo</button>
+                    }
+                  </div>
+                </div>
+
+                <!-- Sections -->
+                <div class="space-y-3">
+                  <div class="flex items-center justify-between">
+                    <p class="text-xs font-medium text-gray-600">Sections</p>
+                    @if (perms.can('settings.about') && (about.sections?.length ?? 0) < 12) {
+                      <button type="button" (click)="addAboutSection()"
+                        class="px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50">+ Section</button>
+                    }
+                  </div>
+                  @for (sec of about.sections ?? []; track $index; let i = $index; let first = $first; let last = $last) {
+                    <div class="rounded-lg border border-gray-200 p-3 space-y-2" [attr.aria-label]="'Section ' + (i + 1)">
+                      <div class="flex items-center justify-between gap-2">
+                        <span class="text-xs font-semibold text-gray-400">Section {{ i + 1 }}</span>
+                        @if (perms.can('settings.about')) {
+                          <div class="flex items-center gap-1">
+                            <button type="button" (click)="moveAboutSection(i, -1)" [disabled]="first" class="px-2 py-0.5 text-xs text-gray-600 border border-gray-200 rounded disabled:opacity-30" [attr.aria-label]="'Move section ' + (i + 1) + ' up'">↑</button>
+                            <button type="button" (click)="moveAboutSection(i, 1)" [disabled]="last" class="px-2 py-0.5 text-xs text-gray-600 border border-gray-200 rounded disabled:opacity-30" [attr.aria-label]="'Move section ' + (i + 1) + ' down'">↓</button>
+                            <button type="button" (click)="removeAboutSection(i)" class="px-2 py-0.5 text-xs text-red-600 border border-red-200 rounded" [attr.aria-label]="'Remove section ' + (i + 1)">Remove</button>
+                          </div>
+                        }
+                      </div>
+                      <input [(ngModel)]="sec.heading" [name]="'aboutHeading' + i" maxlength="150" placeholder="Heading"
+                        [attr.aria-label]="'Section ' + (i + 1) + ' heading'"
+                        class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                      <textarea [(ngModel)]="sec.body" [name]="'aboutBody' + i" rows="4" maxlength="5000" placeholder="Text"
+                        [attr.aria-label]="'Section ' + (i + 1) + ' text'"
+                        class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"></textarea>
+                      <div class="flex flex-wrap items-center gap-3">
+                        @if (sec.imageUrl) {
+                          <img [src]="sec.imageUrl" [alt]="'Section ' + (i + 1) + ' photo'" class="h-14 w-20 rounded object-cover border border-gray-200" />
+                        }
+                        <label class="px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 cursor-pointer">
+                          {{ uploadingAbout() === i ? 'Uploading…' : (sec.imageUrl ? 'Replace photo' : 'Add photo (optional)') }}
+                          <input type="file" accept="image/*" class="hidden" [attr.aria-label]="'Upload section ' + (i + 1) + ' photo'"
+                            (change)="onAboutImage($event, i)" [disabled]="uploadingAbout() !== null" />
+                        </label>
+                        @if (sec.imageUrl) {
+                          <button type="button" (click)="sec.imageUrl = ''" class="text-xs text-red-600 hover:underline">Remove photo</button>
+                        }
+                      </div>
+                    </div>
+                  } @empty {
+                    <p class="text-xs text-gray-400">No sections yet.</p>
+                  }
+                </div>
+
+                <!-- Closing button -->
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label class="text-xs font-medium text-gray-600">
+                    Button label
+                    <input [(ngModel)]="about.ctaLabel" name="aboutCtaLabel" maxlength="150" placeholder="Shop the collection"
+                      class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                  </label>
+                  <label class="text-xs font-medium text-gray-600">
+                    Button link
+                    <input [(ngModel)]="about.ctaLink" name="aboutCtaLink" placeholder="/shop"
+                      class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                  </label>
+                  <p class="text-xs text-gray-400 sm:col-span-2">Leave both empty for no button. A link can be a shop page like /shop, or a full web address.</p>
+                </div>
               </fieldset>
             </section>
 
@@ -567,6 +678,8 @@ export class StoreSettingsComponent implements OnInit {
   readonly savedMessage = signal<string>('');
   /** Index of the outlet whose image is currently uploading (-1 = none). */
   readonly uploadingOutlet = signal(-1);
+  /** About page photo uploading: 'hero', a section index, or null. */
+  readonly uploadingAbout = signal<'hero' | number | null>(null);
 
   protected model: StoreSettings = {
     returnPolicyText: '',
@@ -591,6 +704,7 @@ export class StoreSettingsComponent implements OnInit {
   };
   protected chart: SizeChart = { columns: [...EMPTY_CHART.columns], rows: [] };
   protected brand: BrandStory = structuredClone(EMPTY_BRAND);
+  protected about: AboutPage = structuredClone(EMPTY_ABOUT);
   protected footer: Footer = structuredClone(EMPTY_FOOTER);
   protected marquee: Marquee = structuredClone(EMPTY_MARQUEE);
   protected highlights: Highlight[] = [];
@@ -612,6 +726,16 @@ export class StoreSettingsComponent implements OnInit {
     this.model = s;
     this.chart = this.normalizeChart(s.sizeChart);
     this.brand = this.normalizeBrand(s.brandStory);
+    this.about = {
+      title: s.aboutPage?.title ?? '',
+      intro: s.aboutPage?.intro ?? '',
+      heroImageUrl: s.aboutPage?.heroImageUrl ?? '',
+      sections: (s.aboutPage?.sections ?? []).map((x) => ({
+        heading: x.heading ?? '', body: x.body ?? '', imageUrl: x.imageUrl ?? '',
+      })),
+      ctaLabel: s.aboutPage?.ctaLabel ?? '',
+      ctaLink: s.aboutPage?.ctaLink ?? '',
+    };
     this.footer = this.normalizeFooter(s.footer);
     this.marquee = {
       enabled: s.marquee?.enabled ?? true,
@@ -689,6 +813,56 @@ export class StoreSettingsComponent implements OnInit {
   }
   protected removeOutlet(i: number): void { this.footer.outlets.splice(i, 1); }
 
+  protected addAboutSection(): void {
+    (this.about.sections ??= []).push({ heading: '', body: '', imageUrl: '' });
+  }
+
+  protected removeAboutSection(i: number): void {
+    this.about.sections?.splice(i, 1);
+  }
+
+  protected moveAboutSection(i: number, step: -1 | 1): void {
+    const list = this.about.sections ?? [];
+    const j = i + step;
+    if (j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+
+  protected onAboutImage(event: Event, target: 'hero' | number): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    this.uploadingAbout.set(target);
+    this.errorMessage.set('');
+    this.uploads.uploadImage(file).pipe(catchError((err) => {
+      this.errorMessage.set(parseApiError(err));
+      this.uploadingAbout.set(null);
+      return of(null);
+    })).subscribe((url) => {
+      this.uploadingAbout.set(null);
+      if (url) {
+        if (target === 'hero') this.about.heroImageUrl = url;
+        else if (this.about.sections?.[target]) this.about.sections[target].imageUrl = url;
+      }
+      input.value = '';
+    });
+  }
+
+  /** The About page as the server stores it: empty text as null, so an untouched page counts as unchanged. */
+  private aboutForSave(): AboutPage {
+    const t = (v: string | null | undefined) => (v && v.trim() ? v.trim() : null);
+    return {
+      title: t(this.about.title),
+      intro: t(this.about.intro),
+      heroImageUrl: t(this.about.heroImageUrl),
+      sections: (this.about.sections ?? [])
+        .map((x) => ({ heading: t(x.heading), body: t(x.body), imageUrl: t(x.imageUrl) }))
+        .filter((x) => x.heading || x.body || x.imageUrl),
+      ctaLabel: t(this.about.ctaLabel),
+      ctaLink: t(this.about.ctaLink),
+    };
+  }
+
   protected onOutletImage(event: Event, index: number): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
@@ -753,6 +927,7 @@ export class StoreSettingsComponent implements OnInit {
       footer: this.perms.can('settings.footer') ? this.footer : this.model.footer,
       marquee: homepage ? this.marquee : this.model.marquee,
       highlights: homepage ? this.highlights : this.model.highlights,
+      aboutPage: this.perms.can('settings.about') ? this.aboutForSave() : this.model.aboutPage,
     };
     this.api.update(payload).pipe(catchError((err) => {
       this.errorMessage.set(parseApiError(err));

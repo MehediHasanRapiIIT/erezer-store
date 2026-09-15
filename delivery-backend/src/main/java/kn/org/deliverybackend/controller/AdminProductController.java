@@ -43,4 +43,22 @@ public class AdminProductController {
             @RequestParam("value") boolean value) {
         return ResponseEntity.ok(productService.setFeatured(id, value));
     }
+
+    /**
+     * The "Show qty" switch in the products list: the product page shows the stock
+     * quantity (QUANTITY) or labels (LABEL), or follows its category (CATEGORY).
+     */
+    @RequiresPermission(Perm.PRODUCTS_EDIT)
+    @PatchMapping("/{id}/stock-display")
+    public ResponseEntity<ProductResponseDTO> setStockDisplay(
+            @PathVariable Long id,
+            @RequestParam("value") kn.org.deliverybackend.enumeration.StockDisplay value) {
+        ProductResponseDTO result = productService.setStockDisplay(id, value);
+        kn.org.deliverybackend.access.StaffAccess.describe(switch (value) {
+            case QUANTITY -> "Showed the stock quantity for " + result.getName();
+            case LABEL -> "Showed stock labels for " + result.getName();
+            case CATEGORY -> "Made " + result.getName() + " follow its category for stock";
+        });
+        return ResponseEntity.ok(result);
+    }
 }

@@ -27,4 +27,9 @@ public class CheckoutQuoteResponseDTO {
     private String couponDiscountType;
     private String couponMessage; // null on success; rejection reason otherwise
     private boolean couponApplied;
+
+    /** Why shipping is free: FREE_ALL, OFFER or COUPON. Null when shipping is charged. */
+    private String freeShippingReason;
+    /** The free-shipping offer's minimum while the offer is on, so checkout can say so. */
+    private BigDecimal freeShippingOfferMin;
 }

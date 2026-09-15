@@ -15,6 +15,9 @@ import java.util.UUID;
 public class OrderDTO {
     private UUID id;
 
+    /** The number the customer sees and tracks by, e.g. EZ-482915. */
+    private String orderNumber;
+
     private UUID clientId;
 
     private UUID riderId;
@@ -44,6 +47,7 @@ public class OrderDTO {
     // Enriched customer info (populated from Users table)
     private String customerName;
     private String customerPhone;
+    private String customerEmail;
 
     // Enriched rider info (populated from UserRider table)
     private String riderName;

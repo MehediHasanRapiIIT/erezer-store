@@ -82,6 +82,9 @@ public enum Perm {
     COUPONS_CREATE("coupons.create", "Coupons", "Add coupons", null),
     COUPONS_EDIT("coupons.edit", "Coupons", "Edit coupons", null),
     COUPONS_DELETE("coupons.delete", "Coupons", "Delete coupons", null),
+    SHIPPING_VIEW("shipping.view", "Shipping", "See shipping settings", null),
+    SHIPPING_EDIT("shipping.edit", "Shipping", "Change shipping prices and free shipping",
+            "Zone prices, free shipping for all orders, and the free shipping offer."),
     COUPONS_SWITCH("coupons.switch", "Coupons", "Turn promo codes on or off",
             "Off hides the promo code box in the shop and stops every code from applying."),
 
@@ -120,6 +123,7 @@ public enum Perm {
     SETTINGS_FOOTER("settings.footer", "Settings", "Edit the footer", "Columns, promises and outlets."),
     SETTINGS_SIZECHART("settings.sizechart", "Settings", "Edit the size chart", null),
     SETTINGS_PAYMENTS("settings.payments", "Settings", "Turn payment methods on or off", null),
+    SETTINGS_ABOUT("settings.about", "Settings", "Edit the About page", null),
 
     STAFF_VIEW("staff.view", "Staff", "See staff", null),
     STAFF_MANAGE("staff.manage", "Staff", "Add staff, deactivate, reset passwords", null),

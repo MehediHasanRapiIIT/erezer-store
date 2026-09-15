@@ -34,7 +34,8 @@ type PaymentMethod = 'CASH' | 'BKASH' | 'CARD';
         <!-- Account banners -->
         @if (!auth.isAuthenticated()) {
           <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
-            You are checking out as a guest. <a routerLink="/account" class="underline underline-offset-4">Sign in</a> to save your order history.
+            You're checking out as a guest — we'll email your order confirmation and order number.
+            <a routerLink="/account" [queryParams]="{ redirect: '/checkout' }" class="underline underline-offset-4">Sign in</a> to save your order history.
           </div>
         } @else if (!auth.emailVerified()) {
           <div class="space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
@@ -161,7 +162,9 @@ type PaymentMethod = 'CASH' | 'BKASH' | 'CARD';
                   [class.border-neutral-300]="selectedZoneId() !== zone.id"
                   [class.dark:border-neutral-700]="selectedZoneId() !== zone.id">
                   {{ zone.displayName }}
-                  <span class="ml-1 text-xs opacity-70">{{ zone.flatFee | currency:'BDT':'৳' }}</span>
+                  <span class="ml-1 text-xs opacity-70">
+                    @if (settingsStore.settings()?.shippingFreeAll) { Free } @else { {{ zone.flatFee | currency:'BDT':'৳' }} }
+                  </span>
                 </button>
               }
             </div>
@@ -176,7 +179,7 @@ type PaymentMethod = 'CASH' | 'BKASH' | 'CARD';
 
         @if (confirmation()) {
           <p class="rounded-2xl border border-green-200 bg-green-50 p-3 text-sm text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400">
-            Order placed! Confirmation: <strong>{{ confirmation() }}</strong>
+            Order placed! Your order number: <strong>{{ confirmation() }}</strong>
           </p>
         }
       </form>
@@ -239,11 +242,22 @@ type PaymentMethod = 'CASH' | 'BKASH' | 'CARD';
             }
           </div>
 
+          @if (freeShippingNote(); as note) {
+            <p class="mb-3 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+              {{ note }}
+            </p>
+          }
           <div class="space-y-2 border-t border-neutral-200 pt-3 text-sm dark:border-neutral-800">
             <div class="flex justify-between"><span class="app-muted">Subtotal</span><span class="tabular-nums">{{ summarySubtotal() | currency:'BDT':'৳' }}</span></div>
             <div class="flex justify-between">
               <span class="app-muted">Shipping@if (quote(); as q) { @if (q.shippingZoneName) { · {{ q.shippingZoneName }} } }</span>
-              <span class="tabular-nums">{{ summaryShipping() | currency:'BDT':'৳' }}</span>
+              @if (!quote()) {
+                <span class="app-muted">…</span>
+              } @else if (summaryShipping() === 0 && quote()?.freeShippingReason) {
+                <span class="font-medium text-emerald-600">Free</span>
+              } @else {
+                <span class="tabular-nums">{{ summaryShipping() | currency:'BDT':'৳' }}</span>
+              }
             </div>
             @if (summaryTax() > 0) {
               <div class="flex justify-between"><span class="app-muted">Tax</span><span class="tabular-nums">{{ summaryTax() | currency:'BDT':'৳' }}</span></div>
@@ -272,8 +286,8 @@ type PaymentMethod = 'CASH' | 'BKASH' | 'CARD';
 
           <button type="button" (click)="placeOrder()"
             class="btn-primary mt-4 w-full !rounded-full"
-            [disabled]="effCount() === 0 || submitting() || !auth.emailVerified()">
-            {{ submitting() ? 'Placing order…' : (!auth.emailVerified() ? 'Verify your email to order' : payButtonLabel()) }}
+            [disabled]="effCount() === 0 || submitting() || needsVerification()">
+            {{ submitting() ? 'Placing order…' : (needsVerification() ? 'Verify your email to order' : payButtonLabel()) }}
           </button>
 
           <div class="mt-3 flex items-center justify-center gap-1.5 text-xs app-muted">
@@ -315,7 +329,7 @@ type PaymentMethod = 'CASH' | 'BKASH' | 'CARD';
 export class CheckoutPage implements OnInit, OnDestroy {
   private readonly fb     = inject(FormBuilder);
   protected readonly store = inject(EcommerceStore);
-  private readonly settingsStore = inject(SettingsStore);
+  protected readonly settingsStore = inject(SettingsStore);
   protected readonly bundleCheckout = inject(BundleCheckoutStore);
   protected readonly auth  = inject(AuthService);
   private readonly api    = inject(ApiService);
@@ -360,13 +374,13 @@ export class CheckoutPage implements OnInit, OnDestroy {
 
   private readonly effSubtotal = computed(() => this.effItems().reduce((acc, i) => acc + i.subtotal, 0));
   protected readonly summarySubtotal = computed(() => this.quote()?.subtotal ?? this.effSubtotal());
-  protected readonly summaryShipping = computed(() => this.quote()?.shippingFee ?? (this.bundleMode() ? 0 : this.store.shippingFee()));
+  protected readonly summaryShipping = computed(() => this.quote()?.shippingFee ?? 0);
   protected readonly summaryTax      = computed(() => this.quote()?.taxAmount ?? 0);
   protected readonly summaryDiscount = computed(() =>
     this.quote()?.discountAmount
     ?? (this.bundleMode()
         ? Math.max(0, this.effSubtotal() - (this.bundleCheckout.pending()?.bundlePrice ?? 0))
-        : this.store.discountAmount()));
+        : 0));
   /** Flat custom-size surcharge total — from the server quote, else summed from the local cart (once per line). */
   protected readonly summarySurcharge = computed(() =>
     this.quote()?.customSurcharge
@@ -376,7 +390,40 @@ export class CheckoutPage implements OnInit, OnDestroy {
     this.quote()?.total
     ?? (this.bundleMode()
         ? (this.bundleCheckout.pending()?.bundlePrice ?? 0)
-        : this.store.cartTotal() + this.summarySurcharge()));
+        : this.effSubtotal() + this.summarySurcharge()));
+
+  /** One line about free shipping for the order summary, from the server quote. */
+  protected readonly freeShippingNote = computed(() => {
+    const q = this.quote();
+    if (!q) return '';
+    const taka = (n: number) => '৳' + n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+    if (q.freeShippingReason === 'FREE_ALL') return 'Free shipping on all orders';
+    if (q.freeShippingReason === 'OFFER' && q.freeShippingOfferMin) {
+      return `Your order ships free — free shipping on orders from ${taka(q.freeShippingOfferMin)}`;
+    }
+    if (q.freeShippingOfferMin && !q.freeShippingReason) {
+      const goods = Math.max(0, q.subtotal - q.discountAmount);
+      const gap = q.freeShippingOfferMin - goods;
+      return gap > 0
+        ? `Add ${taka(gap)} more for free shipping (orders from ${taka(q.freeShippingOfferMin)})`
+        : `Free shipping on orders from ${taka(q.freeShippingOfferMin)}`;
+    }
+    return '';
+  });
+
+  /** Only a signed-in customer must verify their email; a guest has no account to verify. */
+  protected needsVerification(): boolean {
+    return this.auth.isAuthenticated() && !this.auth.emailVerified();
+  }
+
+  /** Signed in: the order in their history. Guest: the thank-you page with the order number. */
+  private goToOrder(order: { id: string; orderNumber?: string | null }, userId: string | null, email: string): void {
+    if (userId || !order.orderNumber) {
+      void this.router.navigateByUrl(`/orders/${order.id}`);
+      return;
+    }
+    void this.router.navigate(['/order-placed'], { queryParams: { number: order.orderNumber }, state: { email: email.trim() } });
+  }
 
   protected readonly payButtonLabel = computed(() => {
     if (this.paymentMethod() === 'BKASH') return 'Pay with bKash';
@@ -435,14 +482,10 @@ export class CheckoutPage implements OnInit, OnDestroy {
     // Reaching this page is the "started checkout" moment Meta optimises on.
     if (this.effCount() > 0) this.pixel.initiateCheckout(this.pixelLines(), this.summaryTotal());
     // Checkout requires an account — send guests to sign in, then back here.
-    if (!this.auth.isAuthenticated()) {
-      void this.router.navigate(['/account'], { queryParams: { redirect: '/checkout' } });
-      return;
-    }
-
+    // Guests can order too; only signed-in customers need a verified email.
     // While the page is open, quietly re-check verification so the customer
     // doesn't have to refresh after confirming their email on another device.
-    this.startVerificationPolling();
+    if (this.auth.isAuthenticated()) this.startVerificationPolling();
 
     // Load shipping zones first so the picker is populated.
     this.api.getShippingZones().pipe(catchError(() => of([] as ShippingZone[])))
@@ -578,7 +621,7 @@ export class CheckoutPage implements OnInit, OnDestroy {
     if (this.effCount() === 0) return;
 
     // Server also enforces this, but block early for a clearer message.
-    if (!this.auth.emailVerified()) {
+    if (this.needsVerification()) {
       this.errorMessage.set('Please verify your email address before placing an order.');
       return;
     }
@@ -587,11 +630,6 @@ export class CheckoutPage implements OnInit, OnDestroy {
     const form   = this.checkoutForm.getRawValue();
     const items  = this.effItems();
 
-    // Checkout requires an account (the page guard also redirects guests).
-    if (!userId) {
-      void this.router.navigate(['/account'], { queryParams: { redirect: '/checkout' } });
-      return;
-    }
 
     this.submitting.set(true);
     this.errorMessage.set('');
@@ -622,7 +660,12 @@ export class CheckoutPage implements OnInit, OnDestroy {
     this.pixel.setUser({ phone: form.phone });
     this.pixel.addPaymentInfo(this.paymentMethod(), pixelValue);
 
-    this.api.createOrder(userId, payload)
+    // Signed in: the customer's own order. Otherwise a guest order, emailed to the
+    // address given here and tracked by its order number.
+    const order$ = userId
+      ? this.api.createOrder(userId, payload)
+      : this.api.createGuestOrder({ ...payload, email: form.email.trim(), firstName: form.firstName.trim(), lastName: form.lastName.trim() });
+    order$
       .pipe(catchError((err) => {
         this.errorMessage.set(err?.error?.message ?? 'Failed to place order. Please try again.');
         this.submitting.set(false);
@@ -646,7 +689,11 @@ export class CheckoutPage implements OnInit, OnDestroy {
           this.store.cart.set([]);
           this.store.clearPromoCode();
         }
-        this.confirmation.set(order.id);
+        this.confirmation.set(order.orderNumber || order.id);
+        if (!userId && order.orderNumber) {
+          // After paying at bKash the return page needs this to show the guest their number.
+          try { sessionStorage.setItem('erezer-guest-order', JSON.stringify({ id: order.id, number: order.orderNumber })); } catch { /* ignore */ }
+        }
 
         if (this.paymentMethod() === 'BKASH') {
           // Initiate bKash payment, then redirect to the gateway's URL.
@@ -661,12 +708,12 @@ export class CheckoutPage implements OnInit, OnDestroy {
               if (init?.bkashURL) {
                 window.location.href = init.bkashURL;
               } else {
-                this.router.navigateByUrl(`/orders/${order.id}`);
+                this.goToOrder(order, userId, form.email);
               }
             });
         } else {
           this.submitting.set(false);
-          setTimeout(() => void this.router.navigateByUrl(`/orders/${order.id}`), 900);
+          setTimeout(() => this.goToOrder(order, userId, form.email), 900);
         }
       });
   }

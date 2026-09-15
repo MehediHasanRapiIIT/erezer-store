@@ -30,6 +30,7 @@ export class EditCategoryComponent implements OnInit {
   showOnHome   = signal(false);
   /** Keep every product in this category at full price. */
   discountExcluded = signal(false);
+  showStockQuantity = signal(false);
   homeSortOrder = signal(0);
   uploading    = signal(false);
   isLoading    = signal(false);
@@ -67,6 +68,7 @@ export class EditCategoryComponent implements OnInit {
         this.imageUrl.set(cat.imageUrl ?? '');
         this.showOnHome.set(cat.showOnHome ?? false);
         this.discountExcluded.set(cat.discountExcluded ?? false);
+        this.showStockQuantity.set(cat.showStockQuantity ?? false);
         this.homeSortOrder.set(cat.homeSortOrder ?? 0);
         this.isFetching.set(false);
       },
@@ -90,6 +92,7 @@ export class EditCategoryComponent implements OnInit {
       imageUrl: this.imageUrl() || null,
       showOnHome: this.showOnHome(),
       discountExcluded: this.discountExcluded(),
+      showStockQuantity: this.showStockQuantity(),
       homeSortOrder: this.homeSortOrder(),
     }).subscribe({
       next: () => {

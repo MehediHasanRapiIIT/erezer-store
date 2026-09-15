@@ -1,5 +1,6 @@
 package kn.org.deliverybackend.service.impl;
 
+import kn.org.deliverybackend.enumeration.StockDisplay;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
@@ -301,6 +302,10 @@ public class ProductServiceImpl implements ProductService {
         if (productRequestDTO.getDiscountExcluded() != null) {
             product.setDiscountExcluded(productRequestDTO.getDiscountExcluded());
         }
+        // Stock on the product page (null leaves the existing value untouched).
+        if (productRequestDTO.getStockDisplay() != null) {
+            product.setStockDisplay(productRequestDTO.getStockDisplay());
+        }
 
         return toEnrichedResponseDTO(productRepository.save(product));
     }
@@ -314,10 +319,12 @@ public class ProductServiceImpl implements ProductService {
         // storefront card knows the product is at full price without having to
         // fetch the category separately.
         dto.setCategoryDiscountExcluded(false);
+        dto.setShowStockQuantity(StockDisplay.showsQuantity(product.getStockDisplay(), null));
         if (product.getCategoryId() != null) {
             categoryRepository.findById(product.getCategoryId()).ifPresent(cat -> {
                 dto.setCategoryName(cat.getName());
                 dto.setCategoryDiscountExcluded(Boolean.TRUE.equals(cat.getDiscountExcluded()));
+                dto.setShowStockQuantity(StockDisplay.showsQuantity(product.getStockDisplay(), cat.getShowStockQuantity()));
             });
         }
         return dto;
@@ -332,6 +339,14 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + id));
         product.setIsFeatured(value);
+        return toEnrichedResponseDTO(productRepository.save(product));
+    }
+
+    @Override
+    public ProductResponseDTO setStockDisplay(Long id, StockDisplay value) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + id));
+        product.setStockDisplay(value);
         return toEnrichedResponseDTO(productRepository.save(product));
     }
 

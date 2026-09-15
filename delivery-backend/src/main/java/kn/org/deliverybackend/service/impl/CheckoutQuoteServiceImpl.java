@@ -3,6 +3,7 @@ package kn.org.deliverybackend.service.impl;
 import kn.org.deliverybackend.dto.checkout.CheckoutQuoteRequestDTO;
 import kn.org.deliverybackend.dto.checkout.CheckoutQuoteResponseDTO;
 import kn.org.deliverybackend.dto.coupon.CouponValidateRequestDTO;
+import kn.org.deliverybackend.dto.shipping.ShippingQuote;
 import kn.org.deliverybackend.dto.coupon.CouponValidateResponseDTO;
 import kn.org.deliverybackend.dto.request.order.OrderItemRequestDTO;
 import kn.org.deliverybackend.entity.Product;
@@ -71,7 +72,6 @@ public class CheckoutQuoteServiceImpl implements CheckoutQuoteService {
                         .orElse(shippingService.defaultZone())
                 : shippingService.resolveZone(request.getDeliveryAddress());
 
-        BigDecimal shippingFee = shippingService.computeFee(zone, subtotal);
 
         // 3. Discounts. A bundle offer is its own fixed deal and does NOT stack
         //    with coupons or automatic discounts; otherwise apply those as before.
@@ -80,17 +80,11 @@ public class CheckoutQuoteServiceImpl implements CheckoutQuoteService {
         String couponMessage = null;
         boolean couponApplied = false;
         String couponCode = request.getCouponCode();
+        boolean couponFreeShipping = false;
 
         if (request.getBundleId() != null) {
             discountAmount = bundleService.bundleDiscount(request.getBundleId(), request.getItems(), subtotal);
             couponCode = null;
-            // Free-shipping thresholds must be judged on the price the customer
-            // actually pays for goods (the bundle price), not the inflated
-            // pre-discount list subtotal — otherwise a bundle wrongly earns free
-            // shipping even when its bundle price is below the free-above cutoff.
-            BigDecimal bundleGoods = subtotal.subtract(discountAmount);
-            if (bundleGoods.signum() < 0) bundleGoods = BigDecimal.ZERO;
-            shippingFee = shippingService.computeFee(zone, bundleGoods);
         } else {
             // Coupon applies on the subtotal AFTER automatic discounts.
             BigDecimal couponBase = subtotal.subtract(autoDiscount);
@@ -104,18 +98,24 @@ public class CheckoutQuoteServiceImpl implements CheckoutQuoteService {
                     couponDiscountType = validation.getDiscountType();
                     discountAmount = discountAmount.add(validation.getDiscountAmount() == null
                             ? BigDecimal.ZERO : validation.getDiscountAmount());
-                    if (validation.isRemovesShipping()) {
-                        shippingFee = BigDecimal.ZERO;
-                    }
+                    couponFreeShipping = validation.isRemovesShipping();
                 } else {
                     couponMessage = validation.getReason();
                 }
             }
         }
 
-        // 4. Tax applies on (subtotal - total discount) — shipping is usually excluded.
-        BigDecimal taxable = subtotal.subtract(discountAmount);
-        if (taxable.signum() < 0) taxable = BigDecimal.ZERO;
+        // 4. Shipping, judged on what the customer pays for the goods after every
+        //    discount (bundle, automatic, coupon), so a discount can't carry an
+        //    order over the free-shipping offer's minimum.
+        BigDecimal goods = subtotal.subtract(discountAmount);
+        if (goods.signum() < 0) goods = BigDecimal.ZERO;
+        ShippingQuote shipping = shippingService.quoteShipping(zone, goods);
+        if (couponFreeShipping) shipping = shipping.waivedByCoupon();
+        BigDecimal shippingFee = shipping.fee();
+
+        // 5. Tax applies on (subtotal - total discount) — shipping is usually excluded.
+        BigDecimal taxable = goods;
         BigDecimal taxAmount = shippingService.computeTax(zone != null ? zone.getId() : null, taxable);
 
         BigDecimal total = subtotal
@@ -138,6 +138,8 @@ public class CheckoutQuoteServiceImpl implements CheckoutQuoteService {
                 .couponDiscountType(couponDiscountType)
                 .couponMessage(couponMessage)
                 .couponApplied(couponApplied)
+                .freeShippingReason(shipping.freeReason())
+                .freeShippingOfferMin(shipping.offerMin())
                 .build();
     }
 }

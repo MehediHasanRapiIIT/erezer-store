@@ -23,6 +23,7 @@ public class StoreSettingsDTO {
     private String supportHours;
     private SizeChartDTO sizeChart;
     private BrandStoryDTO brandStory;
+    private AboutPageDTO aboutPage;
     private FooterDTO footer;
     private MarqueeDTO marquee;
     /** Home-page "highlights" stat band. */
@@ -44,4 +45,12 @@ public class StoreSettingsDTO {
 
     /** Promo codes on or off. Read-only here: it has its own endpoint and permission. */
     private Boolean couponsEnabled;
+
+    /**
+     * Shipping rules, for the storefront's "free shipping" messages. Read-only
+     * here: they are changed on the admin Shipping page.
+     */
+    private Boolean shippingFreeAll;
+    private Boolean shippingOfferEnabled;
+    private java.math.BigDecimal shippingOfferMin;
 }

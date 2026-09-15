@@ -17,4 +17,5 @@ public class CategoryResponseDTO {
     private Boolean showOnHome;
     private Integer homeSortOrder;
     private Boolean discountExcluded;
+    private Boolean showStockQuantity;
 }

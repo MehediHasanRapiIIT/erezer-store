@@ -1,5 +1,8 @@
 package kn.org.deliverybackend.controller;
 
+import jakarta.servlet.http.HttpServletRequest;
+import kn.org.deliverybackend.exception.RateLimitExceededException;
+import kn.org.deliverybackend.util.ClientIp;
 import jakarta.validation.Valid;
 import kn.org.deliverybackend.dto.OrderDTO;
 import kn.org.deliverybackend.dto.order.CancelOrderRequestDTO;
@@ -20,7 +23,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OrderController {
 
+    private static final int GUEST_ORDERS_PER_WINDOW = 20;
+    private static final java.time.Duration GUEST_WINDOW = java.time.Duration.ofMinutes(10);
+
     private final OrderService orderService;
+    private final kn.org.deliverybackend.service.RateLimiterService rateLimiter;
 
     @PostMapping("/{userId}/orders")
     public ResponseEntity<OrderDTO> placeOrder(
@@ -37,7 +44,15 @@ public class OrderController {
      * onto the order row so we can email status updates without a Users link.
      */
     @PostMapping("/guest/orders")
-    public ResponseEntity<OrderDTO> placeGuestOrder(@Valid @RequestBody GuestOrderRequestDTO request) {
+    public ResponseEntity<OrderDTO> placeGuestOrder(@Valid @RequestBody GuestOrderRequestDTO request,
+                                                    HttpServletRequest http) {
+        // No account to hold accountable, so cap orders per sender. Loose enough for
+        // many real shoppers behind one mobile-network address, tight enough to
+        // stop a script filling the order list with fakes.
+        if (!rateLimiter.tryAcquire("rl:guest-order:" + ClientIp.of(http), GUEST_ORDERS_PER_WINDOW, GUEST_WINDOW)) {
+            throw new RateLimitExceededException((int) GUEST_WINDOW.toSeconds(), GUEST_ORDERS_PER_WINDOW,
+                    (int) GUEST_WINDOW.toSeconds());
+        }
         return ResponseEntity.status(HttpStatus.CREATED).body(orderService.placeGuestOrder(request));
     }
 

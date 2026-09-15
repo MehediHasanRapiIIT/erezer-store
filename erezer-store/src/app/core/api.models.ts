@@ -105,6 +105,8 @@ export interface ApiProduct {
 
   /** The admin excluded this product from automatic discounts. */
   discountExcluded?: boolean | null;
+  /** The product page shows the real stock quantity instead of labels (product + category settings). */
+  showStockQuantity?: boolean | null;
   /** The admin excluded this product's whole category. Read-only here. */
   categoryDiscountExcluded?: boolean | null;
 
@@ -372,7 +374,6 @@ export interface ShippingZone {
   displayName: string;
   countryCode: string;
   flatFee: number;
-  freeAbove: number | null;
   isDefault: boolean;
   isActive: boolean;
 }
@@ -447,6 +448,10 @@ export interface CheckoutQuoteResponse {
   couponDiscountType: CouponDiscountType | null;
   couponMessage: string | null;
   couponApplied: boolean;
+  /** Why shipping is free: FREE_ALL, OFFER or COUPON; null when it is charged. */
+  freeShippingReason?: 'FREE_ALL' | 'OFFER' | 'COUPON' | null;
+  /** The free-shipping offer's minimum while the offer is on. */
+  freeShippingOfferMin?: number | null;
 }
 
 export interface BkashPaymentResponse {
@@ -551,6 +556,8 @@ export interface ApiOrderItem {
 
 export interface ApiOrder {
   id: string;
+  /** What the customer sees and tracks by, e.g. EZ-482915. */
+  orderNumber?: string | null;
   clientId: string;
   riderId: string | null;
   deliveryAddress: string;
@@ -618,10 +625,30 @@ export interface GuestOrderPayload {
   firstName: string;
   lastName: string;
   deliveryAddress: string;
+  phone?: string;
   paymentMethod: string;
   shopId: number;
-  shippingFee: number;
+  shippingFee?: number;
   items: OrderItemPayload[];
+  couponCode?: string;
+  shippingZoneId?: number;
+  bundleId?: string;
+}
+
+/** Track Order: progress and items only - nothing about the person. */
+export interface PublicOrderTracking {
+  orderNumber: string;
+  status: string;
+  placedAt: string | null;
+  steps: { status: string; at: string }[];
+  courierName: string | null;
+  courierTrackingNumber: string | null;
+  items: { name: string | null; imageUrl: string | null; size: string | null; quantity: number; unitPrice: number; lineTotal: number }[];
+  subtotal: number | null;
+  discount: number | null;
+  shipping: number | null;
+  total: number | null;
+  paymentMethod: string | null;
 }
 
 export interface AdminStatusUpdatePayload {
@@ -720,6 +747,27 @@ export interface ApiStoreSettings {
   paymentCardEnabled: boolean | null;
   /** Promo codes on or off for the whole shop; null means on. */
   couponsEnabled?: boolean | null;
+  /** The About Us page, written in Admin -> Settings -> About page. */
+  aboutPage?: ApiAboutPage | null;
+  /** Shipping rules set on the admin Shipping page. Off / null: shipping is charged. */
+  shippingFreeAll?: boolean | null;
+  shippingOfferEnabled?: boolean | null;
+  shippingOfferMin?: number | null;
+}
+
+export interface ApiAboutSection {
+  heading: string | null;
+  body: string | null;
+  imageUrl: string | null;
+}
+
+export interface ApiAboutPage {
+  title: string | null;
+  intro: string | null;
+  heroImageUrl: string | null;
+  sections: ApiAboutSection[] | null;
+  ctaLabel: string | null;
+  ctaLink: string | null;
 }
 
 export type ApiDiscountScope = 'PRODUCT' | 'CATEGORY' | 'GLOBAL';

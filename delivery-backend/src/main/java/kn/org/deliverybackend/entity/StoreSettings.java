@@ -57,6 +57,10 @@ public class StoreSettings extends AbstractBaseEntity<Long> {
     @Column(name = "brand_story_json", columnDefinition = "text")
     private String brandStoryJson;
 
+    /** {@code AboutPageDTO} serialised as JSON (storefront About Us page). */
+    @Column(name = "about_page_json", columnDefinition = "text")
+    private String aboutPageJson;
+
     /** {@code FooterDTO} serialised as JSON (storefront footer). */
     @Column(name = "footer_json", columnDefinition = "text")
     private String footerJson;
@@ -105,4 +109,17 @@ public class StoreSettings extends AbstractBaseEntity<Long> {
     /** Master switch for promo codes. False hides the promo box and refuses every code; null means on. */
     @Column(name = "coupons_enabled")
     private Boolean couponsEnabled;
+
+    // ── Shipping rules (Admin -> Shipping). Null means off: shipping is charged.
+
+    /** True: no order pays shipping. */
+    @Column(name = "shipping_free_all")
+    private Boolean shippingFreeAll;
+
+    /** True: orders whose goods total reaches {@link #shippingOfferMin} ship free. */
+    @Column(name = "shipping_offer_enabled")
+    private Boolean shippingOfferEnabled;
+
+    @Column(name = "shipping_offer_min", precision = 12, scale = 2)
+    private java.math.BigDecimal shippingOfferMin;
 }

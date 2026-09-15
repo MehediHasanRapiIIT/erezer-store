@@ -61,6 +61,10 @@ public class Order extends AbstractBaseEntity<UUID> {
     @Column(name = "tracking_number")
     private String trackingNumber;
 
+    /** What the customer sees and tracks by, e.g. EZ-482915. Unique. */
+    @Column(name = "order_number", length = 20, unique = true)
+    private String orderNumber;
+
     @Column(name = "cancellation_reason", length = 500)
     private String cancellationReason;
 
