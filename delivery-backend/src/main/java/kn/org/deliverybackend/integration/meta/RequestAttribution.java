@@ -30,13 +30,9 @@ public record RequestAttribution(String clientIp, String userAgent, String fbp, 
                 blankToNull(request.getHeader("X-Meta-Fbc")));
     }
 
-    /** Behind Caddy or any proxy the real address is the first X-Forwarded-For entry. */
+    /** The address Caddy saw (see ClientIp); never a header the shopper can set. */
     private static String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        return blankToNull(request.getRemoteAddr());
+        return blankToNull(kn.org.deliverybackend.util.ClientIp.of(request));
     }
 
     private static String blankToNull(String value) {

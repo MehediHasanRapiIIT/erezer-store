@@ -11,11 +11,11 @@ import kn.org.deliverybackend.dto.coupon.CouponSwitchDTO;
 import kn.org.deliverybackend.service.CouponService;
 import kn.org.deliverybackend.service.StoreSettingsService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -47,8 +47,11 @@ public class AdminCouponController {
 
     @RequiresPermission(Perm.COUPONS_VIEW)
     @GetMapping
-    public ResponseEntity<List<CouponResponseDTO>> list() {
-        return ResponseEntity.ok(couponService.list());
+    public ResponseEntity<Page<CouponResponseDTO>> list(
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(couponService.list(q, page, size));
     }
 
     @RequiresPermission(Perm.COUPONS_CREATE)

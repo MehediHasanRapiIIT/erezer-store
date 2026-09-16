@@ -155,29 +155,11 @@ public class OrderHistoryServiceImpl implements OrderHistoryService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<OrderDTO> getAllOrders() {
-        return orderRepository.findAllOrders()
-                .stream()
-                .map(this::toOrderDTOWithItems)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public OrderDTO getOrderByIdForAdmin(UUID orderId) {
         Order order = orderRepository.findById(orderId)
                 .filter(o -> !Boolean.TRUE.equals(o.getDeleted()))
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
         return toOrderDTOWithItems(order);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<OrderDTO> getOrdersByStatus(String status) {
-        return orderRepository.findByOrderStatus(status)
-                .stream()
-                .map(this::toOrderDTOWithItems)
-                .collect(Collectors.toList());
     }
 
     @Override

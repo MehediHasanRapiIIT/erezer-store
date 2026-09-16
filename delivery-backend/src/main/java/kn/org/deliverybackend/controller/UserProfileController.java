@@ -23,6 +23,7 @@ import java.util.UUID;
 public class UserProfileController {
 
     private final UserProfileService userProfileService;
+    private final kn.org.deliverybackend.service.RateLimiterService rateLimiter;
 
     @GetMapping("/{userId}/profile")
     @Operation(summary = "Get User Profile", description = "Retrieves user profile with addresses")
@@ -48,6 +49,8 @@ public class UserProfileController {
     public ResponseEntity<UsersDTO> updateProfile(
             @PathVariable UUID userId,
             @Valid @RequestBody UsersDTO usersDTO) {
+        // A changed email sends a verification link, so this also guards inboxes.
+        rateLimiter.enforce("profile:" + userId, 10, java.time.Duration.ofMinutes(10));
         UsersDTO updatedProfile = userProfileService.updateProfile(userId, usersDTO);
         return ResponseEntity.ok(updatedProfile);
     }

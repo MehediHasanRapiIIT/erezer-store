@@ -16,10 +16,14 @@ import org.springframework.web.bind.annotation.*;
 public class CouponController {
 
     private final CouponService couponService;
+    private final kn.org.deliverybackend.service.RateLimiterService rateLimiter;
 
     @PostMapping("/validate")
     public ResponseEntity<CouponValidateResponseDTO> validate(
-            @Valid @RequestBody CouponValidateRequestDTO request) {
+            @Valid @RequestBody CouponValidateRequestDTO request,
+            jakarta.servlet.http.HttpServletRequest http) {
+        // Slow enough that nobody can try code after code to find a working one.
+        rateLimiter.enforce("coupon:" + kn.org.deliverybackend.util.ClientIp.of(http), 20, java.time.Duration.ofMinutes(1));
         return ResponseEntity.ok(couponService.validate(request));
     }
 }

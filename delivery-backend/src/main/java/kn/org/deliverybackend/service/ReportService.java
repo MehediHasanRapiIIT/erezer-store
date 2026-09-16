@@ -40,12 +40,11 @@ public interface ReportService {
 
     List<TopCategoryDTO> topCategories(LocalDate from, LocalDate to, int limit);
 
-    /** Customer LTV across the whole order history (date filter is intentionally absent). */
-    /** Purchasing customers ranked by lifetime revenue; {@code q} searches name, email and phone. */
-    List<CustomerLifetimeValueDTO> customerLtv(int limit, int offset, String q);
+    /**
+     * Every customer, accounts and guest shoppers alike, highest lifetime revenue
+     * first; {@code q} searches name, email and phone.
+     */
+    org.springframework.data.domain.Page<CustomerLifetimeValueDTO> customers(String q, int page, int size);
 
     long totalCustomersWithOrders();
-
-    /** How many purchasing customers match {@code q}; all of them when it is blank. */
-    long customerCount(String q);
 }

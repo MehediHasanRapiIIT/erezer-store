@@ -86,9 +86,7 @@ public class ActivityService {
     }
 
     private static String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) return forwarded.split(",")[0].trim();
-        return request.getRemoteAddr();
+        return kn.org.deliverybackend.util.ClientIp.of(request);
     }
 
     private static String truncate(String value, int max) {

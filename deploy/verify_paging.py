@@ -456,44 +456,78 @@ def admin_customers_custom(results: Results):
     token = admin_token()
 
     print("== customers (/admin/customers) ==")
-    customers = psql_json(
-        "SELECT u.id::text AS id, lower(trim(coalesce(u.first_name, '') || ' ' || coalesce(u.last_name, ''))) AS name, "
-        "u.email, u.phone_number AS phone, coalesce(sum(o.total_amount), 0) AS revenue "
-        "FROM users u JOIN orders o ON o.client_id = u.id AND coalesce(o.deleted, false) = false "
-        "AND o.order_status NOT IN ('CANCELLED','RETURNED') WHERE coalesce(u.deleted, false) = false "
-        "GROUP BY u.id, u.first_name, u.last_name, u.email, u.phone_number")
+    # Worked out here from the raw rows, independently of the server's query:
+    # every account, plus every guest email not used by an account; totals from
+    # orders that are not deleted, cancelled or returned.
+    users = psql_json(
+        "SELECT id::text AS id, nullif(trim(coalesce(first_name, '') || ' ' || coalesce(last_name, '')), '') AS name, "
+        "lower(email) AS email, phone_number AS phone, created_at::text AS joined FROM users WHERE coalesce(deleted, false) = false")
+    orders = psql_json(
+        "SELECT client_id::text AS client, lower(customer_email) AS email, customer_name AS name, customer_phone AS phone, "
+        "order_status AS status, total_amount AS total, created_at::text AS at "
+        "FROM orders WHERE coalesce(deleted, false) = false ORDER BY created_at")
+    account_emails = {u["email"] for u in users if u["email"]}
+    people = {}
+    for u in users:
+        people[u["id"]] = {"key": u["id"], "id": u["id"], "name": u["name"], "email": u["email"], "phone": u["phone"],
+                           "joined": u["joined"], "revenue": Decimal(0), "count": 0, "last": None}
+    for o in orders:
+        if o["client"] is None and o["email"] and o["email"].strip() and o["email"] not in account_emails:
+            key = "guest:" + o["email"]
+            g = people.setdefault(key, {"key": key, "id": None, "email": o["email"], "joined": None,
+                                        "revenue": Decimal(0), "count": 0, "last": None})
+            g["name"] = (o["name"] or "").strip() or None      # latest order wins (orders are oldest first)
+            g["phone"] = o["phone"]
+    by_email = {p["email"]: p for p in people.values() if p["email"]}
+    for o in orders:
+        if o["status"] in ("CANCELLED", "RETURNED"):
+            continue
+        who = people.get(o["client"]) if o["client"] else by_email.get(o["email"])
+        if who is None:
+            continue
+        who["revenue"] += Decimal(str(o["total"]))
+        who["count"] += 1
+        who["last"] = max(who["last"] or "", o["at"])
 
     def customer_expected(q=None):
         t = (q or "").strip().lower()
-        keep = [c for c in customers if not t or t in c["name"] or t in (c["email"] or "").lower()
-                or t in (c["phone"] or "")]
-        keep.sort(key=lambda c: c["id"])
-        keep.sort(key=lambda c: Decimal(str(c["revenue"])), reverse=True)
-        return [c["id"] for c in keep]
+        keep = [c for c in people.values() if not t or t in (c["name"] or "").lower()
+                or t in (c["email"] or "") or t in (c["phone"] or "").lower()]
+        keep.sort(key=lambda c: c["key"])
+        keep.sort(key=lambda c: c["joined"] or "", reverse=True)
+        keep.sort(key=lambda c: c["joined"] is None)
+        keep.sort(key=lambda c: c["last"] or "", reverse=True)
+        keep.sort(key=lambda c: c["last"] is None)
+        keep.sort(key=lambda c: c["revenue"], reverse=True)
+        return [c["key"] for c in keep]
 
     def customer_pages(q=None, size=7):
-        """The list is fetched the way the page does it: limit/offset until a short page."""
-        got, offset = [], 0
+        got, page, total = [], 0, 0
         while True:
-            status, body = get("/admin/customers", {"q": q, "limit": size, "offset": offset}, token)
+            status, body = get("/admin/customers", {"q": q, "page": page, "size": size}, token)
             if status != 200:
-                raise SystemExit(f"/admin/customers q={q!r} offset {offset}: HTTP {status} {str(body)[:200]}")
-            got += [c["userId"] for c in body]
-            offset += size
-            if len(body) < size:
-                return got
+                raise SystemExit(f"/admin/customers q={q!r} page {page}: HTTP {status} {str(body)[:200]}")
+            got += [c["userId"] or "guest:" + c["email"] for c in body["content"]]
+            total = body["totalElements"]
+            page += 1
+            if page >= body["totalPages"]:
+                return got, total
 
-    sample = sorted(customers, key=lambda c: c["id"])[len(customers) // 2] if customers else None
+    guests = [c for c in people.values() if c["id"] is None]
+    no_orders = [c for c in people.values() if c["id"] and c["count"] == 0]
+    results.expect(f"guest shoppers are listed ({len(guests)}) and accounts without orders too ({len(no_orders)})",
+                   len(customer_expected()) == len(people))
+    sample = sorted(people.values(), key=lambda c: c["key"])[len(people) // 2] if people else None
     terms = []
     if sample:
-        terms += [sample["name"].split()[0][:4] if sample["name"] else None,
+        terms += [(sample["name"] or "").split()[0][:4] if sample["name"] else None,
                   (sample["email"] or "").split("@")[-1][:6], (sample["phone"] or "")[-4:]]
+    if guests:
+        terms.append(guests[0]["email"][:5])
     for q in [None] + [t for t in terms if t] + ["zzzz-nothing", "%", "_"]:
-        expected = customer_expected(q)
-        count = get("/admin/customers/count", {"q": q}, token)[1]
-        check_list(results, f"customers {q or 'everyone'}", customer_pages(q), count, expected)
-    results.expect("customers need a staff login", get("/admin/customers")[0] == 401
-                   and get("/admin/customers/count")[0] == 401)
+        got, total = customer_pages(q)
+        check_list(results, f"customers {q or 'everyone'}", got, total, customer_expected(q))
+    results.expect("customers need a staff login", get("/admin/customers")[0] == 401)
 
     print("== custom orders (/admin/custom-orders) ==")
     orders = psql_json(

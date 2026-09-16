@@ -3,6 +3,7 @@ package kn.org.deliverybackend.service;
 import kn.org.deliverybackend.dto.bundle.BundleOfferRequestDTO;
 import kn.org.deliverybackend.dto.bundle.BundleOfferResponseDTO;
 import kn.org.deliverybackend.dto.request.order.OrderItemRequestDTO;
+import org.springframework.data.domain.Page;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -19,7 +20,8 @@ public interface BundleService {
     BundleOfferResponseDTO getFeatured();
 
     // ── Admin ─────────────────────────────────────────────────────────────────
-    List<BundleOfferResponseDTO> listAll();
+    /** One page of bundles in display order; {@code q} searches name, label and description. */
+    Page<BundleOfferResponseDTO> list(String q, int page, int size);
 
     BundleOfferResponseDTO get(UUID id);
 

@@ -1,5 +1,6 @@
 package kn.org.deliverybackend.service.impl;
 
+import kn.org.deliverybackend.util.Taka;
 import kn.org.deliverybackend.entity.Cart;
 import kn.org.deliverybackend.entity.Users;
 import kn.org.deliverybackend.repository.CartRepository;
@@ -14,7 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.text.NumberFormat;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -89,7 +88,6 @@ public class AbandonedCartServiceImpl implements AbandonedCartService {
             return false;
         }
 
-        NumberFormat currency = NumberFormat.getCurrencyInstance(Locale.US);
         List<Map<String, Object>> items = new ArrayList<>();
         for (Cart c : rows) {
             BigDecimal unit = c.getUnitPrice() != null ? c.getUnitPrice() : BigDecimal.ZERO;
@@ -98,7 +96,7 @@ public class AbandonedCartServiceImpl implements AbandonedCartService {
             Map<String, Object> row = new HashMap<>();
             row.put("name",      c.getProductName() != null ? c.getProductName() : "Item");
             row.put("quantity",  qty);
-            row.put("lineTotal", currency.format(line));
+            row.put("lineTotal", Taka.format(line));
             items.add(row);
         }
 

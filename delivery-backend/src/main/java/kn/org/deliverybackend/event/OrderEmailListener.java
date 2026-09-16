@@ -1,5 +1,6 @@
 package kn.org.deliverybackend.event;
 
+import kn.org.deliverybackend.util.Taka;
 import jakarta.annotation.Nullable;
 import kn.org.deliverybackend.entity.Order;
 import kn.org.deliverybackend.entity.OrderItem;
@@ -18,12 +19,10 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.math.BigDecimal;
-import java.text.NumberFormat;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -94,7 +93,6 @@ public class OrderEmailListener {
     }
 
     private Map<String, Object> buildOrderPlacedVars(Order order) {
-        NumberFormat currency = NumberFormat.getCurrencyInstance(Locale.US);
 
         List<Map<String, Object>> items = new ArrayList<>();
         BigDecimal subtotal = BigDecimal.ZERO;
@@ -109,7 +107,7 @@ public class OrderEmailListener {
             Map<String, Object> row = new HashMap<>();
             row.put("name", name);
             row.put("quantity", oi.getQuantity());
-            row.put("lineTotal", currency.format(line));
+            row.put("lineTotal", Taka.format(line));
             items.add(row);
         }
 
@@ -127,9 +125,9 @@ public class OrderEmailListener {
                                 .atZone(java.time.ZoneId.systemDefault()))
                 : "just now");
         vars.put("items", items);
-        vars.put("subtotal", currency.format(subtotal));
-        vars.put("shipping", currency.format(shipping));
-        vars.put("total", currency.format(
+        vars.put("subtotal", Taka.format(subtotal));
+        vars.put("shipping", Taka.format(shipping));
+        vars.put("total", Taka.format(
                 order.getTotalAmount() != null ? order.getTotalAmount() : subtotal.add(shipping)));
         vars.put("orderUrl", orderUrl(order));
         return vars;

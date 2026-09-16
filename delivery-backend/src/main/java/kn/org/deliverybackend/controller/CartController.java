@@ -20,6 +20,7 @@ import java.util.UUID;
 public class CartController {
 
     private final CartService cartService;
+    private final jakarta.validation.Validator validator;
 
     // Add a product to the cart; increments quantity if the product already exists
     @PostMapping("/{userId}/cart")
@@ -85,6 +86,19 @@ public class CartController {
     public ResponseEntity<ApiResponse<CartResponseDTO>> mergeGuestCart(
             @PathVariable UUID userId,
             @RequestBody List<AddToCartRequestDTO> guestItems) {
+        if (guestItems != null && guestItems.size() > 100) {
+            throw new kn.org.deliverybackend.exception.InvalidRequestException("A cart can hold up to 100 lines.");
+        }
+        if (guestItems != null) {
+            for (AddToCartRequestDTO item : guestItems) {
+                var problems = validator.validate(item);
+                if (!problems.isEmpty()) {
+                    var first = problems.iterator().next();
+                    throw new kn.org.deliverybackend.exception.InvalidRequestException(
+                            first.getPropertyPath() + ": " + first.getMessage());
+                }
+            }
+        }
         return ResponseEntity.ok(ApiResponse.success("Guest cart merged", cartService.mergeGuestCart(userId, guestItems)));
     }
 }

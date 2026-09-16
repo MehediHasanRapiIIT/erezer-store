@@ -75,6 +75,7 @@ public class OrderServiceImpl implements OrderService {
     private final DiscountEngine discountEngine;
     // Bundle offers ("Buy X Get Y") — server-authoritative fixed pricing.
     private final BundleService bundleService;
+    private final kn.org.deliverybackend.service.StoreSettingsService storeSettingsService;
 
     @org.springframework.beans.factory.annotation.Value("${app.orders.cancellation-window-minutes:60}")
     private long cancellationWindowMinutes;
@@ -86,6 +87,7 @@ public class OrderServiceImpl implements OrderService {
     public OrderDTO placeOrder(PlaceOrderRequestDTO request) {
         // A signed-in customer must have a verified email before they can order.
         requireVerifiedEmail(request.getClientId());
+        String paymentMethod = checkedPaymentMethod(request.getPaymentMethod());
 
         // Reserve inventory and compute the raw subtotal (no shipping yet).
         BigDecimal subtotal = computeAndReserveStock(request.getItems(), null);
@@ -107,7 +109,7 @@ public class OrderServiceImpl implements OrderService {
         order.setOrderNumber(orderNumbers.next());
         order.setClientId(request.getClientId());
         order.setDeliveryAddress(request.getDeliveryAddress());
-        order.setPaymentMethod(request.getPaymentMethod());
+        order.setPaymentMethod(paymentMethod);
         order.setShopId(request.getShopId());
         order.setDeliveryCharge(priced.shippingFee.doubleValue());
         order.setShippingFee(priced.shippingFee);
@@ -157,11 +159,35 @@ public class OrderServiceImpl implements OrderService {
         return toOrderDTO(savedOrder);
     }
 
+    /**
+     * The payment method as stored ("CASH", "BKASH" or "CARD"), refused when the
+     * admin has switched it off in Settings. The checkout page hides switched-off
+     * methods, but only this check stops an order that skips the page.
+     */
+    private String checkedPaymentMethod(String requested) {
+        String method = requested == null ? "" : requested.trim().toUpperCase(java.util.Locale.ROOT);
+        if (method.equals("COD")) method = "CASH";
+        var settings = storeSettingsService.get();
+        boolean enabled = switch (method) {
+            case "CASH" -> !Boolean.FALSE.equals(settings.getPaymentCodEnabled());
+            case "BKASH" -> !Boolean.FALSE.equals(settings.getPaymentBkashEnabled());
+            case "CARD" -> !Boolean.FALSE.equals(settings.getPaymentCardEnabled());
+            default -> throw new kn.org.deliverybackend.exception.InvalidRequestException(
+                    "Choose cash on delivery, bKash or card.");
+        };
+        if (!enabled) {
+            throw new kn.org.deliverybackend.exception.InvalidRequestException(
+                    "This payment method isn't available right now. Please choose another one.");
+        }
+        return method;
+    }
+
     // ── Guest checkout ─────────────────────────────────────────────────────────
 
     @Override
     @Transactional
     public OrderDTO placeGuestOrder(GuestOrderRequestDTO request) {
+        String paymentMethod = checkedPaymentMethod(request.getPaymentMethod());
         BigDecimal subtotal = computeAndReserveStock(request.getItems(), null);
         BigDecimal autoDiscount = computeAutoDiscount(request.getItems());
         BigDecimal customSurcharge = computeCustomSurcharge(request.getItems());
@@ -181,7 +207,7 @@ public class OrderServiceImpl implements OrderService {
         order.setOrderNumber(orderNumbers.next());
         order.setClientId(null); // guest — no Users row
         order.setDeliveryAddress(request.getDeliveryAddress());
-        order.setPaymentMethod(request.getPaymentMethod());
+        order.setPaymentMethod(paymentMethod);
         order.setShopId(request.getShopId());
         order.setDeliveryCharge(priced.shippingFee.doubleValue());
         order.setShippingFee(priced.shippingFee);

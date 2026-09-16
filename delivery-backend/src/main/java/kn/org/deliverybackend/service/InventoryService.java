@@ -30,8 +30,8 @@ public interface InventoryService {
     /** The Inventory page: one page of stock rows, optionally searched by product name or SKU. */
     org.springframework.data.domain.Page<StockResponseDTO> stockPage(String q, int page, int size);
 
-    /** Every product that is low on stock or out of stock, for the restock alerts. */
-    List<StockResponseDTO> lowStock();
+    /** Restock alerts: one page of products low on stock or out of stock, optionally searched by name or SKU. */
+    org.springframework.data.domain.Page<StockResponseDTO> lowStock(String q, int page, int size);
 
     InventorySummaryDTO getSummary();
 }

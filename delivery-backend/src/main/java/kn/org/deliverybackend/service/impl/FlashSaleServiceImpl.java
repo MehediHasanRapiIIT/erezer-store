@@ -9,7 +9,10 @@ import kn.org.deliverybackend.exception.ResourceNotFoundException;
 import kn.org.deliverybackend.repository.FlashSaleRepository;
 import kn.org.deliverybackend.service.FlashSaleService;
 import kn.org.deliverybackend.service.ProductService;
+import kn.org.deliverybackend.util.SearchText;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,11 +36,10 @@ public class FlashSaleServiceImpl implements FlashSaleService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<FlashSaleResponseDTO> list() {
-        return flashSaleRepository.findAll().stream()
-                .filter(f -> !Boolean.TRUE.equals(f.getDeleted()))
-                .sorted(Comparator.comparing(FlashSale::getEndsAt, Comparator.nullsLast(Comparator.reverseOrder())))
-                .map(this::toDTO).toList();
+    public Page<FlashSaleResponseDTO> list(String q, int page, int size) {
+        return flashSaleRepository.findForAdmin(SearchText.likePattern(q),
+                        PageRequest.of(Math.max(page, 0), SearchText.pageSize(size)))
+                .map(this::toDTO);
     }
 
     @Override

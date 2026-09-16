@@ -208,9 +208,12 @@ public class ReportServiceImpl implements ReportService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<CustomerLifetimeValueDTO> customerLtv(int limit, int offset, String q) {
-        return reportRepository.customerLifetimeValue(capped(limit), Math.max(0, offset),
-                        kn.org.deliverybackend.util.SearchText.likePattern(q))
+    public org.springframework.data.domain.Page<CustomerLifetimeValueDTO> customers(String q, int page, int size) {
+        String pattern = kn.org.deliverybackend.util.SearchText.likePattern(q);
+        int safeSize = kn.org.deliverybackend.util.SearchText.pageSize(size);
+        int safePage = Math.max(page, 0);
+        List<CustomerLifetimeValueDTO> rows = reportRepository
+                .customerPage(pattern, safeSize, (long) safePage * safeSize)
                 .stream()
                 .map(r -> {
                     long count = num(r, 4).longValue();
@@ -218,29 +221,29 @@ public class ReportServiceImpl implements ReportService {
                     BigDecimal aov = count == 0 ? BigDecimal.ZERO
                             : revenue.divide(BigDecimal.valueOf(count), 2, RoundingMode.HALF_UP);
                     return CustomerLifetimeValueDTO.builder()
-                            .userId(toUuid(r[0]))
-                            .customerName(joinName((String) r[1], (String) r[2]))
-                            .email((String) r[3])
+                            .userId(r[0] == null ? null : toUuid(r[0]))
+                            .guest(r[0] == null)
+                            .customerName((String) r[1])
+                            .email((String) r[2])
+                            .phone((String) r[3])
                             .orderCount(count)
                             .lifetimeRevenue(revenue)
                             .averageOrderValue(aov)
                             .firstOrderAt(toLocal(r[6]))
                             .lastOrderAt(toLocal(r[7]))
+                            .joinedAt(toLocal(r[8]))
                             .build();
                 })
                 .toList();
+        return new org.springframework.data.domain.PageImpl<>(rows,
+                org.springframework.data.domain.PageRequest.of(safePage, safeSize),
+                reportRepository.countCustomers(pattern));
     }
 
     @Override
     @Transactional(readOnly = true)
     public long totalCustomersWithOrders() {
         return reportRepository.countCustomersWithOrders();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public long customerCount(String q) {
-        return reportRepository.countCustomers(kn.org.deliverybackend.util.SearchText.likePattern(q));
     }
 
     // ── engine ──────────────────────────────────────────────────────────────

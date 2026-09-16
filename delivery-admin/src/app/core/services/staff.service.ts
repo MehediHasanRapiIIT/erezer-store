@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { PageResponse } from '../models/api.models';
 
 export type StaffRole = 'ADMIN' | 'MODERATOR';
 
@@ -58,8 +59,11 @@ export class StaffService {
   private http = inject(HttpClient);
   private base = environment.apiBaseUrl;
 
-  list(): Observable<StaffMember[]> {
-    return this.http.get<StaffMember[]>(`${this.base}/admin/staff`);
+  /** One page of the staff list; `q` searches the full name, username and email. */
+  list(page = 0, size = 20, q?: string): Observable<PageResponse<StaffMember>> {
+    const params: Record<string, string> = { page: String(page), size: String(size) };
+    if (q?.trim()) params['q'] = q.trim();
+    return this.http.get<PageResponse<StaffMember>>(`${this.base}/admin/staff`, { params });
   }
 
   add(payload: AddStaffRequest): Observable<StaffMember> {

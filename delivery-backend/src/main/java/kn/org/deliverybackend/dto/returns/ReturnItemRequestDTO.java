@@ -21,5 +21,6 @@ public class ReturnItemRequestDTO {
     private Integer quantity;
 
     /** SEALED | OPENED | DAMAGED | OTHER */
+    @jakarta.validation.constraints.Size(max = 32)
     private String condition;
 }

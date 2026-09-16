@@ -5,7 +5,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import kn.org.deliverybackend.dto.returns.ReturnRequestCreateDTO;
 import kn.org.deliverybackend.dto.returns.ReturnRequestDTO;
 import kn.org.deliverybackend.exception.ForbiddenAccessException;
-import kn.org.deliverybackend.exception.InvalidStockOperationException;
 import kn.org.deliverybackend.service.ReturnService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -28,6 +27,8 @@ public class ReturnController {
 
     private final ReturnService returnService;
     private final ObjectMapper objectMapper;
+    private final jakarta.validation.Validator validator;
+    private final kn.org.deliverybackend.service.RateLimiterService rateLimiter;
 
     /**
      * Multipart endpoint:
@@ -41,11 +42,22 @@ public class ReturnController {
             @RequestPart("body") String body,
             @RequestPart(value = "photos", required = false) List<MultipartFile> photos) {
         assertSelf(userId);
+        rateLimiter.enforce("return:" + userId, 5, java.time.Duration.ofHours(1));
         ReturnRequestCreateDTO request;
         try {
             request = objectMapper.readValue(body, ReturnRequestCreateDTO.class);
         } catch (Exception ex) {
-            throw new InvalidStockOperationException("Malformed 'body' JSON: " + ex.getMessage());
+            throw new kn.org.deliverybackend.exception.InvalidRequestException("The return details couldn't be read.");
+        }
+        // Sent as a multipart text part, so @Valid doesn't run on it: check it here.
+        var problems = validator.validate(request);
+        if (!problems.isEmpty()) {
+            var first = problems.iterator().next();
+            throw new kn.org.deliverybackend.exception.InvalidRequestException(
+                    first.getPropertyPath() + ": " + first.getMessage());
+        }
+        if (photos != null && photos.size() > 3) {
+            throw new kn.org.deliverybackend.exception.InvalidRequestException("You can add up to 3 photos.");
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 returnService.requestReturn(userId, orderId, request,

@@ -2,11 +2,13 @@ package kn.org.deliverybackend.controller;
 
 import kn.org.deliverybackend.access.Perm;
 import kn.org.deliverybackend.access.RequiresPermission;
+import kn.org.deliverybackend.dto.BannerSlotSummaryDTO;
 import kn.org.deliverybackend.dto.PromotionalBannerDTO;
 import kn.org.deliverybackend.dto.request.banner.BannerContentDTO;
 import kn.org.deliverybackend.enumeration.BannerSlot;
 import kn.org.deliverybackend.service.BannerService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -28,6 +30,31 @@ public class BannerController {
     @GetMapping
     public ResponseEntity<List<PromotionalBannerDTO>> getAllBanners() {
         return ResponseEntity.ok(bannerService.getAllBanners());
+    }
+
+    /**
+     * One page of banners for the admin Banners page, in home-page order.
+     * {@code slot} narrows to one band (blank for all); {@code q} searches the
+     * headline, short line and button words. The plain list above stays as it
+     * is for the storefront.
+     */
+    @GetMapping("/paged")
+    public ResponseEntity<Page<PromotionalBannerDTO>> getBannerPage(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String slot,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        BannerSlot parsed = BannerSlot.parse(slot).orElse(null);
+        if (parsed == null && slot != null && !slot.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        return ResponseEntity.ok(bannerService.bannerPage(q, parsed, page, size));
+    }
+
+    /** Each band's banner count and first two banners, for the admin map of spots. */
+    @GetMapping("/slots")
+    public ResponseEntity<List<BannerSlotSummaryDTO>> getSlotSummary() {
+        return ResponseEntity.ok(bannerService.slotSummary());
     }
 
     @RequiresPermission(Perm.BANNERS_CREATE)

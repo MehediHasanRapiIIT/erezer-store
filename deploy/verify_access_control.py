@@ -170,8 +170,15 @@ def safe_when_allowed(rule: dict) -> bool:
 
 # ── staff sweep ──────────────────────────────────────────────────────────────
 
+def test_moderators(stack: Stack, admin_token: str) -> tuple[int, list]:
+    """The verify-* people on the staff list (it comes back one page at a time)."""
+    s, page = http("GET", stack.api + "/admin/staff?q=verify-&size=100", admin_token)
+    rows = page.get("content", []) if s == 200 and isinstance(page, dict) else []
+    return s, [m for m in rows if m["username"] in MODERATORS]
+
+
 def remove_moderators(stack: Stack, admin_token: str):
-    s, staff = http("GET", stack.api + "/admin/staff", admin_token)
+    s, staff = test_moderators(stack, admin_token)
     if s == 200:
         for m in staff:
             if m["username"] in MODERATORS:
@@ -249,8 +256,8 @@ def staff_sweep(stack: Stack, results: Results, admin_token: str):
         print(f"  {len(reads)} reads checked")
     finally:
         remove_moderators(stack, admin_token)
-        s, staff = http("GET", stack.api + "/admin/staff", admin_token)
-        left = [m["username"] for m in staff if m["username"] in MODERATORS] if s == 200 else ["(unknown)"]
+        s, staff = test_moderators(stack, admin_token)
+        left = [m["username"] for m in staff] if s == 200 else ["(unknown)"]
         results.expect("test moderators removed", not left, str(left) if left else "")
 
 

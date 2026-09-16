@@ -17,13 +17,17 @@ public class CheckoutQuoteRequestDTO {
 
     @NotEmpty
     @Valid
+
+    @jakarta.validation.constraints.Size(max = 50)
     private List<OrderItemRequestDTO> items;
 
     /** Either {@code shippingZoneId} OR {@code deliveryAddress} must be present. */
     private Long shippingZoneId;
+    @jakarta.validation.constraints.Size(max = 255)
     private String deliveryAddress;
 
     /** Optional. When given, the quote applies the coupon if valid. */
+    @jakarta.validation.constraints.Size(max = 64)
     private String couponCode;
 
     /** Optional — enables per-user coupon limit enforcement. */

@@ -21,7 +21,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/app/auth")
@@ -47,20 +46,25 @@ public class CustomerAuthController {
             @Valid @RequestBody EmailLoginRequestDTO request,
             HttpServletRequest http) {
         enforceRateLimit("login", http);
+        enforceEmailLimit("login", request.getEmail(), 10, java.time.Duration.ofMinutes(15));
         return ResponseEntity.ok(authService.login(request));
     }
 
     @PostMapping("/refresh")
     @Operation(summary = "Exchange a refresh token for a new access token")
     public ResponseEntity<AuthTokenResponseDTO> refresh(
-            @Valid @RequestBody RefreshTokenRequestDTO request) {
+            @Valid @RequestBody RefreshTokenRequestDTO request,
+            HttpServletRequest http) {
+        rateLimiter.enforce("auth:refresh:" + clientIp(http), 60, java.time.Duration.ofMinutes(1));
         return ResponseEntity.ok(authService.refresh(request));
     }
 
     @PostMapping("/verify-email")
     @Operation(summary = "Confirm an email-verification link token")
     public ResponseEntity<MessageResponseDTO> verifyEmail(
-            @Valid @RequestBody VerifyEmailRequestDTO request) {
+            @Valid @RequestBody VerifyEmailRequestDTO request,
+            HttpServletRequest http) {
+        enforceRateLimit("verify-email", http);
         authService.verifyEmail(request.getToken());
         return ResponseEntity.ok(MessageResponseDTO.of("Email verified."));
     }
@@ -71,6 +75,7 @@ public class CustomerAuthController {
             @Valid @RequestBody ForgotPasswordRequestDTO request,
             HttpServletRequest http) {
         enforceRateLimit("resend-verify", http);
+        enforceEmailLimit("resend-verify", request.getEmail(), 3, java.time.Duration.ofHours(1));
         authService.resendVerificationEmail(request.getEmail());
         return ResponseEntity.ok(MessageResponseDTO.of(
                 "If an unverified account exists for this email, a new verification link has been sent."));
@@ -82,6 +87,7 @@ public class CustomerAuthController {
             @Valid @RequestBody ForgotPasswordRequestDTO request,
             HttpServletRequest http) {
         enforceRateLimit("forgot", http);
+        enforceEmailLimit("forgot", request.getEmail(), 3, java.time.Duration.ofHours(1));
         authService.requestPasswordReset(request.getEmail());
         return ResponseEntity.ok(MessageResponseDTO.of(
                 "If an account exists for this email, a reset link has been sent."));
@@ -106,18 +112,19 @@ public class CustomerAuthController {
     // ── helpers ────────────────────────────────────────────────────────────────
 
     private void enforceRateLimit(String bucket, HttpServletRequest http) {
-        String key = "auth:" + bucket + ":" + clientIp(http);
-        if (!rateLimiter.tryAcquireAuth(key)) {
-            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
-                    "Too many attempts. Please try again later.");
-        }
+        rateLimiter.enforceAuth("auth:" + bucket + ":" + clientIp(http));
+    }
+
+    /**
+     * Per account as well as per address: guessing one customer's password from
+     * many addresses, or flooding one inbox with reset/verification emails.
+     */
+    private void enforceEmailLimit(String bucket, String email, int max, java.time.Duration window) {
+        String who = email == null ? "" : email.trim().toLowerCase();
+        rateLimiter.enforce("auth:" + bucket + ":email:" + who, max, window);
     }
 
     private String clientIp(HttpServletRequest http) {
-        String fwd = http.getHeader("X-Forwarded-For");
-        if (fwd != null && !fwd.isBlank()) {
-            return fwd.split(",")[0].trim();
-        }
-        return http.getRemoteAddr();
+        return kn.org.deliverybackend.util.ClientIp.of(http);
     }
 }

@@ -15,7 +15,6 @@ public interface OrderHistoryService {
     /** The customer's order history one page at a time, newest first, without deleted orders. */
     Page<OrderDTO> getOrderHistoryPage(UUID userId, int page, int size);
     OrderDTO getOrderDetails(UUID userId, UUID orderId);
-    List<OrderDTO> getAllOrders();
 
     /** Admin: fetch one order (with enriched customer/items) by id. */
     OrderDTO getOrderByIdForAdmin(UUID orderId);
@@ -26,7 +25,6 @@ public interface OrderHistoryService {
      */
     Page<OrderDTO> getOrdersPaged(int page, int size, String status, String excludeStatus,
                                   String fromDate, String toDate, String q, String payment);
-    List<OrderDTO> getOrdersByStatus(String status);
 
     /**
      * Admin-driven status update with full audit (state-machine validated, history row,

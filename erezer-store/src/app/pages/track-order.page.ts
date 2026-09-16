@@ -1,21 +1,11 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ApiService } from '../core/api.service';
 import { PublicOrderTracking } from '../core/api.models';
 import { TranslatePipe } from '../core/i18n/translate.pipe';
-
-/** Progress order shown on the timeline, the same as a signed-in customer's order page. */
-const STEPS: { status: string; label: string }[] = [
-  { status: 'PLACED', label: 'Placed' },
-  { status: 'ACCEPTED', label: 'Accepted' },
-  { status: 'IN_PRODUCTION', label: 'In production' },
-  { status: 'PROCESSING', label: 'Processing' },
-  { status: 'SHIPPED', label: 'Shipped' },
-  { status: 'OUT_FOR_DELIVERY', label: 'Out for delivery' },
-  { status: 'DELIVERED', label: 'Delivered' },
-];
+import { FINAL_ORDER_STATUSES, ORDER_STEPS, OrderTimelineComponent } from '../components/shared/order-timeline.component';
 
 /**
  * Track Order: anyone with an order number sees its progress and items.
@@ -23,7 +13,7 @@ const STEPS: { status: string; label: string }[] = [
  */
 @Component({
   standalone: true,
-  imports: [CurrencyPipe, DatePipe, FormsModule, RouterLink, TranslatePipe],
+  imports: [CurrencyPipe, DatePipe, FormsModule, RouterLink, TranslatePipe, OrderTimelineComponent],
   template: `
     <section class="mx-auto max-w-5xl px-1 py-10">
       <div class="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
@@ -64,34 +54,14 @@ const STEPS: { status: string; label: string }[] = [
                   }
                 </div>
                 <span class="rounded-full px-3 py-1 text-xs font-semibold" data-testid="tracked-status"
-                  [class.bg-emerald-100]="!isCancelled()" [class.text-emerald-800]="!isCancelled()"
-                  [class.bg-red-100]="isCancelled()" [class.text-red-700]="isCancelled()">{{ label(o.status) }}</span>
+                  [class.bg-emerald-100]="!isCancelled() && !isReturned()" [class.text-emerald-800]="!isCancelled() && !isReturned()"
+                  [class.bg-red-100]="isCancelled()" [class.text-red-700]="isCancelled()"
+                  [class.bg-amber-100]="isReturned()" [class.text-amber-800]="isReturned()">{{ labelKey(o.status) | t }}</span>
               </div>
 
-              @if (isCancelled()) {
-                <p class="mt-6 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300">{{ 'track.cancelled' | t }}</p>
-              } @else {
-                <ol class="mt-6 space-y-4" [attr.aria-label]="'track.progress' | t">
-                  @for (step of steps; track step.status; let last = $last) {
-                    <li class="relative flex gap-3">
-                      @if (!last) {
-                        <span class="absolute left-[11px] top-6 h-full w-px" [class.bg-emerald-500]="reached(step.status)" [class.bg-neutral-200]="!reached(step.status)" [class.dark:bg-neutral-800]="!reached(step.status)"></span>
-                      }
-                      <span class="relative z-10 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-[10px] text-white"
-                        [class.border-emerald-500]="reached(step.status)" [class.bg-emerald-500]="reached(step.status)"
-                        [class.border-neutral-300]="!reached(step.status)" [class.dark:border-neutral-700]="!reached(step.status)">
-                        @if (reached(step.status)) { ✓ }
-                      </span>
-                      <div>
-                        <p class="text-sm" [class.font-semibold]="step.status === current()" [class.app-muted]="!reached(step.status)">{{ step.label }}</p>
-                        @if (reachedAt(step.status); as at) {
-                          <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ at | date: 'medium' }}</p>
-                        }
-                      </div>
-                    </li>
-                  }
-                </ol>
-              }
+              <div class="mt-6">
+                <app-order-timeline [status]="o.status" [dates]="stepDates()" [placedAt]="o.placedAt" />
+              </div>
 
               @if (o.courierName || o.courierTrackingNumber) {
                 <p class="mt-6 rounded-xl bg-neutral-50 px-4 py-3 text-sm dark:bg-neutral-900">
@@ -145,12 +115,16 @@ const STEPS: { status: string; label: string }[] = [
     </section>
   `,
 })
-export class TrackOrderPage implements OnInit {
+export class TrackOrderPage implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
-  protected readonly steps = STEPS;
+  /** How often a found order is checked again, so status changes appear on their own. */
+  private readonly POLL_MS = 5_000;
+  private poll?: ReturnType<typeof setInterval>;
+  private checking = false;
+
   protected typed = '';
   protected readonly loading = signal(false);
   protected readonly state = signal<'idle' | 'found' | 'not-found' | 'error'>('idle');
@@ -158,7 +132,15 @@ export class TrackOrderPage implements OnInit {
   protected readonly error = signal('');
 
   protected readonly current = computed(() => this.order()?.status ?? '');
-  protected readonly isCancelled = computed(() => ['CANCELLED', 'RETURNED'].includes(this.current()));
+  protected readonly isCancelled = computed(() => this.current() === 'CANCELLED');
+  protected readonly isReturned = computed(() => this.current() === 'RETURNED');
+
+  /** When each status was reached (the latest time wins if a status repeats). */
+  protected readonly stepDates = computed<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    for (const s of this.order()?.steps ?? []) map[s.status] = s.at;
+    return map;
+  });
 
   ngOnInit(): void {
     // A link from the order email or the thank-you page carries the number.
@@ -169,9 +151,14 @@ export class TrackOrderPage implements OnInit {
     }
   }
 
+  ngOnDestroy(): void {
+    this.stopPolling();
+  }
+
   protected search(): void {
     const number = this.typed.trim();
     if (!number) return;
+    this.stopPolling();
     this.loading.set(true);
     void this.router.navigate([], { queryParams: { number }, replaceUrl: true });
     this.api.trackOrderByNumber(number).subscribe({
@@ -179,6 +166,7 @@ export class TrackOrderPage implements OnInit {
         this.order.set(o);
         this.state.set('found');
         this.loading.set(false);
+        this.startPolling(o.orderNumber);
       },
       error: (err) => {
         this.order.set(null);
@@ -195,20 +183,36 @@ export class TrackOrderPage implements OnInit {
     });
   }
 
-  protected reached(status: string): boolean {
-    const idx = STEPS.findIndex((s) => s.status === status);
-    const cur = STEPS.findIndex((s) => s.status === (this.current() === 'PENDING' ? 'PLACED' : this.current()));
-    return idx >= 0 && cur >= 0 && idx <= cur;
+  /** Quietly re-check the found order; a failed check keeps what is on screen. */
+  private startPolling(number: string): void {
+    if (typeof window === 'undefined') return;
+    this.poll = setInterval(() => {
+      if (document.visibilityState === 'hidden' || this.checking) return;
+      if (FINAL_ORDER_STATUSES.includes(this.current())) {
+        this.stopPolling();
+        return;
+      }
+      this.checking = true;
+      this.api.trackOrderByNumber(number).subscribe({
+        next: (o) => {
+          this.checking = false;
+          if (this.order()?.orderNumber === o.orderNumber) this.order.set(o);
+        },
+        error: () => { this.checking = false; },
+      });
+    }, this.POLL_MS);
   }
 
-  protected reachedAt(status: string): string | null {
-    const hits = (this.order()?.steps ?? []).filter((s) => s.status === status);
-    return hits.length ? hits[hits.length - 1].at : null;
+  private stopPolling(): void {
+    if (this.poll) clearInterval(this.poll);
+    this.poll = undefined;
+    this.checking = false;
   }
 
-  protected label(status: string): string {
-    return STEPS.find((s) => s.status === status)?.label
-      ?? ({ PENDING: 'Placed', CANCELLED: 'Cancelled', RETURNED: 'Returned' } as Record<string, string>)[status]
+  /** Translation key for the status badge. */
+  protected labelKey(status: string): string {
+    return ORDER_STEPS.find((s) => s.status === status)?.key
+      ?? ({ PENDING: 'timeline.placed', CANCELLED: 'timeline.status_cancelled', RETURNED: 'timeline.status_returned' } as Record<string, string>)[status]
       ?? status;
   }
 

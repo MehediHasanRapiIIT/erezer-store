@@ -21,5 +21,7 @@ public class ReviewRequestDTO {
     @Max(value = 5, message = "Rating must be at most 5")
     private Integer rating;
 
+
+    @jakarta.validation.constraints.Size(max = 2000, message = "A review can be up to 2000 characters")
     private String comment;
 }

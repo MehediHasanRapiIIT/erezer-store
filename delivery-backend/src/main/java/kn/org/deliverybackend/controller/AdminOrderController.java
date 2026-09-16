@@ -46,12 +46,6 @@ public class AdminOrderController {
     }
 
     @RequiresPermission(Perm.ORDERS_VIEW)
-    @GetMapping
-    public ResponseEntity<List<OrderDTO>> getAllOrders() {
-        return ResponseEntity.ok(orderHistoryService.getAllOrders());
-    }
-
-    @RequiresPermission(Perm.ORDERS_VIEW)
     @GetMapping("/paged")
     public ResponseEntity<Page<OrderDTO>> getOrdersPaged(
             @RequestParam(defaultValue = "0") int page,
@@ -64,12 +58,6 @@ public class AdminOrderController {
             @RequestParam(required = false) String payment) {
         return ResponseEntity.ok(orderHistoryService.getOrdersPaged(page, size, status, excludeStatus,
                 fromDate, toDate, q, payment));
-    }
-
-    @RequiresPermission(Perm.ORDERS_VIEW)
-    @GetMapping("/status/{status}")
-    public ResponseEntity<List<OrderDTO>> getOrdersByStatus(@PathVariable String status) {
-        return ResponseEntity.ok(orderHistoryService.getOrdersByStatus(status));
     }
 
     @RequiresPermission(Perm.ORDERS_VIEW)

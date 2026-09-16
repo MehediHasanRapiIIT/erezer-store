@@ -24,10 +24,6 @@ export class OrderService {
     return this.http.get<OrderSummary>(`${this.baseUrl}/admin/orders/summary`);
   }
 
-  getAllOrders(): Observable<OrderResponse[]> {
-    return this.http.get<OrderResponse[]>(`${this.baseUrl}/admin/orders`);
-  }
-
   /**
    * One page of orders, filtered by the server. Dates are shop days (Dhaka);
    * `q` searches the order number, the customer's name, phone and email, and
@@ -43,10 +39,6 @@ export class OrderService {
     if (q) params['q'] = q;
     if (payment && payment !== 'ALL') params['payment'] = payment;
     return this.http.get<PageResponse<OrderResponse>>(`${this.baseUrl}/admin/orders/paged`, { params });
-  }
-
-  getOrdersByStatus(status: OrderStatus): Observable<OrderResponse[]> {
-    return this.http.get<OrderResponse[]>(`${this.baseUrl}/admin/orders/status/${status}`);
   }
 
   /**

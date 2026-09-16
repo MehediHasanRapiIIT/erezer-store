@@ -46,8 +46,6 @@ import {
   GuestOrderPayload,
   MessageResponse,
   OrderTracking,
-  OtpVerifyResponse,
-  PhoneLoginResponse,
   ProfileUpdatePayload,
   RegisterPayload,
   ReturnRequestPayload,
@@ -94,16 +92,6 @@ export class ApiService {
 
   resetPassword(token: string, newPassword: string): Observable<MessageResponse> {
     return this.http.post<MessageResponse>(`${BASE}/app/auth/reset-password`, { token, newPassword });
-  }
-
-  /** @deprecated kept for transition; use login() */
-  phoneLogin(phoneNumber: string): Observable<PhoneLoginResponse> {
-    return this.http.post<PhoneLoginResponse>(`${BASE}/app/auth/phone/login`, { phoneNumber });
-  }
-
-  /** @deprecated kept for transition; use login() */
-  verifyOtp(phoneNumber: string, otpCode: string): Observable<OtpVerifyResponse> {
-    return this.http.post<OtpVerifyResponse>(`${BASE}/app/auth/otp/verify`, { phoneNumber, otpCode });
   }
 
   // ─── Home ──────────────────────────────────────────────────────────────────

@@ -9,8 +9,11 @@ import kn.org.deliverybackend.exception.ResourceNotFoundException;
 import kn.org.deliverybackend.repository.BundleOfferRepository;
 import kn.org.deliverybackend.service.BundleService;
 import kn.org.deliverybackend.service.ProductService;
+import kn.org.deliverybackend.util.SearchText;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -60,8 +63,10 @@ public class BundleServiceImpl implements BundleService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<BundleOfferResponseDTO> listAll() {
-        return repository.findAllForAdmin().stream().map(this::toDTO).toList();
+    public Page<BundleOfferResponseDTO> list(String q, int page, int size) {
+        return repository.findForAdmin(SearchText.likePattern(q),
+                        PageRequest.of(Math.max(page, 0), SearchText.pageSize(size)))
+                .map(this::toDTO);
     }
 
     @Override

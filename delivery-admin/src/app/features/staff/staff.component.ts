@@ -1,9 +1,10 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { Observable } from 'rxjs';
+import { Observable, Subject, debounceTime, distinctUntilChanged, map } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
+import { PagerComponent } from '../../shared/pager/pager.component';
 import { PermissionService } from '../../core/services/permission.service';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { PermissionTemplate, StaffMember, StaffService } from '../../core/services/staff.service';
@@ -31,28 +32,40 @@ interface LoginNotice {
  *  - moderators see no actions on admins' rows;
  *  - only admins change roles;
  *  - permissions can only be given or taken away by someone who holds them.
+ * Search and paging are done by the server, so a search covers everyone.
  */
 @Component({
   selector: 'app-staff',
   standalone: true,
-  imports: [FormsModule, RouterLink, SidebarComponent, PermissionChecklistComponent, PermissionTemplatesComponent,
-    LoginNoticeComponent],
+  imports: [FormsModule, RouterLink, SidebarComponent, PagerComponent, PermissionChecklistComponent,
+    PermissionTemplatesComponent, LoginNoticeComponent],
   template: `
     <div class="flex h-screen bg-gray-50 overflow-hidden">
       <app-sidebar />
 
       <div class="flex-1 flex flex-col overflow-hidden">
-        <header class="bg-white border-b border-gray-200 px-6 h-14 flex items-center justify-between flex-shrink-0">
+        <header class="bg-white border-b border-gray-200 px-6 h-14 flex items-center justify-between gap-4 flex-shrink-0">
           <div class="flex items-center gap-3">
             <h1 class="text-lg font-bold text-gray-900">Staff</h1>
-            <span class="text-xs text-gray-400">{{ staff().length }} {{ staff().length === 1 ? 'person' : 'people' }}</span>
+            <span class="text-xs text-gray-400">
+              {{ total() }} {{ total() === 1 ? 'person' : 'people' }}{{ searching() ? ' found' : '' }}
+            </span>
           </div>
-          @if (perms.can('staff.manage')) {
-            <a routerLink="/staff/new"
-              class="px-3 py-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg">
-              + Add moderator
-            </a>
-          }
+          <div class="flex items-center gap-2 min-w-0">
+            <input
+              type="search"
+              [ngModel]="search()"
+              (ngModelChange)="onSearch($event)"
+              placeholder="Search by name, username or email…"
+              aria-label="Search staff"
+              class="w-56 md:w-72 min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-300 placeholder-gray-400" />
+            @if (perms.can('staff.manage')) {
+              <a routerLink="/staff/new"
+                class="px-3 py-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg whitespace-nowrap">
+                + Add moderator
+              </a>
+            }
+          </div>
         </header>
 
         <main class="flex-1 overflow-y-auto p-6">
@@ -294,12 +307,19 @@ interface LoginNotice {
                       </tr>
                     } @empty {
                       @if (!loading()) {
-                        <tr><td colspan="7" class="px-4 py-6 text-center text-gray-400">No staff yet.</td></tr>
+                        <tr><td colspan="7" class="px-4 py-6 text-center text-gray-400">
+                          {{ searching() ? 'No one matches your search.' : 'No staff yet.' }}
+                        </td></tr>
                       }
                     }
                   </tbody>
                 </table>
               </div>
+              @if (total() > 0) {
+                <div class="border-t border-gray-100">
+                  <app-pager [page]="page()" [size]="pageSize" [total]="total()" [disabled]="loading()" (pageChange)="goToPage($event)" />
+                </div>
+              }
             </section>
           </div>
         </main>
@@ -307,11 +327,14 @@ interface LoginNotice {
     </div>
   `,
 })
-export class StaffComponent implements OnInit {
+export class StaffComponent implements OnInit, OnDestroy {
   private readonly api = inject(StaffService);
   protected readonly perms = inject(PermissionService);
   private readonly confirmer = inject(ConfirmService);
 
+  protected readonly pageSize = 20;
+
+  /** The people on the page on screen. */
   readonly staff = signal<StaffMember[]>([]);
   readonly templates = signal<PermissionTemplate[]>([]);
   readonly loading = signal(false);
@@ -319,6 +342,15 @@ export class StaffComponent implements OnInit {
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
   readonly notice = signal<LoginNotice | null>(null);
+  /** Zero-based page on screen, and the number of people across all pages. */
+  readonly page = signal(0);
+  readonly total = signal(0);
+  /** Typed search text, sent to the server after a short pause. */
+  readonly search = signal('');
+  protected readonly searching = computed(() => this.search().trim().length > 0);
+  private readonly searchSubject = new Subject<string>();
+  /** Only the newest request may fill the table. */
+  private latestRequest = 0;
 
   /** Which form is open, and for whom. */
   readonly mode = signal<PanelMode | null>(null);
@@ -335,20 +367,52 @@ export class StaffComponent implements OnInit {
   protected deleteText = '';
 
   ngOnInit(): void {
-    this.reload();
+    this.loadPage(0);
+    // Typing searches everyone after a short pause, from the first page.
+    this.searchSubject.pipe(map((q) => q.trim()), debounceTime(300), distinctUntilChanged())
+      .subscribe(() => this.loadPage(0));
     this.loadTemplates();
     // The checklist needs the permission names; they normally arrive with the first permission check.
     if (this.perms.catalogList().length === 0) this.perms.refresh();
   }
 
+  ngOnDestroy(): void {
+    this.searchSubject.complete();
+  }
+
+  protected onSearch(q: string): void {
+    this.search.set(q);
+    this.searchSubject.next(q);
+  }
+
+  protected goToPage(page: number): void {
+    this.loadPage(page);
+  }
+
+  /** Reloads the page on screen, e.g. after a change. */
   reload(): void {
+    this.loadPage(this.page());
+  }
+
+  /** One page from the server, for the current search. */
+  private loadPage(page: number): void {
+    const request = ++this.latestRequest;
     this.loading.set(true);
-    this.api.list().subscribe({
-      next: (list) => {
-        this.staff.set(list);
+    this.api.list(page, this.pageSize, this.search()).subscribe({
+      next: (res) => {
+        if (request !== this.latestRequest) return;
+        // The last row of this page went away (e.g. it was deleted): show the page before it.
+        if (res.content.length === 0 && page > 0) {
+          this.loadPage(Math.min(page - 1, Math.max(res.totalPages - 1, 0)));
+          return;
+        }
+        this.staff.set(res.content);
+        this.page.set(res.number);
+        this.total.set(res.totalElements);
         this.loading.set(false);
       },
       error: (err: HttpErrorResponse) => {
+        if (request !== this.latestRequest) return;
         this.loading.set(false);
         this.errorMessage.set(parseApiError(err));
       },
@@ -510,7 +574,7 @@ export class StaffComponent implements OnInit {
     });
   }
 
-  /** Runs a change; on success calls `done`, then reloads the list. Errors go to the error box. */
+  /** Runs a change; on success calls `done`, then reloads the page on screen. Errors go to the error box. */
   private run<T>(request: Observable<T>, done: (result: T) => void): void {
     this.busy.set(true);
     this.errorMessage.set('');

@@ -75,6 +75,19 @@ public class RateLimiterService {
         }
     }
 
+    /**
+     * At most {@code maxRequests} per {@code window} for this key, else a 429 with
+     * Retry-After. Keys name the action and the caller, e.g. {@code "coupon:" + ip}
+     * or {@code "order:" + userId}.
+     */
+    public void enforce(String scopedKey, int maxRequests, Duration window) {
+        String key = "rl:" + scopedKey;
+        if (!tryAcquire(key, maxRequests, window)) {
+            int seconds = (int) window.toSeconds();
+            throw new RateLimitExceededException(remainingSeconds(key, seconds), maxRequests, seconds);
+        }
+    }
+
     private int remainingSeconds(String key, int fallback) {
         try {
             Long ttl = redis.getExpire(key);

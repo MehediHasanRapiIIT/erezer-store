@@ -22,9 +22,11 @@ export class StockService {
     return this.http.get<PageResponse<StockResponse>>(`${this.baseUrl}/admin/inventory`, { params });
   }
 
-  /** Every product low on stock or out of stock, for the restock alerts. */
-  getLowStock(): Observable<StockResponse[]> {
-    return this.http.get<StockResponse[]>(`${this.baseUrl}/admin/inventory/alerts`);
+  /** One page of products low on stock or out of stock, for the restock alerts. */
+  getLowStock(page: number, size: number, q = ''): Observable<PageResponse<StockResponse>> {
+    const params: Record<string, string> = { page: String(page), size: String(size) };
+    if (q) params['q'] = q;
+    return this.http.get<PageResponse<StockResponse>>(`${this.baseUrl}/admin/inventory/alerts`, { params });
   }
 
   getStock(productId: number): Observable<StockResponse> {

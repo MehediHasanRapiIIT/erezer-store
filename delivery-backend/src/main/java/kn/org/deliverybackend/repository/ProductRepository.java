@@ -63,6 +63,25 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     Page<Product> searchForInventory(@Param("q") String q, Pageable pageable);
 
     /**
+     * Restock alerts: products not deleted that are out of stock (0) or at or
+     * below their low-stock threshold. Uses the inventory record's figures when
+     * the product has one, else the product's own, exactly like each stock row.
+     * Same search as the Inventory page, in id order.
+     */
+    String LOW_STOCK_FILTERS = "WHERE (p.deleted = false OR p.deleted IS NULL) " +
+            "AND ((i.id IS NOT NULL AND (i.stockQuantity = 0 " +
+            "        OR (i.lowStockThreshold IS NOT NULL AND i.stockQuantity <= i.lowStockThreshold))) " +
+            "  OR (i.id IS NULL AND (p.stockQuantity = 0 " +
+            "        OR (p.lowStockThreshold IS NOT NULL AND p.stockQuantity <= p.lowStockThreshold)))) " +
+            "AND (:q IS NULL OR LOWER(p.name) LIKE :q ESCAPE '\\' OR LOWER(p.sku) LIKE :q ESCAPE '\\' " +
+            "     OR LOWER(p.productCode) LIKE :q ESCAPE '\\') ";
+
+    @Query(value = "SELECT p FROM Product p LEFT JOIN Inventory i ON i.productId = p.id " + LOW_STOCK_FILTERS +
+            "ORDER BY p.id",
+            countQuery = "SELECT COUNT(p) FROM Product p LEFT JOIN Inventory i ON i.productId = p.id " + LOW_STOCK_FILTERS)
+    Page<Product> findLowStock(@Param("q") String q, Pageable pageable);
+
+    /**
      * Up to {@code limit} products from the same category, excluding the
      * caller and any soft-deleted/unavailable rows. Ordered by rating then
      * recency. Used by the "you may also like" carousel.

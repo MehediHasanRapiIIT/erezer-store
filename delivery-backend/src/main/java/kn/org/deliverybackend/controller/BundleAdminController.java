@@ -8,10 +8,10 @@ import kn.org.deliverybackend.dto.bundle.BundleOfferRequestDTO;
 import kn.org.deliverybackend.dto.bundle.BundleOfferResponseDTO;
 import kn.org.deliverybackend.service.BundleService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 /** Admin CRUD for bundle offers. Secured by Keycloak (SecurityConfig chain 1 owns /admin/**). */
@@ -25,8 +25,11 @@ public class BundleAdminController {
 
     @RequiresPermission(Perm.BUNDLES_VIEW)
     @GetMapping
-    public ResponseEntity<List<BundleOfferResponseDTO>> list() {
-        return ResponseEntity.ok(bundleService.listAll());
+    public ResponseEntity<Page<BundleOfferResponseDTO>> list(
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(bundleService.list(q, page, size));
     }
 
     @RequiresPermission(Perm.BUNDLES_VIEW)

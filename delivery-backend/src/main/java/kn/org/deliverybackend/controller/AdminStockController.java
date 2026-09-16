@@ -41,11 +41,14 @@ public class AdminStockController {
         return ResponseEntity.ok(inventoryService.stockPage(q, page, size));
     }
 
-    /** Every product low on stock or out of stock, for the restock alerts. */
+    /** One page of products low on stock or out of stock, for the restock alerts; {@code q} searches name and SKU. */
     @RequiresPermission(Perm.INVENTORY_VIEW)
     @GetMapping("/inventory/alerts")
-    public ResponseEntity<List<StockResponseDTO>> lowStock() {
-        return ResponseEntity.ok(inventoryService.lowStock());
+    public ResponseEntity<org.springframework.data.domain.Page<StockResponseDTO>> lowStock(
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(inventoryService.lowStock(q, page, size));
     }
 
     @RequiresPermission(Perm.INVENTORY_VIEW)

@@ -17,6 +17,7 @@ public class ReturnRequestCreateDTO {
 
     /** WRONG_SIZE | DEFECTIVE | NOT_AS_DESCRIBED | CHANGED_MIND | OTHER */
     @NotBlank
+    @jakarta.validation.constraints.Size(max = 64)
     private String reason;
 
     @Size(max = 2000)
@@ -24,5 +25,7 @@ public class ReturnRequestCreateDTO {
 
     @NotEmpty
     @Valid
+
+    @jakarta.validation.constraints.Size(max = 50)
     private List<ReturnItemRequestDTO> items;
 }

@@ -54,11 +54,7 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
     }
 
     private String clientIp(HttpServletRequest http) {
-        String fwd = http.getHeader("X-Forwarded-For");
-        if (fwd != null && !fwd.isBlank()) {
-            return fwd.split(",")[0].trim();
-        }
-        return http.getRemoteAddr();
+        return kn.org.deliverybackend.util.ClientIp.of(http);
     }
 
     private String currentPrincipal() {

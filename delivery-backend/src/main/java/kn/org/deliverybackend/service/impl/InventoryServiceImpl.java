@@ -93,12 +93,12 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
-    public List<StockResponseDTO> lowStock() {
-        return productRepository.findAll().stream()
-                .filter(product -> !Boolean.TRUE.equals(product.getDeleted()))
-                .map(this::toStockRow)
-                .filter(row -> row.getStockStatus() != StockStatus.IN_STOCK)
-                .collect(Collectors.toList());
+    public org.springframework.data.domain.Page<StockResponseDTO> lowStock(String q, int page, int size) {
+        // The database picks the same rows the stock status marks LOW_STOCK or OUT_OF_STOCK.
+        return productRepository.findLowStock(kn.org.deliverybackend.util.SearchText.likePattern(q),
+                        org.springframework.data.domain.PageRequest.of(Math.max(page, 0),
+                                kn.org.deliverybackend.util.SearchText.pageSize(size)))
+                .map(this::toStockRow);
     }
 
     /** One product's stock row: from its inventory record, or its cached stock when it has none yet. */

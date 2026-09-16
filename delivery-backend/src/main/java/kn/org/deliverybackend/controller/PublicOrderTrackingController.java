@@ -23,8 +23,11 @@ import java.time.Duration;
 @Tag(name = "Order tracking (public)")
 public class PublicOrderTrackingController {
 
-    /** Generous for real customers, slow for someone trying number after number. */
-    private static final int LOOKUPS_PER_WINDOW = 30;
+    /**
+     * Generous for real customers, slow for someone trying number after number.
+     * The Track Order page re-checks an open order every 5 seconds (12 a minute).
+     */
+    private static final int LOOKUPS_PER_WINDOW = 60;
     private static final Duration WINDOW = Duration.ofMinutes(1);
 
     private final PublicOrderTrackingService trackingService;

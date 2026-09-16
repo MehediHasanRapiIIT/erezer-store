@@ -1,13 +1,14 @@
-import { Component, signal, inject, OnInit } from '@angular/core';
+import { Component, computed, signal, inject, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
-import { BannerService } from '../../core/services/banner.service';
+import { PagerComponent } from '../../shared/pager/pager.component';
+import { BannerService, BannerSlotSummary } from '../../core/services/banner.service';
 import { BannerContent, BannerResponse, BannerSlot, CategoryResponse } from '../../core/models/api.models';
 import { CategoryService } from '../../core/services/category.service';
 import { PermissionService } from '../../core/services/permission.service';
 import { NoticeService } from '../../core/services/notice.service';
 import { parseApiError } from '../../core/utils/api-error.util';
-import { catchError, of } from 'rxjs';
+import { Subject, catchError, debounceTime, distinctUntilChanged, map, of } from 'rxjs';
 
 /**
  * Where a banner's button sends the shopper, chosen in plain language rather
@@ -42,22 +43,46 @@ type LinkKind =
 @Component({
   selector: 'app-banners',
   standalone: true,
-  imports: [FormsModule, SidebarComponent],
+  imports: [FormsModule, SidebarComponent, PagerComponent],
   templateUrl: './banners.component.html',
 })
-export class BannersComponent implements OnInit {
+export class BannersComponent implements OnInit, OnDestroy {
   private bannerService = inject(BannerService);
   private categoryService = inject(CategoryService);
   protected readonly perms = inject(PermissionService);
   private readonly notices = inject(NoticeService);
 
+  /** The page of banners on screen; search, the spot filter and paging are done by the server. */
   banners = signal<BannerResponse[]>([]);
   isLoading = signal(true);
   errorMessage = signal('');
+  readonly pageSize = 12;
+  /** Zero-based page on screen, and the number of banners matching across all pages. */
+  page = signal(0);
+  total = signal(0);
+  /** Typed search text, sent to the server after a short pause. */
+  search = signal('');
+  /** One spot to list, or '' for every spot. */
+  slotFilter = signal<BannerSlot | ''>('');
+  filtering = computed(() => this.search().trim().length > 0 || this.slotFilter() !== '');
+  private readonly searchSubject = new Subject<string>();
+  /** Numbers each request, so an answer that arrives after a newer one is ignored. */
+  private latestRequest = 0;
+
+  /**
+   * Every spot's banner count and first banners, from the server. The map of
+   * spots, the "only one fits here" warning and the empty-band notice read
+   * this, so they cover every banner, not just the page on screen.
+   */
+  slotSummary = signal<BannerSlotSummary[]>([]);
+  /** Banners across every spot. */
+  totalBanners = computed(() => this.slotSummary().reduce((sum, s) => sum + s.count, 0));
 
   // Form state — shared between create and edit
   showForm = signal(false);
   editingId = signal<string | null>(null); // null = create mode
+  /** The spot the banner being edited is saved in (not the one picked in the form). */
+  editingSlot = signal<BannerSlot | null>(null);
   dragOver = signal(false);
   imageFile = signal<File | null>(null);
   imagePreview = signal('');
@@ -204,22 +229,26 @@ export class BannersComponent implements OnInit {
     return 'border-dashed border-gray-300 bg-white/60 text-gray-500 hover:border-blue-400';
   }
 
+  private summaryFor(slot: string): BannerSlotSummary | undefined {
+    return this.slotSummary().find((s) => s.slot === slot);
+  }
+
   /** The banner currently saved in a spot, ignoring the one being edited. */
   private bannerIn(slot: string): BannerResponse | undefined {
-    return this.banners().find((b) => (b.slot ?? 'HERO') === slot && b.id !== this.editingId());
+    // The server sends the first two per spot, so one is left after skipping the edited banner.
+    return this.summaryFor(slot)?.first.find((b) => b.id !== this.editingId());
   }
 
   /** "In use: NEW ARRIVALS", "3 slides" or "Empty", for the map. */
   occupancy(slot: string): string {
-    const others = this.banners().filter((b) => (b.slot ?? 'HERO') === slot && b.id !== this.editingId());
-    const editing = this.banners().find((b) => b.id === this.editingId());
-    const editingHere = !!editing && (editing.slot ?? 'HERO') === slot;
+    const count = this.summaryFor(slot)?.count ?? 0;
     if (slot === 'HERO') {
-      const n = others.length + (editingHere ? 1 : 0);
-      return n === 0 ? 'Empty' : n + (n === 1 ? ' slide' : ' slides');
+      // The count already includes the banner being edited when it is saved here.
+      return count === 0 ? 'Empty' : count + (count === 1 ? ' slide' : ' slides');
     }
-    if (others[0]) return 'In use: ' + (others[0].promotionTitle || 'untitled');
-    return editingHere ? 'This banner' : 'Empty';
+    const other = this.bannerIn(slot);
+    if (other) return 'In use: ' + (other.promotionTitle || 'untitled');
+    return this.editingSlot() === slot ? 'This banner' : 'Empty';
   }
 
   /** Another banner already in a one-banner spot, so the admin can be warned. */
@@ -278,12 +307,15 @@ export class BannersComponent implements OnInit {
    * it silently hides on the storefront - without this you cannot tell an empty
    * band from a broken one.
    */
-  get emptySlots(): string[] {
-    const filled = new Set(this.banners().map((b) => b.slot ?? 'HERO'));
-    return (Object.keys(this.slotMeta) as BannerSlot[])
+  emptySlots = computed(() => {
+    const filled = new Set(this.slotSummary().filter((s) => s.count > 0).map((s) => s.slot));
+    return this.slotKeys
       .filter((slot) => !filled.has(slot))
       .map((slot) => this.slotMeta[slot].label);
-  }
+  });
+
+  /** Every spot, in home-page order, for the filter above the list. */
+  readonly slotKeys = Object.keys(this.slotMeta) as BannerSlot[];
 
   /**
    * Button destinations, worded for a shop owner. The shopper-facing routes are
@@ -303,7 +335,11 @@ export class BannersComponent implements OnInit {
   ];
 
   ngOnInit(): void {
-    this.loadBanners();
+    this.loadPage(0);
+    this.loadSlotSummary();
+    // Typing searches every banner after a short pause, from the first page.
+    this.searchSubject.pipe(map((q) => q.trim()), debounceTime(300), distinctUntilChanged())
+      .subscribe(() => this.loadPage(0));
     // Needed to offer collections by name, and to recognise a saved collection
     // link when an existing banner is opened for editing.
     this.categoryService.getCategories()
@@ -316,6 +352,20 @@ export class BannersComponent implements OnInit {
           this.applyLink(this.customLink());
         }
       });
+  }
+
+  ngOnDestroy(): void {
+    this.searchSubject.complete();
+  }
+
+  onSearch(q: string): void {
+    this.search.set(q);
+    this.searchSubject.next(q);
+  }
+
+  setSlotFilter(slot: BannerSlot | ''): void {
+    this.slotFilter.set(slot);
+    this.loadPage(0);
   }
 
   // ── button destination ────────────────────────────────────────────────────
@@ -433,13 +483,42 @@ export class BannersComponent implements OnInit {
     this.customLink.set(link);
   }
 
-  private loadBanners(): void {
+  /** One page from the server, for the current search and spot filter. */
+  loadPage(page: number): void {
+    const request = ++this.latestRequest;
     this.isLoading.set(true);
     this.errorMessage.set('');
-    this.bannerService.getBanners().subscribe({
-      next: (data) => { this.banners.set(data); this.isLoading.set(false); },
-      error: (err) => { this.errorMessage.set(parseApiError(err)); this.isLoading.set(false); },
+    this.bannerService.getBannerPage(this.search().trim(), this.slotFilter(), page, this.pageSize).subscribe({
+      next: (data) => {
+        if (request !== this.latestRequest) return;
+        // The last banner of this page went away (e.g. it was deleted): show the page before it.
+        if (data.content.length === 0 && page > 0) {
+          this.loadPage(Math.min(page - 1, Math.max(data.totalPages - 1, 0)));
+          return;
+        }
+        this.banners.set(data.content);
+        this.page.set(data.number);
+        this.total.set(data.totalElements);
+        this.isLoading.set(false);
+      },
+      error: (err) => {
+        if (request !== this.latestRequest) return;
+        this.errorMessage.set(parseApiError(err));
+        this.isLoading.set(false);
+      },
     });
+  }
+
+  private loadSlotSummary(): void {
+    this.bannerService.getSlotSummary()
+      .pipe(catchError(() => of(null)))
+      .subscribe((summary) => { if (summary) this.slotSummary.set(summary); });
+  }
+
+  /** After an add, edit or delete: the page on screen and the map of spots. */
+  private reload(): void {
+    this.loadPage(this.page());
+    this.loadSlotSummary();
   }
 
   openCreateForm(): void {
@@ -451,6 +530,7 @@ export class BannersComponent implements OnInit {
   openEditForm(banner: BannerResponse): void {
     this.resetForm();
     this.editingId.set(banner.id);
+    this.editingSlot.set(banner.slot ?? 'HERO');
     this.promotionTitle.set(banner.promotionTitle ?? '');
     this.promotionDetails.set(banner.promotionDetails ?? '');
     this.fromDate.set(banner.fromDate ?? '');
@@ -520,12 +600,8 @@ export class BannersComponent implements OnInit {
       : this.bannerService.uploadBanner(this.imageFile()!, content);
 
     req$.subscribe({
-      next: (banner) => {
-        if (editId) {
-          this.banners.update((list) => list.map((b) => b.id === editId ? banner : b));
-        } else {
-          this.banners.update((list) => [banner, ...list]);
-        }
+      next: () => {
+        this.reload();
         this.isSaving.set(false);
         this.notices.success(editId ? 'Banner saved' : 'Banner added');
         this.closeForm();
@@ -544,7 +620,7 @@ export class BannersComponent implements OnInit {
     this.isDeleting.set(true);
     this.bannerService.deleteBanner(id).subscribe({
       next: () => {
-        this.banners.update((list) => list.filter((b) => b.id !== id));
+        this.reload();
         this.notices.success('Banner deleted');
         this.deleteConfirmId.set(null);
         this.isDeleting.set(false);
@@ -558,6 +634,7 @@ export class BannersComponent implements OnInit {
   }
 
   private resetForm(): void {
+    this.editingSlot.set(null);
     this.imageFile.set(null);
     this.imagePreview.set('');
     this.existingImageUrl.set('');

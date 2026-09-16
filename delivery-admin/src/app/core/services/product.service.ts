@@ -9,10 +9,6 @@ export class ProductService {
   private http = inject(HttpClient);
   private baseUrl = environment.apiBaseUrl;
 
-  getProducts(): Observable<ProductResponse[]> {
-    return this.http.get<ProductResponse[]>(`${this.baseUrl}/api/products`);
-  }
-
   getProductsPaged(page: number, size: number): Observable<PageResponse<ProductResponse>> {
     return this.http.get<PageResponse<ProductResponse>>(`${this.baseUrl}/api/products/paged`, {
       params: { page: String(page), size: String(size) },
@@ -40,12 +36,6 @@ export class ProductService {
     if (q) params['q'] = q;
     if (categoryId != null) params['categoryId'] = String(categoryId);
     return this.http.get<PageResponse<ProductResponse>>(`${this.baseUrl}/api/products/browse`, { params });
-  }
-
-  searchProducts(name: string): Observable<ProductResponse[]> {
-    return this.http.get<ProductResponse[]>(`${this.baseUrl}/api/products/search`, {
-      params: { name },
-    });
   }
 
   getProduct(id: number): Observable<ProductResponse> {

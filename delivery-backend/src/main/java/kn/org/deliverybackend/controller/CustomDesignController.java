@@ -15,7 +15,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
@@ -53,6 +52,10 @@ public class CustomDesignController {
             @RequestPart(value = "previews", required = false) List<MultipartFile> previews,
             HttpServletRequest http) {
         enforceRateLimit(http);
+        // One picture per side of the garment; each is also emailed to the shop.
+        if (previews != null && previews.size() > 8) {
+            throw new kn.org.deliverybackend.exception.InvalidRequestException("Up to 8 preview images can be sent.");
+        }
         CustomOrderDTO created = customDesignService.submitRequest(null, data, previews);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
@@ -63,17 +66,10 @@ public class CustomDesignController {
     }
 
     private void enforceRateLimit(HttpServletRequest http) {
-        if (!rateLimiter.tryAcquireAuth("customdesign:" + clientIp(http))) {
-            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
-                    "Too many requests from this address. Please try again later.");
-        }
+        rateLimiter.enforceAuth("customdesign:" + clientIp(http));
     }
 
     private String clientIp(HttpServletRequest http) {
-        String fwd = http.getHeader("X-Forwarded-For");
-        if (fwd != null && !fwd.isBlank()) {
-            return fwd.split(",")[0].trim();
-        }
-        return http.getRemoteAddr();
+        return kn.org.deliverybackend.util.ClientIp.of(http);
     }
 }

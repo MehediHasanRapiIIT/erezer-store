@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class CheckoutController {
 
     private final CheckoutQuoteService quoteService;
+    private final kn.org.deliverybackend.service.RateLimiterService rateLimiter;
 
     /**
      * Returns the full price breakdown for a candidate order — used by the
@@ -26,7 +27,10 @@ public class CheckoutController {
      */
     @PostMapping("/quote")
     public ResponseEntity<CheckoutQuoteResponseDTO> quote(
-            @Valid @RequestBody CheckoutQuoteRequestDTO request) {
+            @Valid @RequestBody CheckoutQuoteRequestDTO request,
+            jakarta.servlet.http.HttpServletRequest http) {
+        // The cart re-quotes as it changes; a quote also checks promo codes.
+        rateLimiter.enforce("quote:" + kn.org.deliverybackend.util.ClientIp.of(http), 60, java.time.Duration.ofMinutes(1));
         return ResponseEntity.ok(quoteService.quote(request));
     }
 }

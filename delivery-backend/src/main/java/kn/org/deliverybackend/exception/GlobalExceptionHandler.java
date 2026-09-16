@@ -178,8 +178,32 @@ public class GlobalExceptionHandler {
         }
         Map<String, Object> body = new HashMap<>();
         body.put("errors", fieldErrors);
+        // One readable line too, for pages that only show `message`.
+        FieldError first = ex.getBindingResult().getFieldError();
+        if (first != null) {
+            body.put("message", first.getDefaultMessage());
+        }
         body.put("timestamp", LocalDateTime.now());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    /** A file over the upload size limit: the caller's mistake, not a server fault. */
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleUploadTooLarge(Exception ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("message", "The file is too large.");
+        body.put("timestamp", LocalDateTime.now());
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(body);
+    }
+
+    /** Keep the status a controller chose (e.g. 429, 404) instead of turning it into a 500. */
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public ResponseEntity<Map<String, Object>> handleResponseStatus(
+            org.springframework.web.server.ResponseStatusException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("message", ex.getReason() != null ? ex.getReason() : "Request failed.");
+        body.put("timestamp", LocalDateTime.now());
+        return ResponseEntity.status(ex.getStatusCode()).body(body);
     }
 
     // ── Auth exceptions (required by existing tests) ─────────────────────────
@@ -209,6 +233,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({
             org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class,
             org.springframework.web.bind.MissingServletRequestParameterException.class,
+            org.springframework.web.multipart.support.MissingServletRequestPartException.class,
+            org.springframework.web.method.annotation.HandlerMethodValidationException.class,
             org.springframework.http.converter.HttpMessageNotReadableException.class})
     public ResponseEntity<Map<String, Object>> handleMalformedRequest(Exception ex) {
         String message;
@@ -217,6 +243,10 @@ public class GlobalExceptionHandler {
             message = "'" + m.getName() + "' has the wrong format (expected " + expected + ").";
         } else if (ex instanceof org.springframework.web.bind.MissingServletRequestParameterException m) {
             message = "Missing the required parameter '" + m.getParameterName() + "'.";
+        } else if (ex instanceof org.springframework.web.multipart.support.MissingServletRequestPartException m) {
+            message = "Missing the required part '" + m.getRequestPartName() + "'.";
+        } else if (ex instanceof org.springframework.web.method.annotation.HandlerMethodValidationException) {
+            message = "Some of the request values aren't valid.";
         } else {
             message = "The request body couldn't be read.";
         }
@@ -226,6 +256,26 @@ public class GlobalExceptionHandler {
         body.put("message", message);
         body.put("timestamp", LocalDateTime.now());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    /** A URL nothing answers: 404, not a server error. */
+    @ExceptionHandler({
+            org.springframework.web.servlet.resource.NoResourceFoundException.class,
+            org.springframework.web.servlet.NoHandlerFoundException.class})
+    public ResponseEntity<Map<String, Object>> handleNotFoundPath(Exception ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("message", "Not found.");
+        body.put("timestamp", LocalDateTime.now());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    /** A method the URL doesn't take (e.g. GET on a POST-only endpoint). */
+    @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleMethodNotAllowed(Exception ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("message", "This request method isn't supported here.");
+        body.put("timestamp", LocalDateTime.now());
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(body);
     }
 
     @ExceptionHandler(Exception.class)

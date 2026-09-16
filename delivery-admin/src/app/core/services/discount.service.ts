@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { PageResponse } from '../models/api.models';
 
 export type DiscountScope = 'PRODUCT' | 'CATEGORY' | 'GLOBAL';
 export type DiscountType = 'PERCENT' | 'FLAT';
@@ -40,8 +41,11 @@ export class DiscountService {
   private http = inject(HttpClient);
   private base = environment.apiBaseUrl;
 
-  list(): Observable<DiscountResponse[]> {
-    return this.http.get<DiscountResponse[]>(`${this.base}/admin/discounts`);
+  /** One page of discounts, newest first; `q` searches the name and description. */
+  list(page = 0, size = 20, q?: string): Observable<PageResponse<DiscountResponse>> {
+    const params: Record<string, string> = { page: String(page), size: String(size) };
+    if (q?.trim()) params['q'] = q.trim();
+    return this.http.get<PageResponse<DiscountResponse>>(`${this.base}/admin/discounts`, { params });
   }
 
   create(payload: DiscountRequest): Observable<DiscountResponse> {

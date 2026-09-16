@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { PageResponse } from '../models/api.models';
 
 export interface RevenuePoint {
   date: string;            // ISO date (yyyy-MM-dd), start of the bucket, business-local
@@ -40,15 +41,21 @@ export interface SalesSummary {
 }
 
 export interface CustomerLifetimeValue {
-  userId: string;
+  /** Null for a guest shopper, who ordered without an account. */
+  userId: string | null;
+  /** No account: known only by the email on their orders. */
+  guest: boolean;
   customerName: string | null;
-  email: string;
+  email: string | null;
+  phone: string | null;
   orderCount: number;
   /** Null without the "See money totals" permission. */
   lifetimeRevenue: number | null;
   averageOrderValue: number | null;
   firstOrderAt: string | null;
   lastOrderAt: string | null;
+  /** When the account was made; null for a guest. */
+  joinedAt: string | null;
 }
 
 export type Granularity = 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
@@ -183,16 +190,11 @@ export class ReportService {
     });
   }
 
-  /** Purchasing customers ranked by lifetime revenue; the server searches name, email and phone. */
-  searchCustomers(q: string, limit = 50, offset = 0): Observable<CustomerLifetimeValue[]> {
-    const params: Record<string, string> = { limit: String(limit), offset: String(offset) };
+  /** One page of every customer (accounts and guest shoppers), highest lifetime revenue first. */
+  customers(q: string, page = 0, size = 25): Observable<PageResponse<CustomerLifetimeValue>> {
+    const params: Record<string, string> = { page: String(page), size: String(size) };
     if (q) params['q'] = q;
-    return this.http.get<CustomerLifetimeValue[]>(`${this.base}/admin/customers`, { params });
-  }
-
-  /** How many purchasing customers match `q`; all of them when it is blank. */
-  customerCount(q = ''): Observable<number> {
-    return this.http.get<number>(`${this.base}/admin/customers/count`, { params: q ? { q } : {} });
+    return this.http.get<PageResponse<CustomerLifetimeValue>>(`${this.base}/admin/customers`, { params });
   }
 
   private dateParams(from?: string, to?: string): Record<string, string> {

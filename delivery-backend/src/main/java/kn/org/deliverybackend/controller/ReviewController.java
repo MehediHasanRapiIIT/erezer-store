@@ -24,6 +24,7 @@ import java.util.UUID;
 public class ReviewController {
 
     private final ReviewService reviewService;
+    private final kn.org.deliverybackend.service.RateLimiterService rateLimiter;
 
     @PostMapping("/reviews")
     public ResponseEntity<ReviewResponseDTO> submitReview(
@@ -31,6 +32,7 @@ public class ReviewController {
             @Valid @RequestBody ReviewRequestDTO request,
             Authentication authentication) {
         request.setUserId(customerId(authentication));
+        rateLimiter.enforce("review:" + request.getUserId(), 10, java.time.Duration.ofHours(1));
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(reviewService.submitReview(productId, request));
     }
@@ -54,6 +56,7 @@ public class ReviewController {
             @Valid @RequestBody ReviewUpdateRequestDTO request,
             Authentication authentication) {
         request.setUserId(customerId(authentication));
+        rateLimiter.enforce("review:" + request.getUserId(), 10, java.time.Duration.ofHours(1));
         return ResponseEntity.ok(reviewService.updateReview(productId, reviewId, request));
     }
 

@@ -13,9 +13,11 @@ import lombok.NoArgsConstructor;
 public class UpdateOrderContactRequestDTO {
 
     @NotBlank
-    @Size(max = 1000)
+    @Size(max = 255)
     private String deliveryAddress;
 
     @Size(max = 40)
+
+    @jakarta.validation.constraints.Pattern(regexp = "^[0-9+\\-\\s()]{7,20}$", message = "Enter a valid phone number")
     private String phone;
 }

@@ -11,7 +11,10 @@ import kn.org.deliverybackend.exception.ResourceNotFoundException;
 import kn.org.deliverybackend.repository.DiscountRepository;
 import kn.org.deliverybackend.repository.StoreSettingsRepository;
 import kn.org.deliverybackend.service.DiscountService;
+import kn.org.deliverybackend.util.SearchText;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,10 +40,10 @@ public class DiscountServiceImpl implements DiscountService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<DiscountResponseDTO> list() {
-        return discountRepository.findAll().stream()
-                .filter(d -> !Boolean.TRUE.equals(d.getDeleted()))
-                .map(this::toDTO).toList();
+    public Page<DiscountResponseDTO> list(String q, int page, int size) {
+        return discountRepository.findForAdmin(SearchText.likePattern(q),
+                        PageRequest.of(Math.max(page, 0), SearchText.pageSize(size)))
+                .map(this::toDTO);
     }
 
     @Override

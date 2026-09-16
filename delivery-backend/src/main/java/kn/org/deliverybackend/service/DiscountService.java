@@ -3,6 +3,7 @@ package kn.org.deliverybackend.service;
 import kn.org.deliverybackend.dto.discount.DiscountRequestDTO;
 import kn.org.deliverybackend.dto.discount.DiscountResponseDTO;
 import kn.org.deliverybackend.entity.Discount;
+import org.springframework.data.domain.Page;
 
 import java.util.List;
 import java.util.UUID;
@@ -10,7 +11,8 @@ import java.util.UUID;
 public interface DiscountService {
 
     // ── Admin CRUD ──────────────────────────────────────────────────────────────
-    List<DiscountResponseDTO> list();
+    /** One page of discounts, newest first; {@code q} searches the name and description. */
+    Page<DiscountResponseDTO> list(String q, int page, int size);
 
     DiscountResponseDTO get(UUID id);
 

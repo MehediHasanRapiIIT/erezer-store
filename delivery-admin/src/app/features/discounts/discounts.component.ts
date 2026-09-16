@@ -1,8 +1,9 @@
-import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { EMPTY, Subject, catchError, debounceTime, distinctUntilChanged, of, startWith, switchMap } from 'rxjs';
+import { EMPTY, Subject, catchError, debounceTime, distinctUntilChanged, map, of, startWith, switchMap } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
+import { PagerComponent } from '../../shared/pager/pager.component';
 import {
   DiscountRequest,
   DiscountResponse,
@@ -53,7 +54,7 @@ const EMPTY_FORM: DiscountForm = {
 @Component({
   selector: 'app-discounts',
   standalone: true,
-  imports: [FormsModule, SidebarComponent],
+  imports: [FormsModule, SidebarComponent, PagerComponent],
   template: `
     <div class="flex h-screen bg-gray-50 overflow-hidden">
       <app-sidebar />
@@ -62,14 +63,23 @@ const EMPTY_FORM: DiscountForm = {
         <header class="bg-white border-b border-gray-200 px-6 h-14 flex items-center justify-between flex-shrink-0">
           <div class="flex items-center gap-3">
             <h1 class="text-lg font-bold text-gray-900">Discounts</h1>
-            <span class="text-xs text-gray-400">{{ discounts().length }} total</span>
+            <span class="text-xs text-gray-400">{{ total() }} total</span>
           </div>
-          @if (perms.can('discounts.create')) {
-            <button (click)="startCreate()"
-              class="px-3 py-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg">
-              + New discount
-            </button>
-          }
+          <div class="flex items-center gap-2 min-w-0">
+            <input
+              type="search"
+              [ngModel]="search()"
+              (ngModelChange)="onSearch($event)"
+              placeholder="Search by name or description…"
+              aria-label="Search discounts"
+              class="w-48 md:w-64 min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-300 placeholder-gray-400" />
+            @if (perms.can('discounts.create')) {
+              <button (click)="startCreate()"
+                class="px-3 py-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg whitespace-nowrap">
+                + New discount
+              </button>
+            }
+          </div>
         </header>
 
         <main class="flex-1 overflow-y-auto p-6">
@@ -198,11 +208,18 @@ const EMPTY_FORM: DiscountForm = {
                     </tr>
                   } @empty {
                     @if (!loading()) {
-                      <tr><td colspan="9" class="px-4 py-6 text-center text-gray-400">No discounts yet.</td></tr>
+                      <tr><td colspan="9" class="px-4 py-6 text-center text-gray-400">
+                        {{ searching() ? 'No discounts match your search.' : 'No discounts yet.' }}
+                      </td></tr>
                     }
                   }
                 </tbody>
               </table>
+              @if (total() > 0) {
+                <div class="border-t border-gray-100">
+                  <app-pager [page]="page()" [size]="pageSize" [total]="total()" [disabled]="loading()" (pageChange)="loadPage($event)" />
+                </div>
+              }
             </section>
 
             <!-- Form -->
@@ -342,7 +359,19 @@ export class DiscountsComponent implements OnInit {
   private readonly confirmer = inject(ConfirmService);
   private readonly notices = inject(NoticeService);
 
+  protected readonly pageSize = 20;
+
+  /** The discounts on the page on screen; search and paging are done by the server. */
   readonly discounts  = signal<DiscountResponse[]>([]);
+  /** Zero-based page on screen, and the number of discounts across all pages. */
+  readonly page       = signal(0);
+  readonly total      = signal(0);
+  /** Typed search text, sent to the server after a short pause. */
+  readonly search     = signal('');
+  protected readonly searching = computed(() => this.search().trim().length > 0);
+  private readonly searchSubject = new Subject<string>();
+  /** Numbers each request, so an answer that arrives after a newer one is ignored. */
+  private latestRequest = 0;
   readonly categories = signal<CategoryResponse[]>([]);
   readonly loading    = signal(false);
 
@@ -418,7 +447,14 @@ export class DiscountsComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.reload();
+    this.loadPage(0);
+    // Typing searches all discounts after a short pause, from the first page.
+    this.searchSubject.pipe(
+      map((q) => q.trim()),
+      debounceTime(300),
+      distinctUntilChanged(),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => this.loadPage(0));
     this.api.getSwitches()
       .pipe(catchError(() => of(null)))
       .subscribe((s) => this.settings.set(s));
@@ -440,13 +476,31 @@ export class DiscountsComponent implements OnInit {
     });
   }
 
-  reload(): void {
+  protected onSearch(q: string): void {
+    this.search.set(q);
+    this.searchSubject.next(q);
+  }
+
+  /** One page from the server, for the current search. */
+  protected loadPage(page: number): void {
+    const request = ++this.latestRequest;
     this.loading.set(true);
-    this.api.list().pipe(catchError(() => of([] as DiscountResponse[]))).subscribe((list) => {
-      this.discounts.set(list);
-      this.loading.set(false);
-      this.lookUpProductNames(list);
-    });
+    this.api.list(page, this.pageSize, this.search())
+      .pipe(catchError(() => of(null)))
+      .subscribe((res) => {
+        if (request !== this.latestRequest) return;
+        this.loading.set(false);
+        if (!res) return;
+        // The last row of this page went away (e.g. it was deleted): show the page before it.
+        if (res.content.length === 0 && page > 0) {
+          this.loadPage(Math.min(page - 1, Math.max(res.totalPages - 1, 0)));
+          return;
+        }
+        this.discounts.set(res.content);
+        this.page.set(res.number);
+        this.total.set(res.totalElements);
+        this.lookUpProductNames(res.content);
+      });
   }
 
   protected onProductQuery(q: string): void {
@@ -555,14 +609,10 @@ export class DiscountsComponent implements OnInit {
     })).subscribe((saved) => {
       this.saving.set(false);
       if (!saved) return;
-      if (editId) {
-        this.discounts.update((list) => list.map((d) => d.id === editId ? saved : d));
-      } else {
-        this.discounts.update((list) => [...list, saved]);
-      }
       this.notices.success(editId ? 'Discount saved' : 'Discount added', saved.name);
-      this.lookUpProductNames([saved]);
       this.cancelEdit();
+      // An edit stays on this page; a new discount is the newest, so it shows on the first page.
+      this.loadPage(editId ? this.page() : 0);
     });
   }
 
@@ -577,8 +627,9 @@ export class DiscountsComponent implements OnInit {
     this.api.delete(d.id)
       .pipe(catchError((err) => { this.errorMessage.set(parseApiError(err)); return EMPTY; }))
       .subscribe(() => {
-        this.discounts.update((list) => list.filter((x) => x.id !== d.id));
+        if (this.editingId() === d.id) this.cancelEdit();
         this.notices.success('Discount deleted', d.name);
+        this.loadPage(this.page());
       });
   }
 

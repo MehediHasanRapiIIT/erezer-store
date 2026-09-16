@@ -73,6 +73,7 @@ class CustomerAccessSecurityTest {
 
     @MockBean private OrderHistoryService orderHistoryService;
     @MockBean private ReviewService reviewService;
+    @MockBean private kn.org.deliverybackend.service.RateLimiterService rateLimiter;
     /** The admin chain's Keycloak decoder; rejects everything, as no admin token is used here. */
     @MockBean private JwtDecoder jwtDecoder;
     /** The staff permission check sits in front of every controller; no staff login is used here. */

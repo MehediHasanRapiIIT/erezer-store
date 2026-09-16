@@ -33,6 +33,7 @@ public class OrderController {
     public ResponseEntity<OrderDTO> placeOrder(
             @PathVariable UUID userId,
             @Valid @RequestBody PlaceOrderRequestDTO request) {
+        rateLimiter.enforce("order:" + userId, 10, java.time.Duration.ofMinutes(10));
         request.setClientId(userId);
         return ResponseEntity.status(HttpStatus.CREATED).body(orderService.placeOrder(request));
     }

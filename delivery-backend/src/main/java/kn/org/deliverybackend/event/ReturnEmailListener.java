@@ -1,5 +1,6 @@
 package kn.org.deliverybackend.event;
 
+import kn.org.deliverybackend.util.Taka;
 import kn.org.deliverybackend.enumeration.ReturnStatus;
 import kn.org.deliverybackend.service.EmailService;
 import lombok.RequiredArgsConstructor;
@@ -8,9 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
-import java.text.NumberFormat;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 @Component
@@ -39,7 +38,7 @@ public class ReturnEmailListener {
         vars.put("adminNotes", event.getAdminNotes());
         vars.put("orderUrl", storeUrl + "/orders/" + event.getOrderId());
         vars.put("refundAmount", event.getRefundAmount() != null
-                ? NumberFormat.getCurrencyInstance(Locale.US).format(event.getRefundAmount())
+                ? Taka.format(event.getRefundAmount())
                 : null);
 
         String subject = "Update on your Erezer return";

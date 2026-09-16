@@ -23,13 +23,18 @@ public class AddToCartRequestDTO {
     // The following three are authoritative on the server for single add-to-cart
     // (resolved from productId/variantId) and only consulted for guest-cart merge,
     // so they are optional here.
+    @jakarta.validation.constraints.Size(max = 255)
     private String productName;
 
+
+    @jakarta.validation.constraints.Size(max = 1000)
     private String imageUrl;
 
     @DecimalMin(value = "0.0", inclusive = false)
     private BigDecimal unitPrice;
 
     @Min(1)
+
+    @jakarta.validation.constraints.Max(100)
     private Integer quantity; // defaults to 1 in service if null
 }

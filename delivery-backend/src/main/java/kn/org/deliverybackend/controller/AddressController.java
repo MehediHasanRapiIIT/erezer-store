@@ -25,6 +25,7 @@ import java.util.UUID;
 public class AddressController {
 
     private final AddressService addressService;
+    private final kn.org.deliverybackend.service.RateLimiterService rateLimiter;
 
     @GetMapping("/{userId}/addresses")
     @Operation(summary = "Get User Addresses", description = "Retrieves all active addresses for a user")
@@ -51,6 +52,7 @@ public class AddressController {
     public ResponseEntity<AddressesDTO> addAddress(
             @PathVariable UUID userId,
             @Valid @RequestBody AddressesDTO addressesDTO) {
+        rateLimiter.enforce("address:" + userId, 20, java.time.Duration.ofHours(1));
         AddressesDTO createdAddress = addressService.addAddress(userId, addressesDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdAddress);
     }

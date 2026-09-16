@@ -15,11 +15,14 @@ public class OrderStatusUpdateRequestDTO {
     private String status;
 
     /** Optional admin note; surfaced to the customer in the email. */
+    @jakarta.validation.constraints.Size(max = 1000)
     private String note;
 
     /** Required when transitioning to SHIPPED — courier display name. */
+    @jakarta.validation.constraints.Size(max = 255)
     private String courierName;
 
     /** Required when transitioning to SHIPPED — courier-issued tracking number. */
+    @jakarta.validation.constraints.Size(max = 255)
     private String trackingNumber;
 }

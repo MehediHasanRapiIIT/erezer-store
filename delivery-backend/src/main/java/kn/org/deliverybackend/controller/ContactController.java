@@ -28,17 +28,14 @@ public class ContactController {
         // enforceAuth, not tryAcquireAuth + ResponseStatusException: the global
         // handler's catch-all turned that exception into a 500 "Internal server
         // error", whereas RateLimitExceededException has its own 429 handler.
-        rateLimiter.enforceAuth("support:" + clientIp(http));
+        // Each message emails the shop, so keep it to a real person's pace.
+        rateLimiter.enforce("support:" + clientIp(http), 5, java.time.Duration.ofMinutes(10));
         contactService.submit(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(MessageResponseDTO.of("Thanks — we'll get back to you soon."));
     }
 
     private String clientIp(HttpServletRequest http) {
-        String fwd = http.getHeader("X-Forwarded-For");
-        if (fwd != null && !fwd.isBlank()) {
-            return fwd.split(",")[0].trim();
-        }
-        return http.getRemoteAddr();
+        return kn.org.deliverybackend.util.ClientIp.of(http);
     }
 }

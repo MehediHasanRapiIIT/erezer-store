@@ -280,40 +280,65 @@ public interface ReportRepository extends JpaRepository<Order, UUID> {
     // ── customers ───────────────────────────────────────────────────────────
 
     /**
-     * Customer lifetime value over all history. Only counted orders. Rows:
-     * [userId, firstName, lastName, email, orderCount, lifetimeRevenue,
-     *  firstOrderAt, lastOrderAt].
+     * Everyone who is a customer: every account (with or without orders) and
+     * every guest shopper, one row per email. A guest order placed with an
+     * account's email counts for that account instead of making a second row.
+     * Totals use counted orders only (not deleted, cancelled or returned), so a
+     * customer whose orders were all cancelled is still listed, with 0.
      */
-    /** A lower-case "%text%" pattern (or null for everyone) on the customer's name, email or phone. */
-    String CUSTOMER_SEARCH = "AND (:q IS NULL " +
-            "  OR LOWER(TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, ''))) LIKE :q ESCAPE '\\' " +
-            "  OR LOWER(u.email) LIKE :q ESCAPE '\\' OR u.phone_number LIKE :q ESCAPE '\\') ";
+    String CUSTOMER_PEOPLE =
+            "WITH counted AS (SELECT o.client_id, LOWER(o.customer_email) AS email, o.total_amount, o.created_at " +
+            "                 FROM orders o WHERE COALESCE(o.deleted, false) = false " +
+            "                 AND o.order_status NOT IN ('CANCELLED','RETURNED')), " +
+            "account_totals AS (SELECT client_id, COUNT(*) AS n, SUM(total_amount) AS revenue, " +
+            "                   MIN(created_at) AS first_at, MAX(created_at) AS last_at " +
+            "                   FROM counted WHERE client_id IS NOT NULL GROUP BY client_id), " +
+            "guest_totals AS (SELECT email, COUNT(*) AS n, SUM(total_amount) AS revenue, " +
+            "                 MIN(created_at) AS first_at, MAX(created_at) AS last_at " +
+            "                 FROM counted WHERE client_id IS NULL AND email IS NOT NULL GROUP BY email), " +
+            // A guest's name and phone as given on their latest order.
+            "guests AS (SELECT DISTINCT ON (LOWER(o.customer_email)) LOWER(o.customer_email) AS email, " +
+            "           o.customer_name, o.customer_phone " +
+            "           FROM orders o WHERE COALESCE(o.deleted, false) = false AND o.client_id IS NULL " +
+            "           AND o.customer_email IS NOT NULL AND TRIM(o.customer_email) <> '' " +
+            "           ORDER BY LOWER(o.customer_email), o.created_at DESC), " +
+            "people AS (SELECT CAST(u.id AS text) AS person_key, u.id AS user_id, " +
+            "           NULLIF(TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')), '') AS name, " +
+            "           LOWER(u.email) AS email, u.phone_number AS phone, u.created_at AS joined_at " +
+            "           FROM users u WHERE COALESCE(u.deleted, false) = false " +
+            "           UNION ALL " +
+            "           SELECT 'guest:' || g.email, NULL, NULLIF(TRIM(g.customer_name), ''), g.email, g.customer_phone, NULL " +
+            "           FROM guests g WHERE NOT EXISTS (SELECT 1 FROM users u WHERE COALESCE(u.deleted, false) = false " +
+            "                                           AND LOWER(u.email) = g.email)) ";
 
-    @Query(value =
-            "SELECT u.id AS user_id, u.first_name, u.last_name, u.email, " +
-            "       COUNT(o.id) AS order_count, " +
-            "       COALESCE(SUM(o.total_amount), 0) AS lifetime_revenue, " +
-            "       MIN(o.created_at) AS first_order_at, " +
-            "       MAX(o.created_at) AS last_order_at " +
-            "FROM users u " +
-            "JOIN orders o ON o.client_id = u.id AND COALESCE(o.deleted, false) = false " +
-            "                AND o.order_status NOT IN ('CANCELLED','RETURNED') " +
-            "WHERE COALESCE(u.deleted, false) = false " + CUSTOMER_SEARCH +
-            "GROUP BY u.id, u.first_name, u.last_name, u.email " +
-            // The id breaks ties, so "Load more" never repeats or skips a customer.
-            "ORDER BY lifetime_revenue DESC, u.id " +
+    /** A lower-case "%text%" pattern (or null for everyone) on the name, email or phone. */
+    String CUSTOMER_SEARCH = "WHERE (:q IS NULL OR LOWER(COALESCE(p.name, '')) LIKE :q ESCAPE '\\' " +
+            "  OR COALESCE(p.email, '') LIKE :q ESCAPE '\\' OR LOWER(COALESCE(p.phone, '')) LIKE :q ESCAPE '\\') ";
+
+    /**
+     * One page of customers, highest lifetime revenue first. Rows:
+     * [userId (null for a guest), name, email, phone, orderCount, lifetimeRevenue,
+     *  firstOrderAt, lastOrderAt, joinedAt].
+     */
+    @Query(value = CUSTOMER_PEOPLE +
+            "SELECT p.user_id, p.name, p.email, p.phone, " +
+            "       COALESCE(a.n, 0) + COALESCE(g.n, 0) AS order_count, " +
+            "       COALESCE(a.revenue, 0) + COALESCE(g.revenue, 0) AS lifetime_revenue, " +
+            "       LEAST(a.first_at, g.first_at) AS first_order_at, " +
+            "       GREATEST(a.last_at, g.last_at) AS last_order_at, " +
+            "       p.joined_at " +
+            "FROM people p " +
+            "LEFT JOIN account_totals a ON a.client_id = p.user_id " +
+            "LEFT JOIN guest_totals g ON g.email = p.email " +
+            CUSTOMER_SEARCH +
+            // The key breaks ties, so paging never repeats or skips a customer.
+            "ORDER BY lifetime_revenue DESC, last_order_at DESC NULLS LAST, p.joined_at DESC NULLS LAST, p.person_key " +
             "LIMIT :limit OFFSET :offset",
             nativeQuery = true)
-    List<Object[]> customerLifetimeValue(@Param("limit") int limit,
-                                         @Param("offset") int offset,
-                                         @Param("q") String q);
+    List<Object[]> customerPage(@Param("q") String q, @Param("limit") int limit, @Param("offset") long offset);
 
-    /** Purchasing customers matching {@link #CUSTOMER_SEARCH}; the same people the list above shows. */
-    @Query(value =
-            "SELECT COUNT(*) FROM users u WHERE COALESCE(u.deleted, false) = false " + CUSTOMER_SEARCH +
-            "AND EXISTS (SELECT 1 FROM orders o WHERE o.client_id = u.id AND COALESCE(o.deleted, false) = false " +
-            "            AND o.order_status NOT IN ('CANCELLED','RETURNED'))",
-            nativeQuery = true)
+    /** How many customers {@link #customerPage} can show for {@code q}. */
+    @Query(value = CUSTOMER_PEOPLE + "SELECT COUNT(*) FROM people p " + CUSTOMER_SEARCH, nativeQuery = true)
     long countCustomers(@Param("q") String q);
 
     @Query(value =

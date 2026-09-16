@@ -124,6 +124,25 @@ a time, each finished and checked before the next.
   - Checks: `verify_paging.py shop-orders` 7/7 (139/139 across all items), the
     access sweep 422/422 (it now also tries another customer's pages), backend
     tests pass, and the browser check 12/12 as the customer with 224 orders.
+- [x] **9. Admin: the lists left whole in the first pass.** Coupons, Discounts,
+  Flash sales, Bundles, Banners, Staff and the Inventory restock alerts were
+  still downloaded whole; the owner asked for them to page on the server too.
+  *Done 17 Sep 2026.*
+  - Same URLs and permissions, now `q`, `page`, `size` (capped at 100) and a
+    page back: coupons and discounts newest first; flash sales by end date;
+    bundles by their order then newest; staff active first, then role and name;
+    alerts by product id with the same low/out-of-stock rule as each stock row.
+  - Banners keep `GET /api/banners` for the shop and add `GET /api/banners/paged`
+    (search, `slot` filter) and `GET /api/banners/slots` (count and first two
+    banners per spot, for the spot map and "only one fits here" warnings).
+  - Removed `GET /admin/orders` and `GET /admin/orders/status/{status}`: each
+    returned every order and nothing used them.
+  - Each page has a search box (300 ms), the shared pager and a latest-request
+    guard, and reloads the current page after a change.
+  - Checks: an API check with 25 marked rows per table (all pages match the
+    database in order, search is literal and case-free, size capped, deleted
+    rows hidden) 36/36, alerts with 7 products made low 3/3, the browser check
+    of every page (pager, Next, search) passes, backend tests 182/182.
 
 Each item is checked two ways: the server's results must match what the old
 in-browser filter showed, and paging through must never repeat or skip a row.

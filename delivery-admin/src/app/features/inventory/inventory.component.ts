@@ -31,8 +31,14 @@ export class InventoryComponent implements OnInit, OnDestroy {
   products = signal<StockResponse[]>([]);
   page = signal(0);
   totalElements = signal(0);
-  /** Every low or out-of-stock product, whatever page is showing. */
+  /** One page of the low or out-of-stock products, whatever page of the list is showing. */
   private alerts = signal<StockResponse[]>([]);
+  readonly alertsPageSize = 20;
+  alertsPage = signal(0);
+  /** How many products need restocking across every alerts page. */
+  alertsTotal = signal(0);
+  alertsLoading = signal(false);
+  private latestAlertsRequest = 0;
   summary = signal<InventorySummary | null>(null);
   isLoading = signal(true);
   errorMessage = signal('');
@@ -68,7 +74,8 @@ export class InventoryComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadPage(0);
-    this.loadAlertsAndSummary();
+    this.loadAlerts(0);
+    this.loadSummary();
     this.searchSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe(() => this.loadPage(0));
   }
 
@@ -102,9 +109,37 @@ export class InventoryComponent implements OnInit, OnDestroy {
     });
   }
 
-  private loadAlertsAndSummary(): void {
-    this.stockService.getLowStock().subscribe({ next: (list) => this.alerts.set(list), error: () => {} });
+  /** One page of restock alerts from the server. */
+  loadAlerts(page: number): void {
+    const request = ++this.latestAlertsRequest;
+    this.alertsLoading.set(true);
+    this.stockService.getLowStock(page, this.alertsPageSize).subscribe({
+      next: (data) => {
+        if (request !== this.latestAlertsRequest) return;
+        this.alertsLoading.set(false);
+        // The last alert on this page was restocked: show the page before it.
+        if (data.content.length === 0 && page > 0) {
+          this.loadAlerts(Math.min(page - 1, Math.max(data.totalPages - 1, 0)));
+          return;
+        }
+        this.alerts.set(data.content);
+        this.alertsPage.set(data.number);
+        this.alertsTotal.set(data.totalElements);
+      },
+      error: () => {
+        if (request === this.latestAlertsRequest) this.alertsLoading.set(false);
+      },
+    });
+  }
+
+  private loadSummary(): void {
     this.stockService.getSummary().subscribe({ next: (s) => this.summary.set(s), error: () => {} });
+  }
+
+  /** After a stock change: the alerts page on screen and the summary cards. */
+  private loadAlertsAndSummary(): void {
+    this.loadAlerts(this.alertsPage());
+    this.loadSummary();
   }
 
   dismissAlerts(): void {

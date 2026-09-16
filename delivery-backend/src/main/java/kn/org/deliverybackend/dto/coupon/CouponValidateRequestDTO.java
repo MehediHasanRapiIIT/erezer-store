@@ -15,6 +15,8 @@ import java.util.UUID;
 public class CouponValidateRequestDTO {
 
     @NotBlank
+
+    @jakarta.validation.constraints.Size(max = 64)
     private String code;
 
     @PositiveOrZero

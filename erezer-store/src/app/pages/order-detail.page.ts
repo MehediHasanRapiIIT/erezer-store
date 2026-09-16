@@ -8,6 +8,7 @@ import { ApiOrder, ApiOrderItem, OrderStatus, OrderTracking, ReturnRequestRespon
 import { AuthService } from '../core/auth.service';
 import { EcommerceStore } from '../core/store/ecommerce.store';
 import { RevealDirective } from '../core/reveal.directive';
+import { FINAL_ORDER_STATUSES, OrderTimelineComponent } from '../components/shared/order-timeline.component';
 
 /** Display order for the storefront timeline. */
 const TIMELINE_STEPS: { status: OrderStatus; label: string }[] = [
@@ -22,7 +23,7 @@ const TIMELINE_STEPS: { status: OrderStatus; label: string }[] = [
 
 @Component({
   standalone: true,
-  imports: [CurrencyPipe, DatePipe, RouterLink, FormsModule, RevealDirective],
+  imports: [CurrencyPipe, DatePipe, RouterLink, FormsModule, RevealDirective, OrderTimelineComponent],
   template: `
     @if (loading()) {
       <p class="app-muted">Loading order…</p>
@@ -95,54 +96,8 @@ const TIMELINE_STEPS: { status: OrderStatus; label: string }[] = [
         <article class="app-card p-6" appReveal>
           <h2 class="mb-5 text-lg font-semibold">Order timeline</h2>
 
-          @if (isCancelled()) {
-            <div class="flex items-center gap-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300">
-              <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-              <span>This order was cancelled.@if (o.cancellationReason) { Reason: {{ o.cancellationReason }} }</span>
-            </div>
-          } @else if (isReturned()) {
-            <div class="flex items-center gap-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-              <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/></svg>
-              This order has been returned.
-            </div>
-          } @else {
-            <ol>
-              @for (step of steps; track step.status; let i = $index; let last = $last) {
-                <li class="relative flex gap-4" [class.pb-8]="!last">
-                  <!-- node + connector column -->
-                  <div class="relative z-10 flex-shrink-0">
-                    <span class="tl-node" [class.tl-done]="reached(i)" [class.tl-current]="isCurrent(i)"
-                      [style.animation-delay.ms]="i * 90">
-                      @if (reached(i) && !isCurrent(i)) {
-                        <svg class="tl-check h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                      } @else {
-                        <span class="h-2.5 w-2.5 rounded-full bg-current"></span>
-                      }
-                      @if (isCurrent(i)) {
-                        <span class="tl-ping"></span>
-                      }
-                    </span>
-                    @if (!last) {
-                      <span class="tl-conn">
-                        <span class="tl-conn-fill" [class.filled]="segFilled(i)" [style.transition-delay.ms]="i * 120"></span>
-                      </span>
-                    }
-                  </div>
-                  <!-- content -->
-                  <div class="pb-1 pt-1">
-                    <p class="font-medium leading-tight transition-colors" [class.text-neutral-400]="!reached(i)" [class.dark:text-neutral-500]="!reached(i)">
-                      {{ step.label }}
-                    </p>
-                    @if (stepDate(step.status); as d) {
-                      <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ d | date: 'medium' }}</p>
-                    } @else if (isCurrent(i)) {
-                      <p class="mt-0.5 text-xs font-medium text-emerald-600">In progress…</p>
-                    }
-                  </div>
-                </li>
-              }
-            </ol>
-          }
+          <app-order-timeline [status]="currentStatus()" [dates]="stepDates()"
+            [placedAt]="o.createdAt" [cancellationReason]="o.cancellationReason" />
 
           @if (tracking(); as t) {
             @if (t.history.length > 0) {
@@ -301,47 +256,6 @@ const TIMELINE_STEPS: { status: OrderStatus; label: string }[] = [
       </section>
     }
   `,
-  styles: [`
-    @keyframes nodePop { 0% { transform: scale(.3); opacity: 0; } 60% { transform: scale(1.12); } 100% { transform: scale(1); opacity: 1; } }
-    @keyframes checkPop { 0% { transform: scale(0); } 70% { transform: scale(1.2); } 100% { transform: scale(1); } }
-    @keyframes tlPing { 0% { transform: scale(1); opacity: .6; } 100% { transform: scale(2.1); opacity: 0; } }
-
-    .tl-node {
-      position: relative; display: inline-flex; align-items: center; justify-content: center;
-      height: 2.25rem; width: 2.25rem; border-radius: 9999px;
-      border: 2px solid rgb(212 212 212); background: white; color: rgb(163 163 163);
-      transition: background-color .35s ease, border-color .35s ease, color .35s ease;
-      animation: nodePop .45s cubic-bezier(.22,1,.36,1) both;
-    }
-    :host-context(.dark) .tl-node { background: rgb(23 23 23); border-color: rgb(64 64 64); }
-    .tl-done { background: rgb(23 23 23); border-color: rgb(23 23 23); color: white; }
-    :host-context(.dark) .tl-done { background: white; border-color: white; color: black; }
-    .tl-current { background: rgb(16 185 129); border-color: rgb(16 185 129); color: white; }
-    :host-context(.dark) .tl-current { background: rgb(16 185 129); border-color: rgb(16 185 129); color: white; }
-    .tl-check { animation: checkPop .4s cubic-bezier(.22,1,.36,1) both; }
-    .tl-ping {
-      position: absolute; inset: -2px; border-radius: 9999px;
-      border: 2px solid rgb(16 185 129); animation: tlPing 1.6s ease-out infinite;
-    }
-
-    .tl-conn {
-      position: absolute; left: 50%; top: 2.25rem; bottom: -0.25rem; width: 2px;
-      transform: translateX(-50%); background: rgb(229 229 229); overflow: hidden;
-    }
-    :host-context(.dark) .tl-conn { background: rgb(64 64 64); }
-    .tl-conn-fill {
-      position: absolute; inset: 0 0 auto 0; width: 100%; height: 0;
-      background: rgb(23 23 23); transition: height .6s ease;
-    }
-    :host-context(.dark) .tl-conn-fill { background: white; }
-    .tl-conn-fill.filled { height: 100%; }
-
-    @media (prefers-reduced-motion: reduce) {
-      .tl-node, .tl-check { animation: none !important; }
-      .tl-ping { animation: none !important; opacity: 0; }
-      .tl-conn-fill { transition: none !important; }
-    }
-  `]
 })
 export class OrderDetailPage implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
@@ -352,8 +266,10 @@ export class OrderDetailPage implements OnInit, OnDestroy {
   protected readonly steps = TIMELINE_STEPS;
 
   /** Live timeline: re-check the order/tracking so admin updates appear without a refresh. */
-  private readonly POLL_MS = 60_000;
+  private readonly POLL_MS = 5_000;
   private poll?: ReturnType<typeof setInterval>;
+  /** A check still waiting for its answers; the next tick skips instead of piling up. */
+  private checking = 0;
 
   protected readonly loading   = signal(true);
   protected readonly apiOrder  = signal<ApiOrder | null>(null);
@@ -389,37 +305,13 @@ export class OrderDetailPage implements OnInit, OnDestroy {
   protected readonly isCancelled = computed(() => this.currentStatus() === 'CANCELLED');
   protected readonly isReturned  = computed(() => this.currentStatus() === 'RETURNED');
 
-  // ── animated timeline state ─────────────────────────────────────────────────
-  /** Flipped true shortly after mount so the connector fills animate in. */
-  protected readonly animate = signal(false);
-
-  /** Index of the current step within TIMELINE_STEPS (-1 if not on the path). */
-  protected readonly currentIndex = computed(() => {
-    const order = TIMELINE_STEPS.map((s) => s.status);
-    const c = this.currentStatus();
-    const norm = c === 'PENDING' ? 'PLACED' : c;
-    return order.indexOf(norm as OrderStatus);
-  });
-
-  /** Per-status timestamp pulled from the tracking history (+ createdAt for PLACED). */
+  /** When each status was reached, from the tracking history (latest wins). */
   protected readonly stepDates = computed<Record<string, string>>(() => {
     const map: Record<string, string> = {};
     const t = this.tracking();
     if (t) for (const h of t.history) { if (h.toStatus) map[h.toStatus] = h.createdAt; }
     return map;
   });
-
-  protected reached(i: number): boolean { return this.currentIndex() >= 0 && this.currentIndex() >= i; }
-  protected isCurrent(i: number): boolean { return i === this.currentIndex(); }
-  /** Connector below step i is filled once we've progressed past it (animated). */
-  protected segFilled(i: number): boolean { return this.animate() && this.currentIndex() > i; }
-
-  protected stepDate(status: string): string | null {
-    const d = this.stepDates()[status];
-    if (d) return d;
-    if (status === 'PLACED') return this.apiOrder()?.createdAt ?? null;
-    return null;
-  }
 
   protected readonly canCancel = computed(() => {
     const t = this.tracking();
@@ -441,13 +333,6 @@ export class OrderDetailPage implements OnInit, OnDestroy {
     if (!orderId || !userId) {
       this.loading.set(false);
       return;
-    }
-
-    // Kick off the connector-fill animation just after the first paint.
-    if (typeof window !== 'undefined') {
-      setTimeout(() => this.animate.set(true), 120);
-    } else {
-      this.animate.set(true);
     }
 
     this.api.getOrderById(userId, orderId)
@@ -480,17 +365,17 @@ export class OrderDetailPage implements OnInit, OnDestroy {
   private startPolling(userId: string, orderId: string): void {
     if (typeof window === 'undefined') return;
     this.poll = setInterval(() => {
-      if (document.visibilityState === 'hidden') return;
+      if (document.visibilityState === 'hidden' || this.checking > 0) return;
       // Nothing more will change once the order is in a terminal state.
-      const s = this.currentStatus();
-      if (s === 'DELIVERED' || s === 'CANCELLED' || s === 'RETURNED') {
+      if (FINAL_ORDER_STATUSES.includes(this.currentStatus())) {
         if (this.poll) { clearInterval(this.poll); this.poll = undefined; }
         return;
       }
+      this.checking = 2;
       this.api.getOrderById(userId, orderId).pipe(catchError(() => of(null)))
-        .subscribe((o) => { if (o) this.apiOrder.set(o); });
+        .subscribe((o) => { this.checking--; if (o) this.apiOrder.set(o); });
       this.api.trackOrder(userId, orderId).pipe(catchError(() => of(null)))
-        .subscribe((t) => { if (t) this.tracking.set(t); });
+        .subscribe((t) => { this.checking--; if (t) this.tracking.set(t); });
     }, this.POLL_MS);
   }
 

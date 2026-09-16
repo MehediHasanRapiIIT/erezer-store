@@ -44,6 +44,7 @@ public class BkashController {
     private static final String PROVIDER = "BKASH";
 
     private final BkashPaymentService bkash;
+    private final kn.org.deliverybackend.service.RateLimiterService rateLimiter;
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final MetaConversionsService metaConversions;
@@ -52,9 +53,24 @@ public class BkashController {
     private String configuredCallbackUrl;
 
     @PostMapping("/init")
-    public ResponseEntity<BkashPaymentResponse> init(@RequestBody InitRequest request) {
-        Order order = orderRepository.findById(UUID.fromString(request.orderId))
+    public ResponseEntity<BkashPaymentResponse> init(@jakarta.validation.Valid @RequestBody InitRequest request,
+                                                     jakarta.servlet.http.HttpServletRequest http) {
+        rateLimiter.enforce("bkash:" + kn.org.deliverybackend.util.ClientIp.of(http), 20, java.time.Duration.ofMinutes(10));
+        UUID orderId;
+        try {
+            orderId = UUID.fromString(request.orderId.trim());
+        } catch (IllegalArgumentException ex) {
+            throw new kn.org.deliverybackend.exception.InvalidRequestException("That order id isn't valid.");
+        }
+        Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + request.orderId));
+        // Only a bKash order that is still waiting for its money can start a payment.
+        if (!"BKASH".equalsIgnoreCase(order.getPaymentMethod())) {
+            throw new kn.org.deliverybackend.exception.InvalidRequestException("This order isn't paid with bKash.");
+        }
+        if (!"PLACED".equalsIgnoreCase(order.getOrderStatus())) {
+            throw new kn.org.deliverybackend.exception.InvalidRequestException("This order can no longer be paid.");
+        }
 
         BkashCreatePaymentRequest bkashRequest = BkashCreatePaymentRequest.builder()
                 .orderId(order.getId().toString())
@@ -89,7 +105,9 @@ public class BkashController {
      * existing "Completed" state.
      */
     @PostMapping("/execute")
-    public ResponseEntity<BkashPaymentResponse> execute(@RequestBody ExecuteRequest request) {
+    public ResponseEntity<BkashPaymentResponse> execute(@jakarta.validation.Valid @RequestBody ExecuteRequest request,
+                                                        jakarta.servlet.http.HttpServletRequest http) {
+        rateLimiter.enforce("bkash:" + kn.org.deliverybackend.util.ClientIp.of(http), 20, java.time.Duration.ofMinutes(10));
         BkashPaymentResponse response = bkash.executePayment(request.paymentId);
         paymentRepository.findByProviderAndProviderPaymentId(PROVIDER, request.paymentId)
                 .ifPresent(payment -> {
@@ -120,6 +138,7 @@ public class BkashController {
     @AllArgsConstructor
     public static class InitRequest {
         @NotBlank
+        @jakarta.validation.constraints.Size(max = 64)
         private String orderId;
     }
 
@@ -128,6 +147,7 @@ public class BkashController {
     @AllArgsConstructor
     public static class ExecuteRequest {
         @NotBlank
+        @jakarta.validation.constraints.Size(max = 128)
         private String paymentId;
     }
 }

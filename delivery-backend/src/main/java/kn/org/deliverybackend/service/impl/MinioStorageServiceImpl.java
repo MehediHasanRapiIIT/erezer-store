@@ -1,7 +1,9 @@
 package kn.org.deliverybackend.service.impl;
 
 import io.minio.*;
+import kn.org.deliverybackend.exception.InvalidRequestException;
 import kn.org.deliverybackend.service.FileStorageService;
+import kn.org.deliverybackend.util.ImageUploads;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -44,13 +46,24 @@ public class MinioStorageServiceImpl implements FileStorageService {
 
     @Override
     public String uploadFile(MultipartFile file, String bucket) {
+        if (file == null || file.isEmpty()) {
+            throw new InvalidRequestException("No file was uploaded.");
+        }
+        ImageUploads.Kind kind;
+        try (InputStream is = file.getInputStream()) {
+            kind = ImageUploads.check(file.getSize(), is.readNBytes(16));
+        } catch (java.io.IOException e) {
+            throw new InvalidRequestException("The file couldn't be read.");
+        }
+
         try {
             boolean found = minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucket).build());
             if (!found) {
                 minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucket).build());
             }
 
-            String fileName = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
+            // Our own name and the type found in the file, never the sender's.
+            String fileName = UUID.randomUUID() + "." + kind.extension();
 
             try (InputStream is = file.getInputStream()) {
                 minioClient.putObject(
@@ -58,7 +71,7 @@ public class MinioStorageServiceImpl implements FileStorageService {
                                 .bucket(bucket)
                                 .object(fileName)
                                 .stream(is, file.getSize(), -1)
-                                .contentType(file.getContentType())
+                                .contentType(kind.contentType())
                                 .build()
                 );
             }

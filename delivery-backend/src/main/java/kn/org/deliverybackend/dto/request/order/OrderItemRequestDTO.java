@@ -12,6 +12,8 @@ public class OrderItemRequestDTO {
 
     @NotNull
     @Min(1)
+
+    @jakarta.validation.constraints.Max(value = 100, message = "Up to 100 of one item per order")
     private Integer quantity;
 
     private Long variantId;
@@ -23,5 +25,6 @@ public class OrderItemRequestDTO {
      * applies the product's flat surcharge and skips variant/stock checks.
      * The surcharge is never trusted from the client.
      */
+    @jakarta.validation.constraints.Size(max = 2000)
     private String customMeasurements;
 }

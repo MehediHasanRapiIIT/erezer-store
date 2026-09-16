@@ -15,7 +15,10 @@ import kn.org.deliverybackend.integration.keycloak.KeycloakAdminClient;
 import kn.org.deliverybackend.reporting.BusinessCalendar;
 import kn.org.deliverybackend.repository.PermissionTemplateRepository;
 import kn.org.deliverybackend.repository.StaffMemberRepository;
+import kn.org.deliverybackend.util.SearchText;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -67,11 +70,13 @@ public class StaffManagementService {
 
     // ── staff ───────────────────────────────────────────────────────────────
 
+    /** One page of the staff list; {@code q} searches the full name, username and email. */
     @Transactional(readOnly = true)
-    public List<StaffDTO> list() {
+    public Page<StaffDTO> list(String q, int page, int size) {
         StaffView me = actor();
-        return staffRepository.findAllByOrderByActiveDescRoleAscFullNameAsc().stream()
-                .map(m -> toDTO(m, me)).toList();
+        return staffRepository.findForAdmin(SearchText.likePattern(q),
+                        PageRequest.of(Math.max(page, 0), SearchText.pageSize(size)))
+                .map(m -> toDTO(m, me));
     }
 
     @Transactional

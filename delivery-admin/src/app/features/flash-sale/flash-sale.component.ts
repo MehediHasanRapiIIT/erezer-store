@@ -1,6 +1,7 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { EMPTY, catchError, of } from 'rxjs';
+import { EMPTY, Subject, catchError, debounceTime, distinctUntilChanged, map, of } from 'rxjs';
+import { PagerComponent } from '../../shared/pager/pager.component';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import { ProductMultiPickerComponent } from '../../shared/product-picker/product-multi-picker.component';
 import {
@@ -45,23 +46,32 @@ const EMPTY_FORM: FlashSaleForm = {
 @Component({
   selector: 'app-flash-sale',
   standalone: true,
-  imports: [FormsModule, SidebarComponent, ProductMultiPickerComponent],
+  imports: [FormsModule, SidebarComponent, ProductMultiPickerComponent, PagerComponent],
   template: `
     <div class="flex h-screen bg-gray-50 overflow-hidden">
       <app-sidebar />
 
       <div class="flex-1 flex flex-col overflow-hidden">
-        <header class="bg-white border-b border-gray-200 px-6 h-14 flex items-center justify-between flex-shrink-0">
+        <header class="bg-white border-b border-gray-200 px-6 h-14 flex items-center justify-between gap-4 flex-shrink-0">
           <div class="flex items-center gap-3">
             <h1 class="text-lg font-bold text-gray-900">Flash Sales</h1>
-            <span class="text-xs text-gray-400">{{ sales().length }} total</span>
+            <span class="text-xs text-gray-400">{{ total() }} total</span>
           </div>
-          @if (perms.can('flash_sales.create')) {
-            <button (click)="startCreate()"
-              class="px-3 py-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg">
-              + New flash sale
-            </button>
-          }
+          <div class="flex items-center gap-2 min-w-0">
+            <input
+              type="search"
+              [ngModel]="search()"
+              (ngModelChange)="onSearch($event)"
+              placeholder="Search by name, label or coupon…"
+              aria-label="Search flash sales"
+              class="w-56 md:w-72 min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-300 placeholder-gray-400" />
+            @if (perms.can('flash_sales.create')) {
+              <button (click)="startCreate()"
+                class="px-3 py-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg whitespace-nowrap">
+                + New flash sale
+              </button>
+            }
+          </div>
         </header>
 
         <main class="flex-1 overflow-y-auto p-6">
@@ -142,11 +152,16 @@ const EMPTY_FORM: FlashSaleForm = {
                     </tr>
                   } @empty {
                     @if (!loading()) {
-                      <tr><td colspan="8" class="px-4 py-6 text-center text-gray-400">No flash sales yet.</td></tr>
+                      <tr><td colspan="8" class="px-4 py-6 text-center text-gray-400">{{ searching() ? 'No flash sales match your search.' : 'No flash sales yet.' }}</td></tr>
                     }
                   }
                 </tbody>
               </table>
+              @if (total() > 0) {
+                <div class="border-t border-gray-100">
+                  <app-pager [page]="page()" [size]="pageSize" [total]="total()" [disabled]="loading()" (pageChange)="goToPage($event)" />
+                </div>
+              }
             </section>
 
             <!-- Form -->
@@ -237,7 +252,7 @@ const EMPTY_FORM: FlashSaleForm = {
     </div>
   `,
 })
-export class FlashSaleComponent implements OnInit {
+export class FlashSaleComponent implements OnInit, OnDestroy {
   private readonly api = inject(FlashSaleService);
   protected readonly perms = inject(PermissionService);
   private readonly confirmer = inject(ConfirmService);
@@ -252,16 +267,57 @@ export class FlashSaleComponent implements OnInit {
 
   protected form: FlashSaleForm = { ...EMPTY_FORM, productIds: [] };
 
+  protected readonly pageSize = 20;
+  /** Zero-based page on screen, and the number of flash sales across all pages. */
+  readonly page = signal(0);
+  readonly total = signal(0);
+  /** Typed search text, sent to the server after a short pause. */
+  readonly search = signal('');
+  protected readonly searching = computed(() => this.search().trim().length > 0);
+
+  private readonly searchSubject = new Subject<string>();
+  /** Numbers each request, so an answer that arrives after a newer one is ignored. */
+  private latestRequest = 0;
+
   ngOnInit(): void {
-    this.reload();
+    this.loadPage(0);
+    // Typing searches all flash sales after a short pause, from the first page.
+    this.searchSubject.pipe(map((q) => q.trim()), debounceTime(300), distinctUntilChanged())
+      .subscribe(() => this.loadPage(0));
   }
 
-  reload(): void {
+  ngOnDestroy(): void {
+    this.searchSubject.complete();
+  }
+
+  protected onSearch(q: string): void {
+    this.search.set(q);
+    this.searchSubject.next(q);
+  }
+
+  protected goToPage(page: number): void {
+    this.loadPage(page);
+  }
+
+  /** One page from the server, for the current search. */
+  private loadPage(page: number): void {
+    const request = ++this.latestRequest;
     this.loading.set(true);
-    this.api.list().pipe(catchError(() => of([] as FlashSaleResponse[]))).subscribe((list) => {
-      this.sales.set(list);
-      this.loading.set(false);
-    });
+    this.api.list(page, this.pageSize, this.search())
+      .pipe(catchError(() => of(null)))
+      .subscribe((res) => {
+        if (request !== this.latestRequest) return;
+        this.loading.set(false);
+        if (!res) return;
+        // The last row of this page went away (e.g. it was deleted): show the page before it.
+        if (res.content.length === 0 && page > 0) {
+          this.loadPage(Math.min(page - 1, Math.max(res.totalPages - 1, 0)));
+          return;
+        }
+        this.sales.set(res.content);
+        this.page.set(res.number);
+        this.total.set(res.totalElements);
+      });
   }
 
   protected startCreate(): void {
@@ -339,11 +395,7 @@ export class FlashSaleComponent implements OnInit {
     })).subscribe((saved) => {
       this.saving.set(false);
       if (!saved) return;
-      if (editId) {
-        this.sales.update((list) => list.map((s) => s.id === editId ? saved : s));
-      } else {
-        this.sales.update((list) => [...list, saved]);
-      }
+      this.loadPage(this.page());
       this.notices.success(editId ? 'Flash sale saved' : 'Flash sale added', saved.name);
       this.cancelEdit();
     });
@@ -360,7 +412,7 @@ export class FlashSaleComponent implements OnInit {
     this.api.delete(s.id)
       .pipe(catchError((err) => { this.errorMessage.set(parseApiError(err)); return EMPTY; }))
       .subscribe(() => {
-        this.sales.update((list) => list.filter((x) => x.id !== s.id));
+        this.loadPage(this.page());
         this.notices.success('Flash sale deleted', s.name);
       });
   }

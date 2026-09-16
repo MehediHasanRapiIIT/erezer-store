@@ -2,6 +2,7 @@ package kn.org.deliverybackend.service;
 
 import kn.org.deliverybackend.dto.flashsale.FlashSaleRequestDTO;
 import kn.org.deliverybackend.dto.flashsale.FlashSaleResponseDTO;
+import org.springframework.data.domain.Page;
 
 import java.util.List;
 import java.util.UUID;
@@ -9,7 +10,8 @@ import java.util.UUID;
 public interface FlashSaleService {
 
     // ── Admin CRUD ──────────────────────────────────────────────────────────────
-    List<FlashSaleResponseDTO> list();
+    /** One page of flash sales, latest-ending first; {@code q} searches name, label and coupon. */
+    Page<FlashSaleResponseDTO> list(String q, int page, int size);
 
     FlashSaleResponseDTO get(UUID id);
 

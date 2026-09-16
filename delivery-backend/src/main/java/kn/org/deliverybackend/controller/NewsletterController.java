@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/newsletter")
@@ -26,10 +25,7 @@ public class NewsletterController {
     public ResponseEntity<MessageResponseDTO> subscribe(
             @Valid @RequestBody NewsletterSubscribeRequestDTO request,
             HttpServletRequest http) {
-        if (!rateLimiter.tryAcquireAuth("newsletter:" + clientIp(http))) {
-            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
-                    "Too many attempts from this address. Please try again later.");
-        }
+        rateLimiter.enforce("newsletter:" + clientIp(http), 5, java.time.Duration.ofMinutes(10));
         newsletterService.subscribe(request);
         // Always return a generic success — never leak whether the email already existed.
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -47,10 +43,6 @@ public class NewsletterController {
     }
 
     private String clientIp(HttpServletRequest http) {
-        String fwd = http.getHeader("X-Forwarded-For");
-        if (fwd != null && !fwd.isBlank()) {
-            return fwd.split(",")[0].trim();
-        }
-        return http.getRemoteAddr();
+        return kn.org.deliverybackend.util.ClientIp.of(http);
     }
 }

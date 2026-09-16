@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { ProductResponse } from '../models/api.models';
+import { PageResponse, ProductResponse } from '../models/api.models';
 
 export type FlashSaleDiscountType = 'PERCENT' | 'FLAT';
 
@@ -47,8 +47,11 @@ export class FlashSaleService {
   private http = inject(HttpClient);
   private base = environment.apiBaseUrl;
 
-  list(): Observable<FlashSaleResponse[]> {
-    return this.http.get<FlashSaleResponse[]>(`${this.base}/admin/flash-sales`);
+  /** One page from the server; `q` searches on the server. */
+  list(page = 0, size = 20, q?: string): Observable<PageResponse<FlashSaleResponse>> {
+    const params: Record<string, string> = { page: String(page), size: String(size) };
+    if (q?.trim()) params['q'] = q.trim();
+    return this.http.get<PageResponse<FlashSaleResponse>>(`${this.base}/admin/flash-sales`, { params });
   }
 
   create(payload: FlashSaleRequest): Observable<FlashSaleResponse> {

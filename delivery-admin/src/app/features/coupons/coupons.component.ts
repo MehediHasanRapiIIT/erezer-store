@@ -1,7 +1,8 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { EMPTY, catchError, of } from 'rxjs';
+import { EMPTY, Subject, catchError, debounceTime, distinctUntilChanged, map, of } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
+import { PagerComponent } from '../../shared/pager/pager.component';
 import {
   CouponDiscountType,
   CouponRequest,
@@ -43,7 +44,7 @@ const EMPTY_FORM: CouponForm = {
 @Component({
   selector: 'app-coupons',
   standalone: true,
-  imports: [FormsModule, SidebarComponent],
+  imports: [FormsModule, SidebarComponent, PagerComponent],
   template: `
     <div class="flex h-screen bg-gray-50 overflow-hidden">
       <app-sidebar />
@@ -52,14 +53,23 @@ const EMPTY_FORM: CouponForm = {
         <header class="bg-white border-b border-gray-200 px-6 h-14 flex items-center justify-between flex-shrink-0">
           <div class="flex items-center gap-3">
             <h1 class="text-lg font-bold text-gray-900">Coupons</h1>
-            <span class="text-xs text-gray-400">{{ coupons().length }} total</span>
+            <span class="text-xs text-gray-400">{{ total() }} total</span>
           </div>
-          @if (perms.can('coupons.create')) {
-            <button (click)="startCreate()"
-              class="px-3 py-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg">
-              + New coupon
-            </button>
-          }
+          <div class="flex items-center gap-2 min-w-0">
+            <input
+              type="search"
+              [ngModel]="search()"
+              (ngModelChange)="onSearch($event)"
+              placeholder="Search by code or description…"
+              aria-label="Search coupons"
+              class="w-48 md:w-64 min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-300 placeholder-gray-400" />
+            @if (perms.can('coupons.create')) {
+              <button (click)="startCreate()"
+                class="px-3 py-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg whitespace-nowrap">
+                + New coupon
+              </button>
+            }
+          </div>
         </header>
 
         <main class="flex-1 overflow-y-auto p-6">
@@ -183,11 +193,18 @@ const EMPTY_FORM: CouponForm = {
                     </tr>
                   } @empty {
                     @if (!loading()) {
-                      <tr><td colspan="8" class="px-4 py-6 text-center text-gray-400">No coupons yet.</td></tr>
+                      <tr><td colspan="8" class="px-4 py-6 text-center text-gray-400">
+                        {{ searching() ? 'No coupons match your search.' : 'No coupons yet.' }}
+                      </td></tr>
                     }
                   }
                 </tbody>
               </table>
+              @if (total() > 0) {
+                <div class="border-t border-gray-100">
+                  <app-pager [page]="page()" [size]="pageSize" [total]="total()" [disabled]="loading()" (pageChange)="loadPage($event)" />
+                </div>
+              }
             </section>
 
             <!-- Form -->
@@ -271,13 +288,25 @@ const EMPTY_FORM: CouponForm = {
     </div>
   `,
 })
-export class CouponsComponent implements OnInit {
+export class CouponsComponent implements OnInit, OnDestroy {
   private readonly api = inject(CouponService);
   protected readonly perms = inject(PermissionService);
   private readonly confirmer = inject(ConfirmService);
   private readonly notices = inject(NoticeService);
 
+  protected readonly pageSize = 20;
+
+  /** The coupons on the page on screen; search and paging are done by the server. */
   readonly coupons    = signal<CouponResponse[]>([]);
+  /** Zero-based page on screen, and the number of coupons across all pages. */
+  readonly page       = signal(0);
+  readonly total      = signal(0);
+  /** Typed search text, sent to the server after a short pause. */
+  readonly search     = signal('');
+  protected readonly searching = computed(() => this.search().trim().length > 0);
+  private readonly searchSubject = new Subject<string>();
+  /** Numbers each request, so an answer that arrives after a newer one is ignored. */
+  private latestRequest = 0;
   readonly loading    = signal(false);
   readonly saving     = signal(false);
   readonly creating   = signal(false);
@@ -343,6 +372,7 @@ export class CouponsComponent implements OnInit {
         this.coupons.update((list) => list.map((x) => (x.id === saved.id ? saved : x)));
         this.togglingId.set(null);
         this.notices.success(saved.isActive ? 'Coupon switched on' : 'Coupon switched off', saved.code);
+        this.loadPage(this.page());
       });
   }
 
@@ -363,18 +393,43 @@ export class CouponsComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.reload();
+    this.loadPage(0);
     this.api.getSwitch()
       .pipe(catchError(() => of(null)))
       .subscribe((s) => this.promoSwitch.set(s));
+    // Typing searches all coupons after a short pause, from the first page.
+    this.searchSubject.pipe(map((q) => q.trim()), debounceTime(300), distinctUntilChanged())
+      .subscribe(() => this.loadPage(0));
   }
 
-  reload(): void {
+  ngOnDestroy(): void {
+    this.searchSubject.complete();
+  }
+
+  protected onSearch(q: string): void {
+    this.search.set(q);
+    this.searchSubject.next(q);
+  }
+
+  /** One page from the server, for the current search. */
+  protected loadPage(page: number): void {
+    const request = ++this.latestRequest;
     this.loading.set(true);
-    this.api.list().pipe(catchError(() => of([] as CouponResponse[]))).subscribe((list) => {
-      this.coupons.set(list);
-      this.loading.set(false);
-    });
+    this.api.list(page, this.pageSize, this.search())
+      .pipe(catchError(() => of(null)))
+      .subscribe((res) => {
+        if (request !== this.latestRequest) return;
+        this.loading.set(false);
+        if (!res) return;
+        // The last row of this page went away (e.g. it was deleted): show the page before it.
+        if (res.content.length === 0 && page > 0) {
+          this.loadPage(Math.min(page - 1, Math.max(res.totalPages - 1, 0)));
+          return;
+        }
+        this.coupons.set(res.content);
+        this.page.set(res.number);
+        this.total.set(res.totalElements);
+      });
   }
 
   protected startCreate(): void {
@@ -434,13 +489,10 @@ export class CouponsComponent implements OnInit {
     })).subscribe((saved) => {
       this.saving.set(false);
       if (!saved) return;
-      if (editId) {
-        this.coupons.update((list) => list.map((c) => c.id === editId ? saved : c));
-      } else {
-        this.coupons.update((list) => [...list, saved]);
-      }
       this.notices.success(editId ? 'Coupon saved' : 'Coupon added', saved.code);
       this.cancelEdit();
+      // An edit stays on this page; a new coupon is the newest, so it shows on the first page.
+      this.loadPage(editId ? this.page() : 0);
     });
   }
 
@@ -455,8 +507,9 @@ export class CouponsComponent implements OnInit {
     this.api.delete(c.id)
       .pipe(catchError((err) => { this.errorMessage.set(parseApiError(err)); return EMPTY; }))
       .subscribe(() => {
-        this.coupons.update((list) => list.filter((x) => x.id !== c.id));
+        if (this.editingId() === c.id) this.cancelEdit();
         this.notices.success('Coupon deleted', c.code);
+        this.loadPage(this.page());
       });
   }
 

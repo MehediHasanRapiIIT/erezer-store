@@ -102,6 +102,9 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
             UUID userId = UUID.fromString(claims.getSubject());
             Users user = usersRepository.findById(userId)
                     .orElseThrow(() -> new BadCredentialsException("User no longer exists."));
+            if (Boolean.FALSE.equals(user.getIsActive())) {
+                throw new BadCredentialsException("This account is disabled.");
+            }
             return issueTokens(user);
         } catch (BadCredentialsException ex) {
             throw ex;

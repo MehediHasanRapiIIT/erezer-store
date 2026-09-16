@@ -13,11 +13,11 @@ import kn.org.deliverybackend.dto.staff.StaffPermissionsRequest;
 import kn.org.deliverybackend.dto.staff.StaffRoleRequest;
 import kn.org.deliverybackend.dto.staff.StaffUpdateRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -34,8 +34,10 @@ public class AdminStaffController {
 
     @GetMapping
     @RequiresPermission(Perm.STAFF_VIEW)
-    public List<StaffDTO> list() {
-        return staffService.list();
+    public Page<StaffDTO> list(@RequestParam(required = false) String q,
+                               @RequestParam(defaultValue = "0") int page,
+                               @RequestParam(defaultValue = "20") int size) {
+        return staffService.list(q, page, size);
     }
 
     @PostMapping

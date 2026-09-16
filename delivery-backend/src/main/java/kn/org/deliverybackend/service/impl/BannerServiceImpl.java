@@ -8,13 +8,20 @@ import kn.org.deliverybackend.entity.PromotionalBanner;
 import kn.org.deliverybackend.repository.PromotionalBannerRepository;
 import kn.org.deliverybackend.service.BannerService;
 import kn.org.deliverybackend.service.BannerStorageService;
+import kn.org.deliverybackend.dto.BannerSlotSummaryDTO;
+import kn.org.deliverybackend.util.SearchText;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -67,6 +74,32 @@ public class BannerServiceImpl implements BannerService {
         return bannerRepository.findAll().stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public Page<PromotionalBannerDTO> bannerPage(String q, BannerSlot slot, int page, int size) {
+        return bannerRepository.findForAdmin(slot, slot == BannerSlot.HERO, SearchText.likePattern(q),
+                        PageRequest.of(Math.max(page, 0), SearchText.pageSize(size)))
+                .map(this::toDTO);
+    }
+
+    @Override
+    public List<BannerSlotSummaryDTO> slotSummary() {
+        Map<BannerSlot, Long> counts = new EnumMap<>(BannerSlot.class);
+        for (Object[] row : bannerRepository.countBySlot()) {
+            // A null slot is legacy data, shown in HERO.
+            BannerSlot slot = row[0] != null ? (BannerSlot) row[0] : BannerSlot.HERO;
+            counts.merge(slot, ((Number) row[1]).longValue(), Long::sum);
+        }
+        List<BannerSlotSummaryDTO> summary = new ArrayList<>();
+        for (BannerSlot slot : BannerSlot.values()) {
+            long count = counts.getOrDefault(slot, 0L);
+            List<PromotionalBannerDTO> first = count == 0 ? List.of()
+                    : bannerRepository.findFirstInSlot(slot, slot == BannerSlot.HERO, null, PageRequest.of(0, 2))
+                            .stream().map(this::toDTO).toList();
+            summary.add(new BannerSlotSummaryDTO(slot, count, first));
+        }
+        return summary;
     }
 
     @Override

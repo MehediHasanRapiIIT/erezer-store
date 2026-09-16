@@ -217,21 +217,22 @@ class AdminPermissionSecurityTest {
 
     @Test
     void customerLifetimeValueNeedsMoneyTotals() throws Exception {
-        when(reportService.customerLtv(50, 0, null)).thenAnswer(inv -> List.of(CustomerLifetimeValueDTO.builder()
+        when(reportService.customers(null, 0, 25)).thenAnswer(inv -> new org.springframework.data.domain.PageImpl<>(
+                new java.util.ArrayList<>(List.of(CustomerLifetimeValueDTO.builder()
                 .userId(UUID.randomUUID()).customerName("Rahim").orderCount(3)
-                .lifetimeRevenue(new BigDecimal("5400.00")).averageOrderValue(new BigDecimal("1800.00")).build()));
+                .lifetimeRevenue(new BigDecimal("5400.00")).averageOrderValue(new BigDecimal("1800.00")).build()))));
 
         moderator("customers.view");
         as("mod", get("/admin/customers"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].orderCount").value(3))
-                .andExpect(jsonPath("$[0].lifetimeRevenue").doesNotExist())
-                .andExpect(jsonPath("$[0].averageOrderValue").doesNotExist());
+                .andExpect(jsonPath("$.content[0].orderCount").value(3))
+                .andExpect(jsonPath("$.content[0].lifetimeRevenue").doesNotExist())
+                .andExpect(jsonPath("$.content[0].averageOrderValue").doesNotExist());
 
         staff.get("kc-mod").getPermissions().add("finance.revenue");
         directory.evict("kc-mod");
         as("mod", get("/admin/customers"))
-                .andExpect(jsonPath("$[0].lifetimeRevenue").value(5400.00));
+                .andExpect(jsonPath("$.content[0].lifetimeRevenue").value(5400.00));
     }
 
     // ── settings sections ───────────────────────────────────────────────────

@@ -15,14 +15,16 @@ import kn.org.deliverybackend.repository.CouponRedemptionRepository;
 import kn.org.deliverybackend.repository.CouponRepository;
 import kn.org.deliverybackend.repository.StoreSettingsRepository;
 import kn.org.deliverybackend.service.CouponService;
+import kn.org.deliverybackend.util.SearchText;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -42,10 +44,10 @@ public class CouponServiceImpl implements CouponService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<CouponResponseDTO> list() {
-        return couponRepository.findAll().stream()
-                .filter(c -> !Boolean.TRUE.equals(c.getDeleted()))
-                .map(this::toDTO).toList();
+    public Page<CouponResponseDTO> list(String q, int page, int size) {
+        return couponRepository.findForAdmin(SearchText.likePattern(q),
+                        PageRequest.of(Math.max(page, 0), SearchText.pageSize(size)))
+                .map(this::toDTO);
     }
 
     @Override

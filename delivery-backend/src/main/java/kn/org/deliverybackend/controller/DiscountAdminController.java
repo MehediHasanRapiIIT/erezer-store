@@ -10,11 +10,11 @@ import kn.org.deliverybackend.dto.discount.DiscountRequestDTO;
 import kn.org.deliverybackend.dto.discount.DiscountResponseDTO;
 import kn.org.deliverybackend.service.DiscountService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -42,8 +42,11 @@ public class DiscountAdminController {
 
     @RequiresPermission(Perm.DISCOUNTS_VIEW)
     @GetMapping
-    public ResponseEntity<List<DiscountResponseDTO>> list() {
-        return ResponseEntity.ok(discountService.list());
+    public ResponseEntity<Page<DiscountResponseDTO>> list(
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(discountService.list(q, page, size));
     }
 
     @RequiresPermission(Perm.DISCOUNTS_VIEW)

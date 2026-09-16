@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { ProductResponse } from '../models/api.models';
+import { PageResponse, ProductResponse } from '../models/api.models';
 
 /** Admin create/update payload for a bundle offer. */
 export interface BundleRequest {
@@ -48,8 +48,11 @@ export class BundleService {
   private http = inject(HttpClient);
   private base = environment.apiBaseUrl;
 
-  list(): Observable<BundleResponse[]> {
-    return this.http.get<BundleResponse[]>(`${this.base}/admin/bundles`);
+  /** One page from the server; `q` searches on the server. */
+  list(page = 0, size = 20, q?: string): Observable<PageResponse<BundleResponse>> {
+    const params: Record<string, string> = { page: String(page), size: String(size) };
+    if (q?.trim()) params['q'] = q.trim();
+    return this.http.get<PageResponse<BundleResponse>>(`${this.base}/admin/bundles`, { params });
   }
 
   create(payload: BundleRequest): Observable<BundleResponse> {
