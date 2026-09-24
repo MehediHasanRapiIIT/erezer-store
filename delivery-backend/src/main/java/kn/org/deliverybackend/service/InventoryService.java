@@ -16,6 +16,17 @@ public interface InventoryService {
 
     StockResponseDTO updateStock(Long productId, AdminStockUpdateRequestDTO request);
 
+    /**
+     * One stock change for many products at once: the ones chosen on the page,
+     * a whole category, or every product. Removing more than a product has
+     * leaves it at 0 rather than failing the whole run.
+     */
+    kn.org.deliverybackend.dto.response.product.BulkStockResultDTO adjustStock(
+            kn.org.deliverybackend.dto.request.product.BulkStockAdjustRequestDTO request);
+
+    /** Sets an exact stock figure for each product listed. */
+    List<StockResponseDTO> setStockForEach(kn.org.deliverybackend.dto.request.product.BulkStockUpdateRequestDTO request);
+
     Product lockAndGetProduct(Long productId);
 
     int getAvailableStock(Long productId);

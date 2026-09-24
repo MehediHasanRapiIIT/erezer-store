@@ -1,6 +1,6 @@
 import { isPlatformBrowser, NgTemplateOutlet } from '@angular/common';
 import { PixelService } from '../core/pixel.service';
-import { Component, computed, inject, OnDestroy, OnInit, PLATFORM_ID, signal } from '@angular/core';
+import { Component, computed, effect, inject, OnDestroy, OnInit, PLATFORM_ID, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { catchError, of } from 'rxjs';
@@ -23,16 +23,24 @@ import { CountUpDirective } from '../core/count-up.directive';
     <!-- ── Cinematic hero ──────────────────────────────────────────────────── -->
     <section class="relative hero-full-bleed full-bleed mb-16 h-[88svh] min-h-[34rem] overflow-hidden bg-black">
       <!-- Slides: crossfade + Ken Burns, with a parallax layer -->
+      <!-- The first slide downloads on its own so it appears as early as possible;
+           the rest follow once it is on screen, instead of racing it for bandwidth. -->
       @for (banner of displayBanners(); track banner.id; let i = $index) {
-        <div class="absolute inset-0 transition-opacity duration-[1200ms] ease-out"
-          [class.opacity-100]="activeBanner() === i"
-          [class.opacity-0]="activeBanner() !== i">
-          <div class="absolute -inset-y-[8%] inset-x-0 will-change-transform"
-            [style.transform]="'translate3d(0,' + parallax() + 'px,0)'">
-            <img [src]="banner.image" [alt]="banner.title"
-              class="hero-kenburns h-full w-full object-cover" />
+        @if (i === 0 || laterSlidesReady()) {
+          <div class="absolute inset-0 transition-opacity duration-[1200ms] ease-out"
+            [class.opacity-100]="activeBanner() === i"
+            [class.opacity-0]="activeBanner() !== i">
+            <div class="absolute -inset-y-[8%] inset-x-0 will-change-transform"
+              [style.transform]="'translate3d(0,' + parallax() + 'px,0)'">
+              <img [src]="banner.image" [alt]="banner.title"
+                [attr.fetchpriority]="i === 0 ? 'high' : null"
+                [attr.loading]="i === 0 ? 'eager' : 'lazy'" decoding="async"
+                (load)="i === 0 ? laterSlidesReady.set(true) : null"
+                (error)="i === 0 ? laterSlidesReady.set(true) : null"
+                class="hero-kenburns h-full w-full object-cover" />
+            </div>
           </div>
-        </div>
+        }
       }
 
       <!-- Scrims for legible overlaid text -->
@@ -422,14 +430,15 @@ import { CountUpDirective } from '../core/count-up.directive';
           <!-- Mosaic: the first image takes a 2x2 block so the grid has a focal
                point instead of six equal squares. -->
           <div class="grid grid-cols-3 grid-rows-3 lg:h-[38rem]">
-            @for (img of galleryImages(); track $index) {
+            @for (img of gallerySlots(); track $index) {
               <a routerLink="/shop"
                 class="group relative block aspect-square overflow-hidden lg:aspect-auto"
                 [class.col-span-2]="$index === 0"
                 [class.row-span-2]="$index === 0"
                 [appReveal]="$index">
                 <img [src]="img" alt="Erezer lookbook"
-                  class="h-full w-full object-cover transition-transform duration-[900ms] ease-out group-hover:scale-[1.07]" />
+                  class="h-full w-full object-cover transition-all duration-[900ms] ease-out group-hover:scale-[1.07]"
+                  [class.opacity-0]="isSwapping($index)" [class.scale-105]="isSwapping($index)" />
                 <div class="pointer-events-none absolute inset-0 bg-black/0 transition-colors duration-300 group-hover:bg-black/25"></div>
                 <span class="pointer-events-none absolute inset-x-0 bottom-0 flex translate-y-2 items-center gap-1.5 p-4 text-xs font-semibold uppercase tracking-[0.18em] text-white opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
                   Shop
@@ -517,6 +526,12 @@ export class HomePage implements OnInit, OnDestroy {
   private sliderTimer: ReturnType<typeof setInterval> | null = null;
   private scrollTicking = false;
   protected toStoreProduct = this.store.toStoreProduct.bind(this.store);
+
+  /**
+   * True once the first hero photo is on screen (or a moment has passed), which
+   * is when the other slides may start downloading.
+   */
+  protected readonly laterSlidesReady = signal(false);
 
   /** Current banner object — drives the hero text that re-animates on change. */
   protected readonly activeBannerObj = computed(() => {
@@ -640,6 +655,114 @@ export class HomePage implements OnInit, OnDestroy {
     const imgs = this.brandStory().images;
     return imgs && imgs.length > 0 ? imgs : this.lookbook;
   });
+
+  /**
+   * The wall is filled once the admin's photos arrive (they load after the page),
+   * and again whenever they change: a fresh shuffle, then tiles swap on a timer.
+   */
+  private readonly galleryWatcher = effect(() => {
+    const images = this.galleryImages();
+    this.stopGallerySwap();
+    if (images.length === 0) return;
+    this.fillGallery();
+    this.startGallerySwap();
+  });
+
+  /** Tiles on the photo wall: one big block and five small ones. */
+  private readonly GALLERY_TILES = 6;
+  /** How often one tile changes picture. */
+  private readonly GALLERY_SWAP_MS = 3000;
+  /** The pictures on the wall right now, one per tile. */
+  protected readonly gallerySlots = signal<string[]>([]);
+  /** Tiles fading out while their pictures change. */
+  protected readonly swappingSlots = signal<number[]>([]);
+
+  protected isSwapping(index: number): boolean {
+    return this.swappingSlots().includes(index);
+  }
+  /** Pictures waiting their turn, shuffled. */
+  private galleryQueue: string[] = [];
+  private gallerySlot = 0;
+  private gallerySwap?: ReturnType<typeof setInterval>;
+  private galleryFade?: ReturnType<typeof setTimeout>;
+
+  /** A copy in random order, so the wall looks different on each visit. */
+  private shuffled(images: string[]): string[] {
+    const out = [...images];
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  }
+
+  /** Fills the wall from a fresh shuffle; repeats pictures when there are few. */
+  private fillGallery(): void {
+    const images = this.galleryImages();
+    if (images.length === 0) return;
+    this.galleryQueue = this.shuffled(images);
+    const slots: string[] = [];
+    for (let i = 0; i < this.GALLERY_TILES; i++) {
+      if (this.galleryQueue.length === 0) this.galleryQueue = this.shuffled(images);
+      slots.push(this.galleryQueue.shift()!);
+    }
+    this.gallerySlots.set(slots);
+    this.gallerySlot = 0;
+  }
+
+  /**
+   * Every few seconds the wall rearranges itself: a tile fades out and comes
+   * back with a photo that isn't on the wall, or — when every photo is already
+   * up there — two tiles trade places. Left still when the tab is hidden, when
+   * the visitor asked for less motion, or when there is only one photo.
+   */
+  private startGallerySwap(): void {
+    if (typeof window === 'undefined') return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    if (this.galleryImages().length < 2) return;
+    this.gallerySwap = setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
+      const slots = this.gallerySlots();
+      if (slots.length === 0) return;
+      const slot = this.gallerySlot % slots.length;
+      this.gallerySlot++;
+
+      const spare = this.galleryImages().filter((img) => !slots.includes(img));
+      if (spare.length > 0) {
+        if (this.galleryQueue.length === 0) this.galleryQueue = this.shuffled(spare);
+        const next = this.galleryQueue.shift()!;
+        this.fadeSlots([slot], (current) => current.map((img, i) => (i === slot ? next : img)));
+        return;
+      }
+
+      // Every photo is already on the wall, so two tiles swap places instead.
+      const others = slots.map((_, i) => i).filter((i) => i !== slot && slots[i] !== slots[slot]);
+      if (others.length === 0) return;
+      const other = others[Math.floor(Math.random() * others.length)];
+      this.fadeSlots([slot, other], (current) => {
+        const next = [...current];
+        [next[slot], next[other]] = [next[other], next[slot]];
+        return next;
+      });
+    }, this.GALLERY_SWAP_MS);
+  }
+
+  /** Fades the given tiles out, rearranges the pictures, then fades them back. */
+  private fadeSlots(slots: number[], change: (current: string[]) => string[]): void {
+    this.swappingSlots.set(slots);
+    this.galleryFade = setTimeout(() => {
+      this.gallerySlots.update(change);
+      this.swappingSlots.set([]);
+    }, 450);
+  }
+
+  private stopGallerySwap(): void {
+    if (this.gallerySwap) clearInterval(this.gallerySwap);
+    if (this.galleryFade) clearTimeout(this.galleryFade);
+    this.gallerySwap = undefined;
+    this.galleryFade = undefined;
+    this.swappingSlots.set([]);
+  }
 
   protected isInternal(url: string | null): boolean {
     return !!url && url.startsWith('/');
@@ -784,6 +907,19 @@ export class HomePage implements OnInit, OnDestroy {
     if (isPlatformBrowser(this.platformId)) {
       window.addEventListener('scroll', this.onScroll, { passive: true });
     }
+    // Whatever happens to the first photo, the other slides join in shortly,
+    // so the slideshow never lands on a slide that isn't there.
+    if (isPlatformBrowser(this.platformId)) {
+      setTimeout(() => this.laterSlidesReady.set(true), 2500);
+    } else {
+      this.laterSlidesReady.set(true);
+    }
+    // A freshly opened or refreshed tab starts at the hero. Only Back/Forward
+    // keep their place (the router restores those itself).
+    if (isPlatformBrowser(this.platformId)) {
+      const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+      if (nav?.type !== 'back_forward' && window.scrollY > 0) window.scrollTo(0, 0);
+    }
   }
 
   ngOnDestroy(): void {
@@ -791,6 +927,7 @@ export class HomePage implements OnInit, OnDestroy {
     if (isPlatformBrowser(this.platformId)) {
       window.removeEventListener('scroll', this.onScroll);
     }
+    this.stopGallerySwap();
   }
 
   private loadHomeData(): void {

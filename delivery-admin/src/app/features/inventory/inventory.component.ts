@@ -4,10 +4,14 @@ import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import { PagerComponent } from '../../shared/pager/pager.component';
 import { StockService } from '../../core/services/stock.service';
-import { BulkStockItem, InventorySummary, StockResponse, StockUpdateRequest } from '../../core/models/api.models';
+import {
+  BulkStockItem, CategoryResponse, InventorySummary, StockResponse, StockUpdateRequest,
+} from '../../core/models/api.models';
 import { parseApiError } from '../../core/utils/api-error.util';
 import { PermissionService } from '../../core/services/permission.service';
 import { NoticeService } from '../../core/services/notice.service';
+import { ConfirmService } from '../../core/services/confirm.service';
+import { CategoryService } from '../../core/services/category.service';
 
 /**
  * The Inventory page. The list is searched and paged by the server; the
@@ -22,7 +26,9 @@ import { NoticeService } from '../../core/services/notice.service';
 })
 export class InventoryComponent implements OnInit, OnDestroy {
   private stockService = inject(StockService);
+  private readonly categoryService = inject(CategoryService);
   private readonly notices = inject(NoticeService);
+  private readonly confirmer = inject(ConfirmService);
   protected readonly perms = inject(PermissionService);
 
   readonly pageSize = 20;
@@ -60,15 +66,39 @@ export class InventoryComponent implements OnInit, OnDestroy {
   // Low stock alerts
   alertsDismissed = signal(false);
 
-  // Bulk update state (works on the page on screen)
+  // ── Bulk update ───────────────────────────────────────────────────────────
   bulkMode = signal(false);
-  bulkSelections = signal<number[]>([]);
-  bulkItems = signal<Map<number, { quantity: number; unit: string }>>(new Map());
+  /** Which way to update: the products you tick, a whole category, or everything. */
+  bulkTab = signal<'products' | 'category' | 'all'>('products');
+  /** Ticked products and the new stock figure for each; kept while you page. */
+  private readonly picks = signal<Map<number, number>>(new Map());
   bulkLoading = signal(false);
   bulkError = signal('');
-  bulkSuccess = signal(false);
+
+  /** Category tab. */
+  categories = signal<CategoryResponse[]>([]);
+  categoryId = signal<number | null>(null);
+  categoryOp = signal<'INCREMENT' | 'DECREMENT' | 'SET'>('INCREMENT');
+  categoryQty = signal(0);
+
+  /** Whole-shop tab. */
+  allOp = signal<'INCREMENT' | 'DECREMENT' | 'SET'>('INCREMENT');
+  allQty = signal(0);
+  /** Products in the shop, for "this will change N products". */
+  shopProductCount = signal(0);
 
   readonly unitOptions = ['units', 'kg', 'g', 'litre', 'ml', 'packets', 'pieces', 'boxes', 'bottles', 'bags'];
+
+  readonly bulkTabs: { id: 'products' | 'category' | 'all'; label: string }[] = [
+    { id: 'products', label: 'Chosen products' },
+    { id: 'category', label: 'By category' },
+    { id: 'all', label: 'All products' },
+  ];
+
+  /** Columns in the table right now, for rows that span all of them. */
+  columnCount(): number {
+    return this.bulkMode() && this.bulkTab() === 'products' && this.perms.can('inventory.edit') ? 8 : 7;
+  }
 
   lowStockAlerts = computed(() => (this.alertsDismissed() ? [] : this.alerts()));
 
@@ -76,6 +106,11 @@ export class InventoryComponent implements OnInit, OnDestroy {
     this.loadPage(0);
     this.loadAlerts(0);
     this.loadSummary();
+    this.categoryService.getCategories().subscribe({ next: (list) => this.categories.set(list), error: () => {} });
+    // The shop's product count, so a whole-shop change can say what it will touch.
+    this.stockService.getStockPage('', 0, 1).subscribe({
+      next: (p) => this.shopProductCount.set(p.totalElements), error: () => {},
+    });
     this.searchSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe(() => this.loadPage(0));
   }
 
@@ -209,103 +244,178 @@ export class InventoryComponent implements OnInit, OnDestroy {
   // ---- Bulk update ----
 
   toggleBulkMode(): void {
-    this.bulkMode.update(v => !v);
+    this.bulkMode.update((v) => !v);
     if (!this.bulkMode()) {
-      this.bulkSelections.set([]);
-      this.bulkItems.set(new Map());
+      this.picks.set(new Map());
       this.bulkError.set('');
-      this.bulkSuccess.set(false);
-    }
-  }
-
-  isBulkSelected(productId: number): boolean {
-    return this.bulkSelections().includes(productId);
-  }
-
-  toggleBulkSelection(productId: number): void {
-    const current = this.bulkSelections();
-    if (current.includes(productId)) {
-      this.bulkSelections.set(current.filter(id => id !== productId));
     } else {
-      this.bulkSelections.set([...current, productId]);
-      // Pre-fill with current stock
-      const product = this.products().find(p => p.productId === productId);
-      if (product) {
-        const map = new Map(this.bulkItems());
-        map.set(productId, { quantity: product.stockQuantity, unit: product.unit || 'units' });
-        this.bulkItems.set(map);
-      }
+      this.closeUpdatePanel();
     }
   }
 
-  /** Selects every product on the page on screen. */
-  selectAllForBulk(): void {
-    if (this.bulkSelections().length === this.products().length) {
-      this.bulkSelections.set([]);
+  /** How many products are ticked, across every page. */
+  pickedCount(): number {
+    return this.picks().size;
+  }
+
+  isPicked(productId: number): boolean {
+    return this.picks().has(productId);
+  }
+
+  togglePick(product: StockResponse): void {
+    const map = new Map(this.picks());
+    if (map.has(product.productId)) {
+      map.delete(product.productId);
     } else {
-      const ids = this.products().map(p => p.productId);
-      this.bulkSelections.set(ids);
-      const map = new Map<number, { quantity: number; unit: string }>();
-      this.products().forEach(p => map.set(p.productId, { quantity: p.stockQuantity, unit: p.unit || 'units' }));
-      this.bulkItems.set(map);
+      map.set(product.productId, product.stockQuantity);
     }
+    this.picks.set(map);
   }
 
-  getBulkQty(productId: number): number {
-    return this.bulkItems().get(productId)?.quantity ?? 0;
+  pickedQty(productId: number): number {
+    return this.picks().get(productId) ?? 0;
   }
 
-  getBulkUnit(productId: number): string {
-    return this.bulkItems().get(productId)?.unit ?? 'units';
+  setPickedQty(productId: number, quantity: number): void {
+    const map = new Map(this.picks());
+    map.set(productId, Math.max(0, Math.trunc(quantity || 0)));
+    this.picks.set(map);
   }
 
-  setBulkQty(productId: number, qty: number): void {
-    const map = new Map(this.bulkItems());
-    const existing = map.get(productId) ?? { quantity: 0, unit: 'units' };
-    map.set(productId, { ...existing, quantity: qty });
-    this.bulkItems.set(map);
+  /** True when every product on the page on screen is ticked. */
+  allOnPagePicked(): boolean {
+    const rows = this.products();
+    return rows.length > 0 && rows.every((p) => this.picks().has(p.productId));
   }
 
-  setBulkUnit(productId: number, unit: string): void {
-    const map = new Map(this.bulkItems());
-    const existing = map.get(productId) ?? { quantity: 0, unit: 'units' };
-    map.set(productId, { ...existing, unit });
-    this.bulkItems.set(map);
+  togglePageSelection(): void {
+    const map = new Map(this.picks());
+    if (this.allOnPagePicked()) {
+      this.products().forEach((p) => map.delete(p.productId));
+    } else {
+      this.products().forEach((p) => map.set(p.productId, map.get(p.productId) ?? p.stockQuantity));
+    }
+    this.picks.set(map);
   }
 
-  submitBulkUpdate(): void {
-    const selections = this.bulkSelections();
-    if (selections.length === 0) return;
+  clearPicks(): void {
+    this.picks.set(new Map());
+  }
 
-    const updates: BulkStockItem[] = selections.map(id => ({
-      productId: id,
-      quantity: this.getBulkQty(id),
-      unit: this.getBulkUnit(id),
-    }));
+  /** Applies the figure typed against each ticked product. */
+  async applyPicked(): Promise<void> {
+    const picks = this.picks();
+    if (picks.size === 0 || this.bulkLoading()) return;
+    const ok = await this.confirmer.ask({
+      title: `Update stock for ${picks.size} product${picks.size === 1 ? '' : 's'}?`,
+      message: 'Each ticked product is set to the number you typed for it.',
+      confirmLabel: 'Update stock',
+    });
+    if (!ok) return;
 
+    const updates: BulkStockItem[] = [...picks].map(([productId, quantity]) => ({ productId, quantity }));
     this.bulkLoading.set(true);
     this.bulkError.set('');
-    this.bulkSuccess.set(false);
-
     this.stockService.bulkUpdateStock({ updates }).subscribe({
       next: (results) => {
-        // Merge updated results back into the page on screen
-        const resultMap = new Map(results.map(r => [r.productId, r]));
-        this.products.update(list =>
-          list.map(p => resultMap.has(p.productId) ? { ...p, ...resultMap.get(p.productId)! } : p)
-        );
-        this.loadAlertsAndSummary();
         this.bulkLoading.set(false);
-        this.bulkSuccess.set(true);
-        this.notices.success('Stock updated', `${results.length} product(s)`);
-        this.bulkSelections.set([]);
-        this.alertsDismissed.set(false);
-        setTimeout(() => { this.bulkSuccess.set(false); this.toggleBulkMode(); }, 1500);
+        this.picks.set(new Map());
+        this.notices.success('Stock updated', `${results.length} product${results.length === 1 ? '' : 's'}`);
+        this.afterBulkChange();
       },
       error: (err) => {
         this.bulkError.set(parseApiError(err));
         this.bulkLoading.set(false);
       },
+    });
+  }
+
+  /** Products in the chosen category, for the "this will change N" line. */
+  categoryProductCount(): number {
+    return this.categories().find((c) => c.id === this.categoryId())?.productCount ?? 0;
+  }
+
+  private operationWords(op: 'INCREMENT' | 'DECREMENT' | 'SET', qty: number): string {
+    if (op === 'INCREMENT') return `Add ${qty} to`;
+    if (op === 'DECREMENT') return `Remove ${qty} from`;
+    return `Set stock to ${qty} for`;
+  }
+
+  /** What the category tab will do, in words. */
+  categoryPreview(): string {
+    const name = this.categories().find((c) => c.id === this.categoryId())?.name;
+    if (!name) return 'Choose a category.';
+    const n = this.categoryProductCount();
+    return `${this.operationWords(this.categoryOp(), this.categoryQty())} ${n} product${n === 1 ? '' : 's'} in ${name}.`;
+  }
+
+  /** What the whole-shop tab will do, in words. */
+  allPreview(): string {
+    const n = this.shopProductCount();
+    return `${this.operationWords(this.allOp(), this.allQty())} all ${n} product${n === 1 ? '' : 's'} in the shop.`;
+  }
+
+  async applyCategory(): Promise<void> {
+    const categoryId = this.categoryId();
+    if (!categoryId || this.bulkLoading()) return;
+    const name = this.categories().find((c) => c.id === categoryId)?.name ?? 'this category';
+    await this.applyScope(
+      { scope: 'CATEGORY', categoryId, operation: this.categoryOp(), quantity: this.categoryQty() },
+      this.categoryOp(), this.categoryQty(), this.categoryProductCount(), name);
+  }
+
+  async applyAll(): Promise<void> {
+    if (this.bulkLoading()) return;
+    await this.applyScope(
+      { scope: 'ALL', operation: this.allOp(), quantity: this.allQty() },
+      this.allOp(), this.allQty(), this.shopProductCount(), 'the whole shop');
+  }
+
+  private async applyScope(
+    request: { scope: 'CATEGORY' | 'ALL'; categoryId?: number; operation: 'SET' | 'INCREMENT' | 'DECREMENT'; quantity: number },
+    op: 'SET' | 'INCREMENT' | 'DECREMENT', qty: number, count: number, where: string): Promise<void> {
+    if (op !== 'SET' && qty <= 0) {
+      this.bulkError.set('Enter how many units to add or remove.');
+      return;
+    }
+    if (count === 0) {
+      this.bulkError.set('There are no products to update.');
+      return;
+    }
+    const ok = await this.confirmer.ask({
+      title: `${this.operationWords(op, qty)} ${count} product${count === 1 ? '' : 's'}?`,
+      message: op === 'SET'
+        ? `Every product in ${where} will have exactly ${qty} in stock, whatever it has now. This cannot be undone.`
+        : op === 'DECREMENT'
+          ? `Anything with less than ${qty} in stock will be set to 0.`
+          : `This adds ${qty} to what each product already has.`,
+      confirmLabel: op === 'INCREMENT' ? 'Add stock' : op === 'DECREMENT' ? 'Remove stock' : 'Set stock',
+      danger: op !== 'INCREMENT',
+    });
+    if (!ok) return;
+
+    this.bulkLoading.set(true);
+    this.bulkError.set('');
+    this.stockService.adjustStock(request).subscribe({
+      next: (result) => {
+        this.bulkLoading.set(false);
+        this.notices.success('Stock updated', result.message);
+        this.afterBulkChange();
+      },
+      error: (err) => {
+        this.bulkError.set(parseApiError(err));
+        this.bulkLoading.set(false);
+      },
+    });
+  }
+
+  /** Everything on screen that a stock change can move. */
+  private afterBulkChange(): void {
+    this.loadPage(this.page());
+    this.alertsDismissed.set(false);
+    this.loadAlertsAndSummary();
+    this.stockService.getStockPage('', 0, 1).subscribe({
+      next: (p) => this.shopProductCount.set(p.totalElements), error: () => {},
     });
   }
 

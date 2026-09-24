@@ -284,25 +284,50 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
               </div>
               <div class="space-y-2">
                 <div class="flex items-center justify-between">
-                  <p class="text-xs font-medium text-gray-600">Gallery images (URLs)</p>
+                  <div>
+                    <p class="text-xs font-medium text-gray-600">Gallery photos</p>
+                    <p class="text-[11px] text-gray-400">
+                      Upload photos from your computer or phone. An Instagram link can't be used here —
+                      Instagram doesn't let other sites show its photos, and stories disappear after a day.
+                    </p>
+                  </div>
                   @if (perms.can('settings.homepage')) {
-                  <button type="button" (click)="addBrandImage()"
-                    class="px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50">+ Image</button>
+                    <label class="shrink-0 cursor-pointer rounded-lg border border-blue-200 px-2.5 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50"
+                      [class.opacity-50]="uploadingBrand() !== null">
+                      {{ uploadingBrand() === 'new' ? 'Uploading…' : '+ Add photo' }}
+                      <input type="file" accept="image/*" class="hidden" aria-label="Add a gallery photo"
+                        (change)="onBrandImage($event, 'new')" [disabled]="uploadingBrand() !== null" />
+                    </label>
                   }
                 </div>
-                @for (img of brand.images; track $index; let i = $index) {
-                  <div class="flex items-center gap-2">
-                    <input [(ngModel)]="brand.images[i]" placeholder="https://…"
-                      class="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono" />
-                    @if (perms.can('settings.homepage')) {
-                    <button type="button" (click)="removeBrandImage(i)" class="act-btn-icon shrink-0" title="Remove image">
-                      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
-                    </button>
-                    }
-                  </div>
-                } @empty {
-                  <p class="text-xs text-gray-400">No images yet.</p>
-                }
+                <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  @for (img of brand.images; track $index; let i = $index) {
+                    <div class="rounded-lg border border-gray-200 p-2">
+                      <div class="aspect-[4/5] overflow-hidden rounded-md bg-gray-100">
+                        @if (img) {
+                          <img [src]="img" [alt]="'Gallery photo ' + (i + 1)" class="h-full w-full object-cover" />
+                        }
+                      </div>
+                      @if (perms.can('settings.homepage')) {
+                        <div class="mt-2 flex items-center justify-between gap-2">
+                          <label class="cursor-pointer text-xs font-medium text-blue-600 hover:underline"
+                            [class.opacity-50]="uploadingBrand() !== null">
+                            {{ uploadingBrand() === i ? 'Uploading…' : 'Replace' }}
+                            <input type="file" accept="image/*" class="hidden" [attr.aria-label]="'Replace gallery photo ' + (i + 1)"
+                              (change)="onBrandImage($event, i)" [disabled]="uploadingBrand() !== null" />
+                          </label>
+                          <button type="button" (click)="removeBrandImage(i)" class="act-btn-icon shrink-0"
+                            [attr.title]="'Remove photo ' + (i + 1)" [attr.aria-label]="'Remove photo ' + (i + 1)">
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                          </button>
+                        </div>
+                      }
+                    </div>
+                  } @empty {
+                    <p class="text-xs text-gray-400">No photos yet.</p>
+                  }
+                </div>
+                <p class="text-[11px] text-gray-400">The shop shuffles these into its photo wall, so the band looks different each visit.</p>
               </div>
               </fieldset>
             </section>
@@ -678,6 +703,8 @@ export class StoreSettingsComponent implements OnInit {
   readonly savedMessage = signal<string>('');
   /** Index of the outlet whose image is currently uploading (-1 = none). */
   readonly uploadingOutlet = signal(-1);
+  /** Gallery photo uploading: 'new', the photo's place in the list, or null. */
+  readonly uploadingBrand = signal<'new' | number | null>(null);
   /** About page photo uploading: 'hero', a section index, or null. */
   readonly uploadingAbout = signal<'hero' | number | null>(null);
 
@@ -794,8 +821,31 @@ export class StoreSettingsComponent implements OnInit {
     };
   }
 
-  protected addBrandImage(): void { this.brand.images.push(''); }
   protected removeBrandImage(i: number): void { this.brand.images.splice(i, 1); }
+
+  /**
+   * Adds or replaces a gallery photo. The file is uploaded to the shop's own
+   * media store, so the picture keeps loading whatever happens on social media.
+   */
+  protected onBrandImage(event: Event, target: 'new' | number): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    this.uploadingBrand.set(target);
+    this.errorMessage.set('');
+    this.uploads.uploadImage(file).pipe(catchError((err) => {
+      this.errorMessage.set(parseApiError(err));
+      this.uploadingBrand.set(null);
+      return of(null);
+    })).subscribe((url) => {
+      this.uploadingBrand.set(null);
+      if (url) {
+        if (target === 'new') this.brand.images.push(url);
+        else this.brand.images[target] = url;
+      }
+      input.value = '';
+    });
+  }
   protected addFooterColumn(): void { this.footer.columns.push({ title: 'New', links: [] }); }
   protected removeFooterColumn(i: number): void { this.footer.columns.splice(i, 1); }
   protected addFooterLink(ci: number): void { this.footer.columns[ci].links.push({ label: '', url: '' }); }

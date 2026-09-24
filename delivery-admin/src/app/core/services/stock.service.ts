@@ -3,7 +3,8 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
-  BulkStockUpdateRequest, InventorySummary, PageResponse, StockResponse, StockUpdateRequest,
+  BulkStockAdjustRequest, BulkStockResult, BulkStockUpdateRequest, InventorySummary, PageResponse,
+  StockResponse, StockUpdateRequest,
 } from '../models/api.models';
 
 @Injectable({ providedIn: 'root' })
@@ -35,6 +36,11 @@ export class StockService {
 
   updateStock(productId: number, request: StockUpdateRequest): Observable<StockResponse> {
     return this.http.put<StockResponse>(`${this.baseUrl}/admin/products/${productId}/stock`, request);
+  }
+
+  /** One change for chosen products, a whole category, or every product. */
+  adjustStock(request: BulkStockAdjustRequest): Observable<BulkStockResult> {
+    return this.http.put<BulkStockResult>(`${this.baseUrl}/admin/inventory/bulk-adjust`, request);
   }
 
   bulkUpdateStock(request: BulkStockUpdateRequest): Observable<StockResponse[]> {

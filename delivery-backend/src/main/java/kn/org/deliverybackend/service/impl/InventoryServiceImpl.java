@@ -8,6 +8,7 @@ import kn.org.deliverybackend.entity.Product;
 import kn.org.deliverybackend.enumeration.StockOperation;
 import kn.org.deliverybackend.enumeration.StockStatus;
 import kn.org.deliverybackend.event.StockUpdateEvent;
+import kn.org.deliverybackend.exception.InvalidRequestException;
 import kn.org.deliverybackend.exception.InvalidStockOperationException;
 import kn.org.deliverybackend.exception.ResourceNotFoundException;
 import kn.org.deliverybackend.repository.InventoryRepository;
@@ -28,6 +29,7 @@ public class InventoryServiceImpl implements InventoryService {
     private final InventoryRepository inventoryRepository;
     private final ProductRepository productRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final kn.org.deliverybackend.repository.CategoryRepository categoryRepository;
 
     // -------------------------------------------------------------------------
     // Status computation
@@ -209,6 +211,104 @@ public class InventoryServiceImpl implements InventoryService {
         eventPublisher.publishEvent(new StockUpdateEvent(this, product.getId(), newQty, newStatus));
 
         return toStockResponseDTO(product, inventory);
+    }
+
+    @Override
+    @Transactional
+    public List<StockResponseDTO> setStockForEach(
+            kn.org.deliverybackend.dto.request.product.BulkStockUpdateRequestDTO request) {
+        List<StockResponseDTO> results = new java.util.ArrayList<>();
+        for (var item : request.getUpdates()) {
+            AdminStockUpdateRequestDTO one = new AdminStockUpdateRequestDTO();
+            one.setOperation(StockOperation.SET);
+            one.setQuantity(item.getQuantity());
+            one.setUnit(item.getUnit());
+            one.setLowStockThreshold(item.getLowStockThreshold());
+            results.add(updateStock(item.getProductId(), one));
+        }
+        return results;
+    }
+
+    @Override
+    @Transactional
+    public kn.org.deliverybackend.dto.response.product.BulkStockResultDTO adjustStock(
+            kn.org.deliverybackend.dto.request.product.BulkStockAdjustRequestDTO request) {
+        StockOperation operation = request.getOperation();
+        int quantity = request.getQuantity();
+        if (operation != StockOperation.SET && quantity <= 0) {
+            throw new InvalidRequestException("Enter how many units to add or remove.");
+        }
+
+        List<Product> products;
+        String scopeLabel;
+        switch (request.getScope()) {
+            case PRODUCTS -> {
+                List<Long> ids = request.getProductIds();
+                if (ids == null || ids.isEmpty()) {
+                    throw new InvalidRequestException("Choose at least one product.");
+                }
+                products = productRepository.findAllById(ids).stream()
+                        .filter(p -> !Boolean.TRUE.equals(p.getDeleted())).toList();
+                scopeLabel = "the products you chose";
+            }
+            case CATEGORY -> {
+                Long categoryId = request.getCategoryId();
+                if (categoryId == null) {
+                    throw new InvalidRequestException("Choose a category.");
+                }
+                var category = categoryRepository.findById(categoryId)
+                        .filter(c -> !Boolean.TRUE.equals(c.getDeleted()))
+                        .orElseThrow(() -> new ResourceNotFoundException("Category not found: " + categoryId));
+                products = productRepository.findLiveByCategory(categoryId);
+                scopeLabel = category.getName();
+            }
+            default -> {
+                products = productRepository.findAll().stream()
+                        .filter(p -> !Boolean.TRUE.equals(p.getDeleted())).toList();
+                scopeLabel = "the whole shop";
+            }
+        }
+        if (products.isEmpty()) {
+            throw new InvalidRequestException("There are no products to update.");
+        }
+
+        int setToZero = 0;
+        for (Product product : products) {
+            Inventory inventory = inventoryRepository.findByProductIdWithLock(product.getId())
+                    .orElseGet(() -> createInventoryForProduct(product));
+            int current = inventory.getStockQuantity();
+            int newQty = switch (operation) {
+                case SET -> quantity;
+                case INCREMENT -> current + quantity;
+                // Asked to remove more than there is: that product lands on 0.
+                case DECREMENT -> Math.max(current - quantity, 0);
+            };
+            if (operation == StockOperation.DECREMENT && quantity > current) {
+                setToZero++;
+            }
+            inventory.setStockQuantity(newQty);
+            inventoryRepository.save(inventory);
+            product.setStockQuantity(newQty);
+            productRepository.save(product);
+            eventPublisher.publishEvent(new StockUpdateEvent(this, product.getId(), newQty,
+                    computeStatusFromQty(newQty, inventory.getLowStockThreshold())));
+        }
+
+        String what = switch (operation) {
+            case SET -> "Set stock to " + quantity + " for ";
+            case INCREMENT -> "Added " + quantity + " to ";
+            case DECREMENT -> "Removed " + quantity + " from ";
+        };
+        String message = what + products.size() + " product" + (products.size() == 1 ? "" : "s")
+                + " in " + scopeLabel + "."
+                + (setToZero > 0 ? " " + setToZero + " had less than that and " + (setToZero == 1 ? "is" : "are") + " now 0." : "");
+
+        return kn.org.deliverybackend.dto.response.product.BulkStockResultDTO.builder()
+                .updated(products.size())
+                .setToZero(setToZero)
+                .scopeLabel(scopeLabel)
+                .message(message)
+                .build();
     }
 
     // -------------------------------------------------------------------------

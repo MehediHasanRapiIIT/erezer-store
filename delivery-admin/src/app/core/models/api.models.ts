@@ -106,6 +106,25 @@ export interface BulkStockUpdateRequest {
   updates: BulkStockItem[];
 }
 
+/** Which products a bulk stock change covers. */
+export type StockScope = 'PRODUCTS' | 'CATEGORY' | 'ALL';
+
+/** One change applied to chosen products, a whole category, or every product. */
+export interface BulkStockAdjustRequest {
+  scope: StockScope;
+  productIds?: number[];
+  categoryId?: number;
+  operation: 'SET' | 'INCREMENT' | 'DECREMENT';
+  quantity: number;
+}
+
+export interface BulkStockResult {
+  updated: number;
+  setToZero: number;
+  scopeLabel: string;
+  message: string;
+}
+
 export interface StockResponse {
   productId: number;
   productName: string;

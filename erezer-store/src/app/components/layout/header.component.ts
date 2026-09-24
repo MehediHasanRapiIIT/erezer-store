@@ -36,7 +36,7 @@ const HERO_FADE_PX = 24;
         <button
           type="button"
           (click)="openMenu()"
-          class="-ml-1 inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-700 transition hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800 md:hidden"
+          class="-ml-1 inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-700 transition hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800 lg:hidden"
           aria-label="Open menu"
         >
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -47,9 +47,10 @@ const HERO_FADE_PX = 24;
         <a routerLink="/" class="shrink-0 text-lg font-semibold tracking-[0.22em] sm:text-xl">EREZER</a>
 
         <!-- Desktop nav -->
-        <nav class="ml-2 hidden items-center gap-1 text-sm md:flex">
+        <!-- Desktop nav: every label stays on one line; below lg the menu button carries these links. -->
+        <nav class="ml-2 hidden items-center gap-0.5 text-sm lg:flex xl:gap-1">
           <button type="button" (click)="openCategories()"
-            class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-neutral-600 transition hover:text-black dark:text-neutral-300 dark:hover:text-white"
+            class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-1.5 text-neutral-600 transition hover:text-black dark:text-neutral-300 dark:hover:text-white xl:px-3"
             aria-haspopup="dialog" [attr.aria-expanded]="categoriesOpen()">
             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
@@ -60,7 +61,7 @@ const HERO_FADE_PX = 24;
             <a
               [routerLink]="link.route"
               routerLinkActive="bg-neutral-100 text-black dark:bg-neutral-800 dark:!text-white"
-              class="rounded-full px-3 py-1.5 text-neutral-600 transition hover:text-black dark:text-neutral-300 dark:hover:text-white"
+              class="whitespace-nowrap rounded-full px-2 py-1.5 text-neutral-600 transition hover:text-black dark:text-neutral-300 dark:hover:text-white xl:px-3"
             >{{ link.key | t }}</a>
           }
         </nav>
@@ -121,12 +122,12 @@ const HERO_FADE_PX = 24;
             <button
               type="button"
               (click)="logout()"
-              class="ml-1 hidden rounded-full border border-neutral-300 px-3.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:border-neutral-400 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800 sm:inline-flex"
+              class="ml-1 hidden whitespace-nowrap rounded-full border border-neutral-300 px-3.5 py-1.5 text-xs font-medium text-neutral-700 transition hover:border-neutral-400 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800 sm:inline-flex"
             >Log out</button>
           } @else {
             <a
               routerLink="/account"
-              class="pill-solid ml-1 hidden rounded-full bg-black px-4 py-1.5 text-xs font-semibold text-white transition hover:opacity-90 dark:bg-white dark:text-black sm:inline-flex"
+              class="pill-solid ml-1 hidden whitespace-nowrap rounded-full bg-black px-4 py-1.5 text-xs font-semibold text-white transition hover:opacity-90 dark:bg-white dark:text-black sm:inline-flex"
             >Sign in</a>
           }
         </div>
@@ -137,14 +138,14 @@ const HERO_FADE_PX = 24;
     @if (menuOpen()) {
     <!-- Backdrop -->
     <div
-      class="animate-overlay-in fixed inset-0 z-40 bg-black/40 backdrop-blur-sm md:hidden"
+      class="animate-overlay-in fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
       (click)="closeMenu()"
       aria-hidden="true"
     ></div>
 
     <!-- Panel -->
     <aside
-      class="animate-drawer-in fixed right-0 top-0 z-50 flex h-full w-[82%] max-w-sm flex-col bg-white shadow-2xl dark:bg-neutral-950 md:hidden"
+      class="animate-drawer-in fixed right-0 top-0 z-50 flex h-full w-[82%] max-w-sm flex-col bg-white shadow-2xl dark:bg-neutral-950 lg:hidden"
       role="dialog"
       aria-modal="true"
     >
@@ -277,9 +278,15 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
    */
   private publishHeight(): void {
     if (typeof window === 'undefined') return;
-    const el = this.hostEl.nativeElement as HTMLElement;
-    const apply = () => this.document.documentElement.style
-      .setProperty('--app-header-h', `${Math.round(el.getBoundingClientRect().height)}px`);
+    const host = this.hostEl.nativeElement as HTMLElement;
+    // The bar itself, not the whole host: the side panels live in the host too.
+    const el = (host.querySelector('header') as HTMLElement | null) ?? host;
+    const apply = () => {
+      // A bar is never taller than this; anything else is a mid-layout reading
+      // that would drag the hero right off the top of the page.
+      const h = Math.min(Math.max(Math.round(el.getBoundingClientRect().height), 48), 160);
+      this.document.documentElement.style.setProperty('--app-header-h', `${h}px`);
+    };
     apply();
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(apply);

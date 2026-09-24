@@ -7,14 +7,12 @@ import kn.org.deliverybackend.dto.request.product.AdminStockUpdateRequestDTO;
 import kn.org.deliverybackend.dto.request.product.BulkStockUpdateRequestDTO;
 import kn.org.deliverybackend.dto.response.product.InventorySummaryDTO;
 import kn.org.deliverybackend.dto.response.product.StockResponseDTO;
-import kn.org.deliverybackend.enumeration.StockOperation;
 import kn.org.deliverybackend.service.InventoryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/admin")
@@ -65,21 +63,27 @@ public class AdminStockController {
         return ResponseEntity.ok(inventoryService.updateStock(id, request));
     }
 
-    /** Bulk SET stock for multiple products at once */
+    /** An exact stock figure for each product chosen on the page. */
     @RequiresPermission(Perm.INVENTORY_EDIT)
     @PutMapping("/inventory/bulk")
     public ResponseEntity<List<StockResponseDTO>> bulkUpdateStock(
             @Valid @RequestBody BulkStockUpdateRequestDTO request) {
-        List<StockResponseDTO> results = request.getUpdates().stream()
-                .map(item -> {
-                    AdminStockUpdateRequestDTO req = new AdminStockUpdateRequestDTO();
-                    req.setOperation(StockOperation.SET);
-                    req.setQuantity(item.getQuantity());
-                    req.setUnit(item.getUnit());
-                    req.setLowStockThreshold(item.getLowStockThreshold());
-                    return inventoryService.updateStock(item.getProductId(), req);
-                })
-                .collect(Collectors.toList());
+        List<StockResponseDTO> results = inventoryService.setStockForEach(request);
+        kn.org.deliverybackend.access.StaffAccess.describe(
+                "Set stock for " + results.size() + " product" + (results.size() == 1 ? "" : "s"));
         return ResponseEntity.ok(results);
+    }
+
+    /**
+     * One change for many products at once: add to, remove from or set the stock
+     * of the chosen products, a whole category, or every product in the shop.
+     */
+    @RequiresPermission(Perm.INVENTORY_EDIT)
+    @PutMapping("/inventory/bulk-adjust")
+    public ResponseEntity<kn.org.deliverybackend.dto.response.product.BulkStockResultDTO> adjustStock(
+            @Valid @RequestBody kn.org.deliverybackend.dto.request.product.BulkStockAdjustRequestDTO request) {
+        var result = inventoryService.adjustStock(request);
+        kn.org.deliverybackend.access.StaffAccess.describe(result.getMessage());
+        return ResponseEntity.ok(result);
     }
 }
