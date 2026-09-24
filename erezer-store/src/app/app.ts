@@ -6,6 +6,7 @@ import { HeaderComponent } from './components/layout/header.component';
 import { FooterComponent } from './components/layout/footer.component';
 import { ThemeService } from './core/theme.service';
 import { PixelService } from './core/pixel.service';
+import { SettingsStore } from './core/store/settings.store';
 import { AuthService } from './core/auth.service';
 import { ApiService } from './core/api.service';
 import { EcommerceStore } from './core/store/ecommerce.store';
@@ -23,13 +24,16 @@ export class App {
   private readonly auth = inject(AuthService);
   private readonly api = inject(ApiService);
   private readonly store = inject(EcommerceStore);
+  private readonly settings = inject(SettingsStore);
 
   constructor() {
     this.themeService.initializeTheme();
     this.publishScrollbarWidth();
 
-    // Meta Pixel: inject base code once, then fire a PageView per navigation.
+    // Meta Pixel: start with whatever the server image was built with, then take
+    // the ID the owner set in the admin panel as soon as the settings arrive.
     this.pixel.init();
+    effect(() => this.pixel.useId(this.settings.settings()?.metaPixelId));
     // Advanced matching: once the shopper signs in, let Meta match their
     // purchases to the ad they clicked. Hashed by the pixel before sending.
     effect(() => this.pixel.setUser({ email: this.auth.email(), externalId: this.auth.userId() }));

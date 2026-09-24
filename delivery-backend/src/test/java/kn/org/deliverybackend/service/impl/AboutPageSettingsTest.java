@@ -29,7 +29,9 @@ import static org.mockito.Mockito.when;
 class AboutPageSettingsTest {
 
     private final StoreSettingsRepository repo = mock(StoreSettingsRepository.class);
-    private final StoreSettingsServiceImpl service = new StoreSettingsServiceImpl(repo, new ObjectMapper().findAndRegisterModules());
+    private final kn.org.deliverybackend.service.MetaPixelSettingsService metaSettings =
+            mock(kn.org.deliverybackend.service.MetaPixelSettingsService.class, org.mockito.Mockito.RETURNS_DEEP_STUBS);
+    private final StoreSettingsServiceImpl service = new StoreSettingsServiceImpl(repo, new ObjectMapper().findAndRegisterModules(), metaSettings);
     private final StoreSettings row = new StoreSettings();
 
     @BeforeEach

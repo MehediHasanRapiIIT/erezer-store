@@ -753,6 +753,8 @@ export interface ApiStoreSettings {
   shippingFreeAll?: boolean | null;
   shippingOfferEnabled?: boolean | null;
   shippingOfferMin?: number | null;
+  /** Meta Pixel ID set in the admin panel; null when reporting is off. */
+  metaPixelId?: string | null;
 }
 
 export interface ApiAboutSection {

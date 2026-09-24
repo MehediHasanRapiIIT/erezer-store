@@ -13,8 +13,10 @@ import {
   StoreSettingsService,
 } from '../../core/services/store-settings.service';
 import { UploadService } from '../../core/services/upload.service';
+import { MetaPixelChange, MetaPixelService, MetaPixelSettings } from '../../core/services/meta-pixel.service';
 import { PermissionService } from '../../core/services/permission.service';
 import { NoticeService } from '../../core/services/notice.service';
+import { ConfirmService } from '../../core/services/confirm.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 
 /** Preset icons selectable for "Our promise" footer items. */
@@ -153,6 +155,101 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
               </div>
               </fieldset>
             </section>
+
+            <!-- Meta Pixel (Facebook / Instagram reporting) -->
+            @if (perms.can('settings.meta')) {
+              <section class="bg-white rounded-xl border border-gray-200 p-5 space-y-3" aria-labelledby="meta-heading">
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 id="meta-heading" class="text-base font-semibold">Meta Pixel</h2>
+                    <p class="text-xs text-gray-500">
+                      Reports visits and sales to Facebook and Instagram, so your ads can be measured.
+                      Get these from Events Manager on facebook.com.
+                    </p>
+                  </div>
+                  @if (meta(); as m) {
+                    <span class="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                      [class.bg-emerald-100]="m.enabled && m.serverReporting" [class.text-emerald-700]="m.enabled && m.serverReporting"
+                      [class.bg-amber-100]="m.enabled && !m.serverReporting" [class.text-amber-700]="m.enabled && !m.serverReporting"
+                      [class.bg-gray-100]="!m.enabled" [class.text-gray-600]="!m.enabled"
+                      data-testid="meta-status">
+                      {{ !m.enabled ? 'Off' : (m.serverReporting ? 'Reporting fully' : (m.pixelId ? 'Browser only' : 'Off')) }}
+                    </span>
+                  }
+                </div>
+
+                @if (meta(); as m) {
+                  <div class="space-y-3">
+                    <label class="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2.5 text-sm">
+                      <input type="checkbox" [ngModel]="metaEnabled()" (ngModelChange)="metaEnabled.set($event)"
+                        [ngModelOptions]="{ standalone: true }" class="h-4 w-4" />
+                      <span class="font-medium text-gray-800">Report to Meta</span>
+                    </label>
+
+                    <label class="block text-xs font-medium text-gray-600">
+                      Pixel ID
+                      <input [ngModel]="metaPixelId()" (ngModelChange)="metaPixelId.set($event)"
+                        [ngModelOptions]="{ standalone: true }" inputmode="numeric" placeholder="e.g. 1234567890123456"
+                        class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono" />
+                    </label>
+
+                    <div class="text-xs font-medium text-gray-600">
+                      Conversions API access token
+                      @if (m.tokenSaved && !metaReplacingToken()) {
+                        <div class="mt-1 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 px-3 py-2">
+                          <span class="text-sm font-normal text-gray-700" data-testid="meta-token-hint">
+                            Saved · ends in {{ m.tokenHint }}
+                          </span>
+                          <button type="button" (click)="metaReplacingToken.set(true)"
+                            class="text-xs font-medium text-blue-600 hover:underline">Replace</button>
+                          <button type="button" (click)="removeMetaToken()"
+                            class="text-xs font-medium text-red-600 hover:underline">Remove</button>
+                        </div>
+                      } @else {
+                        <input [ngModel]="metaToken()" (ngModelChange)="metaToken.set($event)"
+                          [ngModelOptions]="{ standalone: true }" type="password" autocomplete="off"
+                          placeholder="Paste the token from Events Manager"
+                          class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono" />
+                        @if (m.tokenSaved) {
+                          <button type="button" (click)="metaReplacingToken.set(false); metaToken.set('')"
+                            class="mt-1 text-xs font-medium text-gray-500 hover:underline">Keep the saved one</button>
+                        }
+                      }
+                      <p class="mt-1 font-normal text-gray-400">
+                        Sales are reported from the server as well, so they still count when a shopper blocks ads.
+                        Once saved, the token is never shown again.
+                      </p>
+                    </div>
+
+                    <label class="block text-xs font-medium text-gray-600">
+                      Test event code (optional)
+                      <input [ngModel]="metaTestCode()" (ngModelChange)="metaTestCode.set($event)"
+                        [ngModelOptions]="{ standalone: true }" placeholder="From Events Manager → Test events"
+                        class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono" />
+                    </label>
+
+                    @if (metaError()) {
+                      <p class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" data-testid="meta-error">{{ metaError() }}</p>
+                    }
+                    @if (metaNotice()) {
+                      <p class="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700" data-testid="meta-notice">{{ metaNotice() }}</p>
+                    }
+
+                    <div class="flex flex-wrap items-center gap-2">
+                      <button type="button" (click)="saveMeta()" [disabled]="metaSaving()"
+                        class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+                        {{ metaSaving() ? 'Saving…' : 'Save Meta settings' }}
+                      </button>
+                      <button type="button" (click)="sendMetaTestEvent()" [disabled]="metaTesting() || !m.serverReporting"
+                        class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                        {{ metaTesting() ? 'Sending…' : 'Send a test event' }}
+                      </button>
+                      <span class="text-xs text-gray-400">In use from: {{ m.source }}</span>
+                    </div>
+                  </div>
+                }
+              </section>
+            }
 
             <!-- Size chart -->
             <section class="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
@@ -691,8 +788,10 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
 export class StoreSettingsComponent implements OnInit {
   private readonly api = inject(StoreSettingsService);
   private readonly uploads = inject(UploadService);
+  private readonly metaApi = inject(MetaPixelService);
   protected readonly perms = inject(PermissionService);
   private readonly notices = inject(NoticeService);
+  private readonly confirmer = inject(ConfirmService);
 
   protected readonly promiseIcons = PROMISE_ICONS;
   protected readonly highlightIcons = HIGHLIGHT_ICONS;
@@ -705,6 +804,19 @@ export class StoreSettingsComponent implements OnInit {
   readonly uploadingOutlet = signal(-1);
   /** Gallery photo uploading: 'new', the photo's place in the list, or null. */
   readonly uploadingBrand = signal<'new' | number | null>(null);
+  // ── Meta Pixel ────────────────────────────────────────────────────────────
+  readonly meta = signal<MetaPixelSettings | null>(null);
+  readonly metaEnabled = signal(true);
+  readonly metaPixelId = signal('');
+  readonly metaToken = signal('');
+  readonly metaTestCode = signal('');
+  /** True while typing a replacement for a token that is already saved. */
+  readonly metaReplacingToken = signal(false);
+  readonly metaSaving = signal(false);
+  readonly metaTesting = signal(false);
+  readonly metaError = signal('');
+  readonly metaNotice = signal('');
+
   /** About page photo uploading: 'hero', a section index, or null. */
   readonly uploadingAbout = signal<'hero' | number | null>(null);
 
@@ -737,6 +849,7 @@ export class StoreSettingsComponent implements OnInit {
   protected highlights: Highlight[] = [];
 
   ngOnInit(): void {
+    this.loadMeta();
     this.loading.set(true);
     this.api.get().pipe(catchError((err) => {
       this.errorMessage.set(parseApiError(err));
@@ -819,6 +932,78 @@ export class StoreSettingsComponent implements OnInit {
       copyright: input?.copyright ?? '',
       tagline: input?.tagline ?? '',
     };
+  }
+
+  /** Reads the Meta settings into the form. */
+  private loadMeta(): void {
+    if (!this.perms.can('settings.meta')) return;
+    this.metaApi.get().pipe(catchError(() => of(null))).subscribe((m) => {
+      if (!m) return;
+      this.meta.set(m);
+      this.metaEnabled.set(m.enabled);
+      this.metaPixelId.set(m.pixelId ?? '');
+      this.metaTestCode.set(m.testEventCode ?? '');
+      this.metaReplacingToken.set(false);
+      this.metaToken.set('');
+    });
+  }
+
+  protected saveMeta(): void {
+    const change: MetaPixelChange = {
+      enabled: this.metaEnabled(),
+      pixelId: this.metaPixelId().trim(),
+      testEventCode: this.metaTestCode().trim(),
+    };
+    // Only send a token when one was typed; otherwise the saved one stays.
+    if (this.metaToken().trim()) change.accessToken = this.metaToken().trim();
+
+    this.metaSaving.set(true);
+    this.metaError.set('');
+    this.metaNotice.set('');
+    this.metaApi.update(change).subscribe({
+      next: (m) => {
+        this.meta.set(m);
+        this.metaToken.set('');
+        this.metaReplacingToken.set(false);
+        this.metaSaving.set(false);
+        this.notices.success('Meta Pixel saved', m.serverReporting
+          ? 'Visits and sales are reported to Meta.'
+          : m.pixelId ? 'Visits are reported. Add an access token to report sales from the server too.' : 'Reporting is off.');
+      },
+      error: (err) => {
+        this.metaError.set(parseApiError(err));
+        this.metaSaving.set(false);
+      },
+    });
+  }
+
+  protected async removeMetaToken(): Promise<void> {
+    const ok = await this.confirmer.ask({
+      title: 'Remove the access token?',
+      message: 'Sales will still be reported from shoppers\' browsers, but not from the server, so ad blockers will hide some of them.',
+      confirmLabel: 'Remove token',
+      danger: true,
+    });
+    if (!ok) return;
+    this.metaSaving.set(true);
+    this.metaApi.update({ removeToken: true }).subscribe({
+      next: (m) => {
+        this.meta.set(m);
+        this.metaSaving.set(false);
+        this.notices.success('Access token removed', 'Server-side reporting is off.');
+      },
+      error: (err) => { this.metaError.set(parseApiError(err)); this.metaSaving.set(false); },
+    });
+  }
+
+  protected sendMetaTestEvent(): void {
+    this.metaTesting.set(true);
+    this.metaError.set('');
+    this.metaNotice.set('');
+    this.metaApi.sendTestEvent().subscribe({
+      next: (res) => { this.metaNotice.set(res.message); this.metaTesting.set(false); },
+      error: (err) => { this.metaError.set(parseApiError(err)); this.metaTesting.set(false); },
+    });
   }
 
   protected removeBrandImage(i: number): void { this.brand.images.splice(i, 1); }

@@ -38,6 +38,7 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
 
     private final StoreSettingsRepository repository;
     private final ObjectMapper objectMapper;
+    private final kn.org.deliverybackend.service.MetaPixelSettingsService metaSettings;
 
     @Override
     @Transactional
@@ -422,6 +423,8 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
                 .footer(read(s.getFooterJson(), FooterDTO.class))
                 .marquee(read(s.getMarqueeJson(), MarqueeDTO.class))
                 .highlights(readList(s.getHighlightsJson(), new TypeReference<List<HighlightDTO>>() {}))
+                // The shop's pages need this to load the pixel; it is not a secret.
+                .metaPixelId(metaSettings.credentials().pixelId())
                 // Null (legacy rows) → enabled, so existing checkouts keep every method.
                 .paymentCodEnabled(s.getPaymentCodEnabled() == null || s.getPaymentCodEnabled())
                 .paymentBkashEnabled(s.getPaymentBkashEnabled() == null || s.getPaymentBkashEnabled())

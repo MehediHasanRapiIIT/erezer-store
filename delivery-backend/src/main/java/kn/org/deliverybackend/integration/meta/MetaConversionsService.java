@@ -41,37 +41,34 @@ public class MetaConversionsService {
     private final ProductRepository productRepository;
     private final RestClient restClient;
 
-    private final String pixelId;
-    private final String accessToken;
+    private final kn.org.deliverybackend.service.MetaPixelSettingsService metaSettings;
     private final String baseUrl;
     private final String apiVersion;
-    private final String testEventCode;
     private final String storeUrl;
 
     public MetaConversionsService(OrderRepository orderRepository,
                                   OrderItemRepository orderItemRepository,
                                   ProductRepository productRepository,
-                                  @Value("${app.meta.pixel-id:}") String pixelId,
-                                  @Value("${app.meta.capi-access-token:}") String accessToken,
+                                  kn.org.deliverybackend.service.MetaPixelSettingsService metaSettings,
                                   @Value("${app.meta.capi-base-url:https://graph.facebook.com}") String baseUrl,
                                   @Value("${app.meta.api-version:v23.0}") String apiVersion,
-                                  @Value("${app.meta.test-event-code:}") String testEventCode,
                                   @Value("${app.frontend.store-url}") String storeUrl) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.productRepository = productRepository;
-        this.pixelId = pixelId == null ? "" : pixelId.trim();
-        this.accessToken = accessToken == null ? "" : accessToken.trim();
+        this.metaSettings = metaSettings;
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.apiVersion = apiVersion;
-        this.testEventCode = testEventCode == null ? "" : testEventCode.trim();
         this.storeUrl = storeUrl;
         this.restClient = RestClient.create();
     }
 
-    /** True when a pixel id and an access token are configured. */
+    /**
+     * True when the shop can report sales from the server: a Pixel ID and an
+     * access token, set in the admin panel or in the server's configuration.
+     */
     public boolean enabled() {
-        return !pixelId.isEmpty() && !accessToken.isEmpty();
+        return metaSettings.credentials().serverReportingOn();
     }
 
     /**
@@ -103,13 +100,17 @@ public class MetaConversionsService {
     }
 
     private void post(Map<String, Object> event) {
+        // Read at send time, so a change in the admin panel applies to the next sale.
+        var live = metaSettings.credentials();
+        if (!live.serverReportingOn()) return;
+
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("data", List.of(event));
-        if (!testEventCode.isEmpty()) body.put("test_event_code", testEventCode);
+        if (live.testEventCode() != null) body.put("test_event_code", live.testEventCode());
 
-        String url = baseUrl + "/" + apiVersion + "/" + pixelId + "/events";
+        String url = baseUrl + "/" + apiVersion + "/" + live.pixelId() + "/events";
         String response = restClient.post()
-                .uri(url + "?access_token={token}", accessToken)
+                .uri(url + "?access_token={token}", live.accessToken())
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
                 .retrieve()

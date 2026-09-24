@@ -84,6 +84,20 @@ public class StoreSettings extends AbstractBaseEntity<Long> {
     @Column(name = "payment_card_enabled")
     private Boolean paymentCardEnabled;
 
+    // ── Meta (Facebook) Pixel, set from the admin panel. The token is stored
+    //    locked (see util/SecretBox) and never leaves the server.
+    @Column(name = "meta_enabled")
+    private Boolean metaEnabled;
+
+    @Column(name = "meta_pixel_id")
+    private String metaPixelId;
+
+    @Column(name = "meta_capi_token", columnDefinition = "text")
+    private String metaCapiToken;
+
+    @Column(name = "meta_test_event_code")
+    private String metaTestEventCode;
+
     // ── Automatic-discount switches. Null on legacy rows → treated as enabled,
     //    so a database seeded before this feature keeps discounting as it did.
     //    These govern the `discount` table only: a product's own sale price,

@@ -47,6 +47,12 @@ public class StoreSettingsDTO {
     private Boolean couponsEnabled;
 
     /**
+     * Meta Pixel ID for the shop's pages, or null when reporting is off. Public
+     * by nature: the pixel puts it in the page source. The access token is not here.
+     */
+    private String metaPixelId;
+
+    /**
      * Shipping rules, for the storefront's "free shipping" messages. Read-only
      * here: they are changed on the admin Shipping page.
      */

@@ -36,7 +36,8 @@ const CURRENCY = 'BDT';
 /**
  * Meta (Facebook) Pixel wrapper for the storefront.
  *
- * No-op unless {@link META_PIXEL_ID} is set and we are in a browser. Every
+ * No-op until a Pixel ID is known (set in the admin panel, or in the server's
+ * own configuration as a fallback) and we are in a browser. Every
  * standard e-commerce event carries the product ids Meta's catalog ads and
  * per-product reporting need, and every event carries an `eventID` so the
  * backend's Conversions API copy of the same event is deduplicated rather
@@ -48,6 +49,24 @@ export class PixelService {
   private readonly document = inject(DOCUMENT);
   private initialised = false;
   private user: PixelUser = {};
+  /** The ID in use: whatever the shop's settings say, else the build-time value. */
+  private pixelId = META_PIXEL_ID;
+
+  /**
+   * The ID the admin panel saved, once the settings arrive. Called again with the
+   * same value does nothing; a first real value starts the pixel.
+   */
+  useId(id: string | null | undefined): void {
+    const next = (id || '').trim();
+    if (!next || next === this.pixelId) return;
+    this.pixelId = next;
+    if (this.initialised) {
+      // Already running under a different id: point it at the new one.
+      this.fbq()?.('init', this.pixelId, this.matchingData());
+    } else {
+      this.init();
+    }
+  }
 
   /** Injects the pixel base code once. Safe to call repeatedly. */
   init(): void {
@@ -74,7 +93,7 @@ export class PixelService {
     script.src = 'https://connect.facebook.net/en_US/fbevents.js';
     this.document.head.appendChild(script);
 
-    win.fbq('init', META_PIXEL_ID, this.matchingData());
+    win.fbq('init', this.pixelId, this.matchingData());
     win.fbq('track', 'PageView', {}, { eventID: this.eventId('pageview') });
   }
 
@@ -89,7 +108,7 @@ export class PixelService {
     const fbq = this.fbq();
     if (!fbq) return;
     // Re-initialising with the same id updates the matching data in place.
-    fbq('init', META_PIXEL_ID, this.matchingData());
+    fbq('init', this.pixelId, this.matchingData());
   }
 
   // ── standard events ─────────────────────────────────────────────────────
@@ -266,7 +285,7 @@ export class PixelService {
   }
 
   private enabled(): boolean {
-    return isPlatformBrowser(this.platformId) && !!META_PIXEL_ID;
+    return isPlatformBrowser(this.platformId) && !!this.pixelId;
   }
 }
 

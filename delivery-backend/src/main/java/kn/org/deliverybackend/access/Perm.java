@@ -124,6 +124,8 @@ public enum Perm {
     SETTINGS_SIZECHART("settings.sizechart", "Settings", "Edit the size chart", null),
     SETTINGS_PAYMENTS("settings.payments", "Settings", "Turn payment methods on or off", null),
     SETTINGS_ABOUT("settings.about", "Settings", "Edit the About page", null),
+    SETTINGS_META("settings.meta", "Settings", "Set up Meta Pixel",
+            "Facebook/Instagram reporting: Pixel ID and access token."),
 
     STAFF_VIEW("staff.view", "Staff", "See staff", null),
     STAFF_MANAGE("staff.manage", "Staff", "Add staff, deactivate, reset passwords", null),
