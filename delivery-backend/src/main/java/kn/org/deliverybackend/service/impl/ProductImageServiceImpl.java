@@ -40,9 +40,19 @@ public class ProductImageServiceImpl implements ProductImageService {
                                    String altText,
                                    Integer sortOrder,
                                    Boolean isPrimary) {
-        Product product = ensureProductExists(productId);
-
+        ensureProductExists(productId);
         String url = fileStorageService.uploadFile(file);
+        return attach(productId, url, altText, sortOrder, isPrimary);
+    }
+
+    @Override
+    @Transactional
+    public ProductImageDTO attach(Long productId,
+                                  String url,
+                                  String altText,
+                                  Integer sortOrder,
+                                  Boolean isPrimary) {
+        Product product = ensureProductExists(productId);
 
         // First image uploaded becomes primary unless caller explicitly says otherwise.
         boolean primary = Boolean.TRUE.equals(isPrimary)

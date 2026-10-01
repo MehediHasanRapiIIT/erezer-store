@@ -5,6 +5,8 @@ import kn.org.deliverybackend.dto.shipping.ShippingRulesChangeDTO;
 import kn.org.deliverybackend.entity.ShippingZone;
 import kn.org.deliverybackend.entity.StoreSettings;
 import kn.org.deliverybackend.exception.InvalidRequestException;
+import kn.org.deliverybackend.repository.CategoryRepository;
+import kn.org.deliverybackend.repository.ProductRepository;
 import kn.org.deliverybackend.repository.ShippingZoneRepository;
 import kn.org.deliverybackend.repository.StoreSettingsRepository;
 import kn.org.deliverybackend.repository.TaxRuleRepository;
@@ -27,8 +29,9 @@ class ShippingRulesTest {
 
     private final ShippingZoneRepository zones = mock(ShippingZoneRepository.class);
     private final StoreSettingsRepository settingsRepo = mock(StoreSettingsRepository.class);
-    private final ShippingServiceImpl service =
-            new ShippingServiceImpl(zones, mock(TaxRuleRepository.class), settingsRepo);
+    private final ShippingServiceImpl service = new ShippingServiceImpl(
+            zones, mock(TaxRuleRepository.class), settingsRepo,
+            mock(ProductRepository.class), mock(CategoryRepository.class));
 
     private final StoreSettings settings = new StoreSettings();
     private ShippingZone insideDhaka;

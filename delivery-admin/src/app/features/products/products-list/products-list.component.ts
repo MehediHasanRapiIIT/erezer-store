@@ -1,5 +1,5 @@
 import { Component, signal, computed, inject, OnInit, OnDestroy } from '@angular/core';
-import { RouterLink, Router } from '@angular/router';
+import { RouterLink, Router, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 import { SidebarComponent } from '../../../shared/sidebar/sidebar.component';
@@ -10,6 +10,8 @@ import { parseApiError } from '../../../core/utils/api-error.util';
 import { salePercent } from '../../../core/utils/price.util';
 import { PermissionService } from '../../../core/services/permission.service';
 import { NoticeService } from '../../../core/services/notice.service';
+import { ConfirmService } from '../../../core/services/confirm.service';
+import { ShippingService } from '../../../core/services/shipping.service';
 import { ACCESS } from '../../../core/access/admin-pages';
 
 /**
@@ -26,7 +28,10 @@ export class ProductsListComponent implements OnInit, OnDestroy {
   private productService = inject(ProductService);
   private readonly notices = inject(NoticeService);
   private categoryService = inject(CategoryService);
+  private readonly shippingService = inject(ShippingService);
+  private readonly confirmer = inject(ConfirmService);
   private router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   protected readonly perms = inject(PermissionService);
   protected readonly ACCESS = ACCESS;
   private destroy$ = new Subject<void>();
@@ -51,6 +56,24 @@ export class ProductsListComponent implements OnInit, OnDestroy {
   /** Numbers each request, so an answer that arrives after a newer one is ignored. */
   private latestRequest = 0;
 
+  // ── Delivery charge ────────────────────────────────────────────────────────
+  // What a product costs to deliver, set here rather than on the product form:
+  // a new product uses its area's price until someone says otherwise.
+  chargeMode = signal(false);
+  chargeTab = signal<'products' | 'category' | 'all'>('products');
+  /** Products ticked for a charge, kept while paging. */
+  picks = signal<Set<number>>(new Set());
+  /**
+   * What to set, as typed. A number input hands back a number, or null when the
+   * box is empty — and null is not zero here: zero means delivered free.
+   */
+  chargeAmount = signal<number | null>(null);
+  /** Take the charge away instead, so the area's price decides again. */
+  useAreaPrice = signal(false);
+  chargeCategoryId = signal<number | null>(null);
+  chargeSaving = signal(false);
+  chargeError = signal('');
+
   showingFrom = computed(() => this.currentPage() * this.pageSize + 1);
   showingTo = computed(() => Math.min((this.currentPage() + 1) * this.pageSize, this.totalElements()));
 
@@ -69,6 +92,9 @@ export class ProductsListComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
+    // Arrived from "Add several products": show the category just added to.
+    const fromAddress = Number(this.route.snapshot.queryParamMap.get('categoryId'));
+    if (fromAddress > 0) this.categoryId.set(fromAddress);
     this.loadPage(0);
     this.categoryService.getCategories().subscribe({
       next: (cats) => this.categories.set(cats),
@@ -226,6 +252,196 @@ export class ProductsListComponent implements OnInit, OnDestroy {
           updated.showStockQuantity ? 'Product page shows the quantity' : 'Product page shows stock labels', product.name);
       },
       error: (err) => { this.stockSaving.set(null); this.errorMessage.set(parseApiError(err)); },
+    });
+  }
+
+  // ── Delivery charge ────────────────────────────────────────────────────────
+
+  readonly chargeTabs: { id: 'products' | 'category' | 'all'; label: string }[] = [
+    { id: 'products', label: 'Chosen products' },
+    { id: 'category', label: 'A category' },
+    { id: 'all', label: 'The whole shop' },
+  ];
+
+  canSetCharges(): boolean {
+    return this.perms.can('shipping.edit');
+  }
+
+  toggleChargeMode(): void {
+    this.chargeMode.update((on) => !on);
+    if (!this.chargeMode()) {
+      this.picks.set(new Set());
+      this.chargeError.set('');
+    }
+  }
+
+  /** True while the ticking column is on screen. */
+  pickingProducts(): boolean {
+    return this.chargeMode() && this.chargeTab() === 'products' && this.canSetCharges();
+  }
+
+  pickedCount(): number {
+    return this.picks().size;
+  }
+
+  isPicked(productId: number): boolean {
+    return this.picks().has(productId);
+  }
+
+  togglePick(productId: number): void {
+    const picks = new Set(this.picks());
+    if (!picks.delete(productId)) picks.add(productId);
+    this.picks.set(picks);
+  }
+
+  clearPicks(): void {
+    this.picks.set(new Set());
+  }
+
+  allOnPagePicked(): boolean {
+    const rows = this.products();
+    return rows.length > 0 && rows.every((p) => this.picks().has(p.id));
+  }
+
+  togglePageSelection(): void {
+    const picks = new Set(this.picks());
+    if (this.allOnPagePicked()) {
+      this.products().forEach((p) => picks.delete(p.id));
+    } else {
+      this.products().forEach((p) => picks.add(p.id));
+    }
+    this.picks.set(picks);
+  }
+
+  /**
+   * What a product costs to deliver, and where that comes from: its own charge,
+   * its category's, or the customer's area price.
+   */
+  deliveryLabel(product: ProductResponse): string {
+    if (product.shippingCharge != null) {
+      return product.shippingCharge === 0 ? 'Free' : `৳${product.shippingCharge.toLocaleString()}`;
+    }
+    if (product.categoryShippingCharge != null) {
+      return product.categoryShippingCharge === 0
+        ? 'Free'
+        : `৳${product.categoryShippingCharge.toLocaleString()}`;
+    }
+    return 'Area charge';
+  }
+
+  /** Why a row shows what it shows, for the cell's tooltip and its small print. */
+  deliverySource(product: ProductResponse): string {
+    if (product.shippingCharge != null) return 'Set on this product';
+    if (product.categoryShippingCharge != null) {
+      return `From ${product.categoryName ?? 'its category'}`;
+    }
+    return 'Inside Dhaka / Outside Dhaka';
+  }
+
+  deliveryClass(product: ProductResponse): string {
+    if (product.shippingCharge != null) {
+      return product.shippingCharge === 0
+        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+        : 'bg-indigo-50 text-indigo-700 border border-indigo-200';
+    }
+    if (product.categoryShippingCharge != null) {
+      return 'bg-violet-50 text-violet-700 border border-violet-200';
+    }
+    return 'bg-gray-50 text-gray-500 border border-gray-200';
+  }
+
+  /** What the typed amount means, in words, before anything is applied. */
+  chargePreview(): string {
+    if (this.useAreaPrice()) return 'Delivery goes back to the area price — ৳60 inside Dhaka, ৳120 outside.';
+    const amount = this.typedCharge();
+    if (amount == null) return 'Type what delivery costs, or tick "Use the area price".';
+    if (amount === 0) return 'Delivered free.';
+    return `৳${amount.toLocaleString()} to deliver, whatever the customer's area.`;
+  }
+
+  /** The typed amount, or null when the box is empty or holds nonsense. */
+  private typedCharge(): number | null {
+    const amount = this.chargeAmount();
+    if (amount == null || !Number.isFinite(amount) || amount < 0) return null;
+    return Math.round(amount * 100) / 100;
+  }
+
+  async applyToPicked(): Promise<void> {
+    const ids = [...this.picks()];
+    if (ids.length === 0) return;
+    await this.applyCharge(
+      { scope: 'PRODUCTS', productIds: ids },
+      `${ids.length} product${ids.length === 1 ? '' : 's'}`);
+  }
+
+  async applyToCategory(): Promise<void> {
+    const categoryId = this.chargeCategoryId();
+    if (!categoryId) {
+      this.chargeError.set('Choose a category.');
+      return;
+    }
+    const name = this.categories().find((c) => c.id === categoryId)?.name ?? 'this category';
+    await this.applyCharge({ scope: 'CATEGORY', categoryId }, name);
+  }
+
+  async applyToWholeShop(): Promise<void> {
+    await this.applyCharge({ scope: 'ALL' }, 'every product in the shop');
+  }
+
+  /**
+   * Asks first, then saves. A category's charge is remembered on the category, so
+   * the confirmation says products added later are covered too.
+   */
+  private async applyCharge(
+    where: { scope: 'PRODUCTS' | 'CATEGORY' | 'ALL'; productIds?: number[]; categoryId?: number },
+    what: string,
+  ): Promise<void> {
+    if (this.chargeSaving()) return;
+    const clearing = this.useAreaPrice();
+    const amount = clearing ? null : this.typedCharge();
+    if (!clearing && amount == null) {
+      this.chargeError.set('Type what delivery costs — 0 for free — or tick "Use the area price".');
+      return;
+    }
+
+    const price = amount === 0 ? 'Free delivery' : `৳${amount?.toLocaleString()} delivery`;
+    const ok = await this.confirmer.ask({
+      title: clearing ? `Use the area price for ${what}?` : `${price} for ${what}?`,
+      message: clearing
+        ? 'Delivery goes back to ৳60 inside Dhaka and ৳120 outside.'
+        : where.scope === 'CATEGORY'
+          ? `Every product in ${what} is delivered at this charge, including ones you add later. A product with its own charge keeps it.`
+          : `These products are delivered at this charge whatever the customer's area. An order pays the highest charge in it, once.`,
+      confirmLabel: clearing ? 'Use the area price' : 'Set the charge',
+      danger: where.scope === 'ALL',
+    });
+    if (!ok) return;
+
+    this.chargeSaving.set(true);
+    this.chargeError.set('');
+    this.shippingService.setCharges({
+      ...where,
+      ...(clearing ? { useAreaPrice: true } : { charge: amount as number }),
+    }).subscribe({
+      next: (result) => {
+        this.chargeSaving.set(false);
+        this.notices.success('Delivery charge saved', result.message);
+        this.picks.set(new Set());
+        // The category's own charge may have changed, so both lists are refetched.
+        this.categoryService.getCategories().subscribe({ next: (c) => this.categories.set(c), error: () => {} });
+        if (where.scope === 'CATEGORY' && where.categoryId != null) {
+          // Show that category, so the change is on screen: its products may all
+          // be on later pages, and an unchanged list reads as a failed save.
+          this.categoryId.set(where.categoryId);
+          this.loadPage(0);
+        } else {
+          this.loadPage(this.currentPage());
+        }
+      },
+      error: (err) => {
+        this.chargeSaving.set(false);
+        this.chargeError.set(parseApiError(err));
+      },
     });
   }
 

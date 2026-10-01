@@ -5,6 +5,7 @@ import kn.org.deliverybackend.dto.variant.VariantResponseDTO;
 import kn.org.deliverybackend.entity.Product;
 import kn.org.deliverybackend.entity.Variant;
 import kn.org.deliverybackend.exception.DuplicateResourceException;
+import kn.org.deliverybackend.exception.InvalidRequestException;
 import kn.org.deliverybackend.exception.ResourceNotFoundException;
 import kn.org.deliverybackend.repository.ProductRepository;
 import kn.org.deliverybackend.repository.VariantRepository;
@@ -35,6 +36,7 @@ public class VariantServiceImpl implements VariantService {
     @Transactional
     public VariantResponseDTO create(Long productId, VariantRequestDTO request) {
         Product product = ensureProductExists(productId);
+        refuseSizesAlreadyThere(productId, List.of(request));
         if (request.getSku() != null && !request.getSku().isBlank()) {
             variantRepository.findByProductIdAndSku(productId, request.getSku()).ifPresent(existing -> {
                 throw new DuplicateResourceException(
@@ -47,6 +49,45 @@ public class VariantServiceImpl implements VariantService {
         v.setShopId(product.getShopId());
         applyFields(v, request, product);
         return toDTO(variantRepository.save(v));
+    }
+
+    @Override
+    @Transactional
+    public List<VariantResponseDTO> createAll(Long productId, List<VariantRequestDTO> requests) {
+        ensureProductExists(productId);
+        if (requests == null || requests.isEmpty()) {
+            throw new InvalidRequestException("Choose at least one size.");
+        }
+        // Every size is checked before the first is saved, so a mistake in the
+        // last one never leaves the first few behind.
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (VariantRequestDTO r : requests) {
+            String size = trim(r.getSize());
+            if (size == null) {
+                throw new InvalidRequestException("Every row needs a size.");
+            }
+            if (!seen.add(size.toUpperCase())) {
+                throw new InvalidRequestException("Size " + size + " is listed twice.");
+            }
+        }
+        refuseSizesAlreadyThere(productId, requests);
+        return requests.stream().map(r -> create(productId, r)).toList();
+    }
+
+    /** A product can't have the same size twice: customers would see it twice. */
+    private void refuseSizesAlreadyThere(Long productId, List<VariantRequestDTO> requests) {
+        java.util.Set<String> existing = new java.util.HashSet<>();
+        for (Variant v : variantRepository.findByProductId(productId)) {
+            if (v.getSize() != null && !Boolean.TRUE.equals(v.getDeleted())) {
+                existing.add(v.getSize().trim().toUpperCase());
+            }
+        }
+        for (VariantRequestDTO r : requests) {
+            String size = trim(r.getSize());
+            if (size != null && existing.contains(size.toUpperCase())) {
+                throw new InvalidRequestException("This product already has size " + size + ".");
+            }
+        }
     }
 
     @Override
@@ -67,6 +108,15 @@ public class VariantServiceImpl implements VariantService {
                             "SKU '" + request.getSku() + "' already exists for this product.");
                 }
             });
+        }
+        String newSize = trim(request.getSize());
+        if (newSize != null && !newSize.equalsIgnoreCase(v.getSize() == null ? "" : v.getSize().trim())) {
+            boolean taken = variantRepository.findByProductId(productId).stream()
+                    .filter(other -> !other.getId().equals(variantId) && !Boolean.TRUE.equals(other.getDeleted()))
+                    .anyMatch(other -> other.getSize() != null && other.getSize().trim().equalsIgnoreCase(newSize));
+            if (taken) {
+                throw new InvalidRequestException("This product already has size " + newSize + ".");
+            }
         }
         applyFields(v, request, product);
         return toDTO(variantRepository.save(v));

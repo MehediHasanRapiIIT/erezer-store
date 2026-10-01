@@ -110,6 +110,14 @@ export interface ApiProduct {
   /** The admin excluded this product's whole category. Read-only here. */
   categoryDiscountExcluded?: boolean | null;
 
+  /**
+   * What this product costs to deliver, if the shop set it. Null means its
+   * category's charge or the usual area price decides. 0 means free delivery.
+   */
+  shippingCharge?: number | null;
+  /** What its category charges to deliver, used when the product sets none. */
+  categoryShippingCharge?: number | null;
+
   // Phase 3 — clothing brand fields
   brand?: string | null;
   gender?: string | null;

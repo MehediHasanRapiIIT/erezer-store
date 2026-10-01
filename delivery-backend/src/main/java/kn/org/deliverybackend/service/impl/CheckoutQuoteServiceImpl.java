@@ -22,6 +22,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -34,6 +36,7 @@ public class CheckoutQuoteServiceImpl implements CheckoutQuoteService {
     private final CouponService couponService;
     private final DiscountEngine discountEngine;
     private final BundleService bundleService;
+    private final ShippingCharges shippingCharges;
 
     @Override
     @Transactional(readOnly = true)
@@ -43,6 +46,9 @@ public class CheckoutQuoteServiceImpl implements CheckoutQuoteService {
         BigDecimal subtotal = BigDecimal.ZERO;
         BigDecimal autoDiscount = BigDecimal.ZERO;
         BigDecimal customSurcharge = BigDecimal.ZERO;
+        // Kept for the delivery charge: whatever is set on these products, or on
+        // their categories, decides what the basket costs to deliver (step 4).
+        List<Product> basketProducts = new ArrayList<>();
         for (OrderItemRequestDTO item : request.getItems()) {
             Product p = productRepository.findById(item.getProductId())
                     .orElseThrow(() -> new ResourceNotFoundException(
@@ -52,6 +58,7 @@ public class CheckoutQuoteServiceImpl implements CheckoutQuoteService {
                             .filter(v -> !Boolean.TRUE.equals(v.getDeleted()))
                             .orElse(null)
                     : null;
+            basketProducts.add(p);
             BigDecimal unit = PricingSupport.effectiveUnitPrice(p, variant);
             BigDecimal lineSubtotal = unit.multiply(BigDecimal.valueOf(item.getQuantity()));
             subtotal = subtotal.add(lineSubtotal);
@@ -110,7 +117,8 @@ public class CheckoutQuoteServiceImpl implements CheckoutQuoteService {
         //    order over the free-shipping offer's minimum.
         BigDecimal goods = subtotal.subtract(discountAmount);
         if (goods.signum() < 0) goods = BigDecimal.ZERO;
-        ShippingQuote shipping = shippingService.quoteShipping(zone, goods);
+        ShippingQuote shipping = shippingService.quoteShipping(
+                zone, goods, shippingCharges.forBasket(basketProducts));
         if (couponFreeShipping) shipping = shipping.waivedByCoupon();
         BigDecimal shippingFee = shipping.fee();
 

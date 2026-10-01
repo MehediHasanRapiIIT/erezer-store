@@ -325,13 +325,14 @@ public class ProductServiceImpl implements ProductService {
                 dto.setCategoryName(cat.getName());
                 dto.setCategoryDiscountExcluded(Boolean.TRUE.equals(cat.getDiscountExcluded()));
                 dto.setShowStockQuantity(StockDisplay.showsQuantity(product.getStockDisplay(), cat.getShowStockQuantity()));
+                dto.setCategoryShippingCharge(cat.getShippingCharge());
             });
         }
         return dto;
     }
 
     private void calculateAndSetDiscountPrice(Product product, ProductRequestDTO dto) {
-        product.setDiscountPrice(ProductPricing.salePrice(dto.getPrice(), dto.getDiscountPercentage()));
+        product.setDiscountPrice(dto.requestedSalePrice());
     }
 
     @Override

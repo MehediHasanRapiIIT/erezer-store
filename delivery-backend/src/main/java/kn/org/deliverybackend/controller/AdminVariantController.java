@@ -2,7 +2,6 @@ package kn.org.deliverybackend.controller;
 
 import kn.org.deliverybackend.access.Perm;
 import kn.org.deliverybackend.access.StaffAccess;
-import kn.org.deliverybackend.service.ProductPricing;
 import kn.org.deliverybackend.access.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -39,6 +38,25 @@ public class AdminVariantController {
         return ResponseEntity.status(HttpStatus.CREATED).body(variantService.create(productId, request));
     }
 
+    /**
+     * Several sizes at once, e.g. S, M and L with stock for each. All of them are
+     * added or none are: a size the product already has, or one listed twice,
+     * stops the lot.
+     */
+    @RequiresPermission(Perm.PRODUCTS_VARIANTS)
+    @PostMapping("/bulk")
+    public ResponseEntity<List<VariantResponseDTO>> createSeveral(
+            @PathVariable Long productId,
+            @RequestBody @jakarta.validation.constraints.NotEmpty(message = "Choose at least one size")
+            @jakarta.validation.constraints.Size(max = 20, message = "Up to 20 sizes at a time")
+            List<@Valid VariantRequestDTO> requests) {
+        requests.forEach(r -> checkGuardedFields(r, null));
+        List<VariantResponseDTO> created = variantService.createAll(productId, requests);
+        StaffAccess.describe("Added " + created.size() + (created.size() == 1 ? " size" : " sizes")
+                + " to product " + productId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
     @RequiresPermission(Perm.PRODUCTS_VARIANTS)
     @PutMapping("/{variantId}")
     public ResponseEntity<VariantResponseDTO> update(
@@ -61,17 +79,8 @@ public class AdminVariantController {
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * A size's own price is a price, and its stock is inventory, so changing
-     * either needs that permission too. {@code current} is null when adding.
-     */
+    /** See {@link ProductAccess#checkVariantFields}. */
     private static void checkGuardedFields(VariantRequestDTO request, VariantResponseDTO current) {
-        if (!ProductPricing.sameAmount(request.getPriceOverride(), current == null ? null : current.getPriceOverride())) {
-            StaffAccess.require(Perm.PRODUCTS_PRICE);
-        }
-        int stockBefore = current == null || current.getStockQuantity() == null ? 0 : current.getStockQuantity();
-        if (request.getStockQuantity() != null && request.getStockQuantity() != stockBefore) {
-            StaffAccess.require(Perm.INVENTORY_EDIT);
-        }
+        ProductAccess.checkVariantFields(request, current);
     }
 }

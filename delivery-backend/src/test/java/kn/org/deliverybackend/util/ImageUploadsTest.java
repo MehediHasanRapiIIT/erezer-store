@@ -27,8 +27,8 @@ class ImageUploadsTest {
         assertEquals("png", ImageUploads.check(100, bytes(0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A)).extension());
         assertEquals("image/gif", ImageUploads.check(100, ascii("GIF89a")).contentType());
         assertEquals("image/webp", ImageUploads.check(100, ascii("RIFF\0\0\0\0WEBPVP8 ")).contentType());
-        assertEquals("image/heic", ImageUploads.check(100, ascii("\0\0\0ftypheic")).contentType());
-        assertEquals("image/avif", ImageUploads.check(100, ascii("\0\0\0ftypavif")).contentType());
+        assertEquals("image/heic", ImageUploads.check(100, ascii("\0\0\0\u0018ftypheic")).contentType());
+        assertEquals("image/avif", ImageUploads.check(100, ascii("\0\0\0\u001cftypavif")).contentType());
     }
 
     @Test

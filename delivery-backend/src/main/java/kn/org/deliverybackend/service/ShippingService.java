@@ -1,5 +1,8 @@
 package kn.org.deliverybackend.service;
 
+import kn.org.deliverybackend.dto.shipping.BasketShipping;
+import kn.org.deliverybackend.dto.shipping.BulkShippingChargeRequestDTO;
+import kn.org.deliverybackend.dto.shipping.BulkShippingChargeResultDTO;
 import kn.org.deliverybackend.dto.shipping.ShippingQuote;
 import kn.org.deliverybackend.dto.shipping.ShippingRulesChangeDTO;
 import kn.org.deliverybackend.dto.shipping.ShippingSettingsDTO;
@@ -30,6 +33,16 @@ public interface ShippingService {
      */
     ShippingQuote quoteShipping(ShippingZone zone, BigDecimal goodsTotal);
 
+    /**
+     * The same, for a basket whose products or categories carry delivery charges
+     * of their own. The order pays the highest charge in the basket, once; lines
+     * with no charge of their own fall back to the zone's price. The
+     * free-shipping rules above still win.
+     *
+     * @param basket what the lines say, or null to use the zone's price alone
+     */
+    ShippingQuote quoteShipping(ShippingZone zone, BigDecimal goodsTotal, BasketShipping basket);
+
     /** The admin Shipping page: every zone and the free-shipping rules. */
     ShippingSettingsDTO settings();
 
@@ -38,6 +51,12 @@ public interface ShippingService {
 
     /** Changes the free-shipping rules; null fields stay as they are. */
     ShippingSettingsDTO updateRules(ShippingRulesChangeDTO change);
+
+    /**
+     * Sets, or takes away, the delivery charge on chosen products, on a whole
+     * category, or across the shop. See {@link BulkShippingChargeRequestDTO}.
+     */
+    BulkShippingChargeResultDTO setCharges(BulkShippingChargeRequestDTO request);
 
     /**
      * Compute the tax amount for a given zone + (subtotal - discount) base.

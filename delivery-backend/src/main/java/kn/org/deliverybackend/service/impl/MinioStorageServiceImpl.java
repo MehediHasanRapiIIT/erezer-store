@@ -101,6 +101,19 @@ public class MinioStorageServiceImpl implements FileStorageService {
         }
     }
 
+    @Override
+    public void deleteByUrl(String url) {
+        if (url == null || url.isBlank()) return;
+        // Addresses end ".../<bucket>/<file>", whatever the public host in front.
+        String path = java.net.URI.create(url).getPath();
+        String[] parts = path.split("/");
+        if (parts.length < 2) {
+            log.warn("Not a stored file address, left alone: {}", url);
+            return;
+        }
+        deleteFile(parts[parts.length - 1], parts[parts.length - 2]);
+    }
+
     /** Guards against a configured URL with a trailing slash producing "//bucket". */
     private static String trimTrailingSlash(String url) {
         return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;

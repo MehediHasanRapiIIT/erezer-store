@@ -7,6 +7,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(name = "category")
 @Data
@@ -53,6 +55,14 @@ public class Category extends AbstractBaseEntity<Long> {
      */
     @Column(name = "discount_excluded")
     private Boolean discountExcluded;
+
+    /**
+     * What every product in this category costs to deliver, unless the product
+     * sets its own charge. Null means the area's price decides (Inside Dhaka /
+     * Outside Dhaka). Zero means delivered free.
+     */
+    @Column(name = "shipping_charge", precision = 12, scale = 2)
+    private BigDecimal shippingCharge;
 
     /** Product pages in this category show the stock quantity instead of labels. Null means off. */
     @Column(name = "show_stock_quantity")

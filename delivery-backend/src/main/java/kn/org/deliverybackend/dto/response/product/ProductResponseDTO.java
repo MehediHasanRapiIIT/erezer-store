@@ -58,6 +58,20 @@ public class ProductResponseDTO {
      */
     private Boolean categoryDiscountExcluded;
 
+    /**
+     * What this product costs to deliver, set by an admin on the Products page.
+     * Null means it has none of its own, so {@link #categoryShippingCharge} or
+     * the customer's area price decides. Zero means delivered free.
+     */
+    private BigDecimal shippingCharge;
+
+    /**
+     * What this product's category charges to deliver. Read-only here — it is
+     * set on the category — and shown so a product row can say where an
+     * inherited charge came from. Null means the category sets none either.
+     */
+    private BigDecimal categoryShippingCharge;
+
     /** The product's own choice, for the edit form: CATEGORY, QUANTITY or LABEL. */
     private kn.org.deliverybackend.enumeration.StockDisplay stockDisplay;
     /** Whether the product page shows the quantity, with the category already taken into account. */

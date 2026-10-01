@@ -31,6 +31,8 @@ export interface ProductRequest {
   description: string;
   price: number;
   discountPercentage?: number;
+  /** The sale discount as a fixed amount off in taka, instead of a percentage. Send one or the other. */
+  discountAmount?: number;
   shopId: number;
   isAvailable: boolean;
   isNewArrival?: boolean;
@@ -81,6 +83,13 @@ export interface ProductResponse {
   customSizeNote: string | null;
   /** The admin excluded this product itself from automatic discounts. */
   discountExcluded: boolean | null;
+  /**
+   * What this product costs to deliver. Null means it has none of its own, so
+   * its category's charge or the customer's area price decides. 0 means free.
+   */
+  shippingCharge: number | null;
+  /** What its category charges to deliver, so a row can say where an inherited charge came from. */
+  categoryShippingCharge: number | null;
   /** Its category is excluded, which keeps it at full price too. Read-only. */
   categoryDiscountExcluded: boolean | null;
   stockDisplay?: StockDisplay | null;
@@ -171,6 +180,11 @@ export interface CategoryResponse {
   homeSortOrder?: number;
   discountExcluded?: boolean;
   showStockQuantity?: boolean | null;
+  /**
+   * What every product in this category costs to deliver, unless the product has
+   * its own charge. Null means the area price decides. 0 means free.
+   */
+  shippingCharge?: number | null;
 }
 
 /** Stock on a product page: follow the category, show the quantity, or show labels. */

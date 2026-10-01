@@ -31,6 +31,17 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     @Query("SELECT p FROM Product p WHERE p.categoryId = :categoryId AND p.deleted = false ORDER BY p.name, p.id")
     List<Product> findLiveByCategory(@Param("categoryId") Long categoryId);
 
+    /**
+     * Every product code starting with this prefix and a dash that is in use or
+     * ever was: on a product, or on an order. Deleting a product removes its row,
+     * but its orders keep the code it had (V13), so old invoices still show it
+     * and a new product must never be given it.
+     */
+    @Query(value = "SELECT product_code FROM product WHERE lower(product_code) LIKE lower(:prefix) || '-%' "
+            + "UNION SELECT product_code FROM order_item WHERE lower(product_code) LIKE lower(:prefix) || '-%'",
+            nativeQuery = true)
+    List<String> findCodesStartingWith(@Param("prefix") String prefix);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM Product p WHERE p.id = :id")
     Optional<Product> findByIdWithLock(@Param("id") Long id);

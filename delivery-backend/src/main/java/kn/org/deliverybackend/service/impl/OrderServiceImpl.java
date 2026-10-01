@@ -7,6 +7,7 @@ import kn.org.deliverybackend.dto.order.CancelOrderRequestDTO;
 import kn.org.deliverybackend.dto.order.GuestOrderRequestDTO;
 import kn.org.deliverybackend.dto.order.UpdateOrderContactRequestDTO;
 import kn.org.deliverybackend.dto.order.OrderStatusHistoryDTO;
+import kn.org.deliverybackend.dto.shipping.BasketShipping;
 import kn.org.deliverybackend.dto.order.OrderTrackingDTO;
 import kn.org.deliverybackend.dto.request.order.OrderItemRequestDTO;
 import kn.org.deliverybackend.dto.request.order.PlaceOrderRequestDTO;
@@ -75,6 +76,8 @@ public class OrderServiceImpl implements OrderService {
     private final DiscountEngine discountEngine;
     // Bundle offers ("Buy X Get Y") — server-authoritative fixed pricing.
     private final BundleService bundleService;
+    // Delivery charges set on products and categories (V21).
+    private final ShippingCharges shippingCharges;
     private final kn.org.deliverybackend.service.StoreSettingsService storeSettingsService;
 
     @org.springframework.beans.factory.annotation.Value("${app.orders.cancellation-window-minutes:60}")
@@ -95,6 +98,7 @@ public class OrderServiceImpl implements OrderService {
         BigDecimal customSurcharge = computeCustomSurcharge(request.getItems());
         BigDecimal bundleDiscount = request.getBundleId() != null
                 ? bundleService.bundleDiscount(request.getBundleId(), request.getItems(), subtotal) : null;
+        BasketShipping basketShipping = computeBasketShipping(request.getItems());
 
         PricedOrder priced = price(subtotal,
                 autoDiscount,
@@ -103,7 +107,8 @@ public class OrderServiceImpl implements OrderService {
                 request.getShippingZoneId(),
                 request.getDeliveryAddress(),
                 request.getClientId(),
-                bundleDiscount);
+                bundleDiscount,
+                basketShipping);
 
         Order order = new Order();
         order.setOrderNumber(orderNumbers.next());
@@ -193,6 +198,7 @@ public class OrderServiceImpl implements OrderService {
         BigDecimal customSurcharge = computeCustomSurcharge(request.getItems());
         BigDecimal bundleDiscount = request.getBundleId() != null
                 ? bundleService.bundleDiscount(request.getBundleId(), request.getItems(), subtotal) : null;
+        BasketShipping basketShipping = computeBasketShipping(request.getItems());
 
         PricedOrder priced = price(subtotal,
                 autoDiscount,
@@ -201,7 +207,8 @@ public class OrderServiceImpl implements OrderService {
                 request.getShippingZoneId(),
                 request.getDeliveryAddress(),
                 null,
-                bundleDiscount);
+                bundleDiscount,
+                basketShipping);
 
         Order order = new Order();
         order.setOrderNumber(orderNumbers.next());
@@ -260,7 +267,8 @@ public class OrderServiceImpl implements OrderService {
                               Long shippingZoneId,
                               String deliveryAddress,
                               UUID userId,
-                              BigDecimal bundleDiscount) {
+                              BigDecimal bundleDiscount,
+                              BasketShipping basketShipping) {
         PricedOrder out = new PricedOrder();
         out.subtotal = subtotal != null ? subtotal : BigDecimal.ZERO;
         BigDecimal auto = autoDiscount != null ? autoDiscount : BigDecimal.ZERO;
@@ -280,7 +288,7 @@ public class OrderServiceImpl implements OrderService {
             // Free shipping is judged on the bundle price actually paid (see CheckoutQuoteService).
             BigDecimal bundleGoods = out.subtotal.subtract(bundleDiscount);
             if (bundleGoods.signum() < 0) bundleGoods = BigDecimal.ZERO;
-            BigDecimal shipping = shippingService.quoteShipping(zone, bundleGoods).fee();
+            BigDecimal shipping = shippingService.quoteShipping(zone, bundleGoods, basketShipping).fee();
             out.shippingFee = shipping;
             out.discountAmount = bundleDiscount;
             out.total = bundleGoods.add(shipping).add(surcharge);
@@ -318,7 +326,9 @@ public class OrderServiceImpl implements OrderService {
         // discount, the same rule checkout shows (CheckoutQuoteService).
         BigDecimal goods = out.subtotal.subtract(out.discountAmount);
         if (goods.signum() < 0) goods = BigDecimal.ZERO;
-        BigDecimal shipping = couponFreeShipping ? BigDecimal.ZERO : shippingService.quoteShipping(zone, goods).fee();
+        BigDecimal shipping = couponFreeShipping
+                ? BigDecimal.ZERO
+                : shippingService.quoteShipping(zone, goods, basketShipping).fee();
         out.shippingFee = shipping;
         // Custom-size surcharge is a service fee — added after discounts (not discounted).
         out.total = out.subtotal.subtract(out.discountAmount).add(shipping).add(surcharge);
@@ -347,6 +357,22 @@ public class OrderServiceImpl implements OrderService {
             total = total.add(discountEngine.discountForLine(product, lineSubtotal));
         }
         return total;
+    }
+
+    /**
+     * What the basket says about delivery: the charges set on its products, or on
+     * their categories. The products are already locked by
+     * {@code computeAndReserveStock}, so this adds no new row locks.
+     */
+    private BasketShipping computeBasketShipping(List<OrderItemRequestDTO> items) {
+        if (items == null || items.isEmpty()) {
+            return BasketShipping.areaPriceOnly();
+        }
+        List<Product> products = new ArrayList<>(items.size());
+        for (OrderItemRequestDTO item : items) {
+            products.add(inventoryService.lockAndGetProduct(item.getProductId()));
+        }
+        return shippingCharges.forBasket(products);
     }
 
     /** A line is a (valid) custom made-to-order line when it carries measurements and the product enables it. */

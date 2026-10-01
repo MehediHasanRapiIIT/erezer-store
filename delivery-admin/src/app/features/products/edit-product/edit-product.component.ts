@@ -6,7 +6,9 @@ import { ProductService } from '../../../core/services/product.service';
 import { CategoryService } from '../../../core/services/category.service';
 import { StockDisplay, CategoryResponse, ProductRequest } from '../../../core/models/api.models';
 import { parseApiError } from '../../../core/utils/api-error.util';
-import { salePercent } from '../../../core/utils/price.util';
+import {
+  DiscountInputComponent, DiscountMode, discountFields, discountFromProduct, discountProblem,
+} from '../shared/discount-input.component';
 import { VariantManagerComponent } from '../variant-manager/variant-manager.component';
 import { ImageGalleryEditorComponent } from '../image-gallery-editor/image-gallery-editor.component';
 import { PermissionService } from '../../../core/services/permission.service';
@@ -21,6 +23,7 @@ import { NoticeService } from '../../../core/services/notice.service';
     SidebarComponent,
     VariantManagerComponent,
     ImageGalleryEditorComponent,
+    DiscountInputComponent,
   ],
   templateUrl: './edit-product.component.html',
 })
@@ -40,7 +43,9 @@ export class EditProductComponent implements OnInit {
   productCode    = signal('');
   description    = signal('');
   basePrice      = signal<number | null>(null);
-  discount       = signal<number>(0);
+  /** The sale discount, typed as a percentage or as an amount off in taka. */
+  discountMode   = signal<DiscountMode>('PERCENT');
+  discountValue  = signal<number | null>(null);
   categoryId     = signal<number | null>(null);
   shopId         = signal(1);
   isAvailable    = signal(true);
@@ -116,7 +121,9 @@ export class EditProductComponent implements OnInit {
         this.customSizeNote.set(p.customSizeNote ?? '');
         // Show the sale discount the product already has, so saving the form
         // keeps its sale price instead of quietly removing it.
-        this.discount.set(salePercent(p.price, p.discountPrice) ?? 0);
+        const discount = discountFromProduct(p.price, p.discountPrice);
+        this.discountMode.set(discount.mode);
+        this.discountValue.set(discount.value);
         this.isFetching.set(false);
       },
       error: (err) => {
@@ -146,13 +153,18 @@ export class EditProductComponent implements OnInit {
       this.fieldErrors.set({ categoryId: 'Please select a category.' });
       return;
     }
+    const discountIssue = discountProblem(this.basePrice(), this.discountMode(), this.discountValue());
+    if (discountIssue) {
+      this.fieldErrors.set({ discount: discountIssue });
+      return;
+    }
 
     const dto: ProductRequest = {
       name: this.productName().trim(),
       productCode: this.productCode().trim(),
       description: this.description().trim(),
       price: this.basePrice()!,
-      discountPercentage: this.discount() || undefined,
+      ...discountFields(this.discountMode(), this.discountValue()),
       categoryId: this.categoryId()!,
       shopId: this.shopId(),
       isAvailable: this.isAvailable(),

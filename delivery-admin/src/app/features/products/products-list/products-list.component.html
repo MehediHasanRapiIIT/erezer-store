@@ -30,6 +30,35 @@
           # Change codes
         </a>
       }
+      @if (canSetCharges()) {
+        <button
+          type="button"
+          (click)="toggleChargeMode()"
+          [attr.aria-pressed]="chargeMode()"
+          class="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors"
+          [class.bg-indigo-600]="chargeMode()"
+          [class.text-white]="chargeMode()"
+          [class.hover:bg-indigo-700]="chargeMode()"
+          [class.border]="!chargeMode()"
+          [class.border-gray-200]="!chargeMode()"
+          [class.bg-white]="!chargeMode()"
+          [class.text-gray-700]="!chargeMode()"
+          [class.hover:bg-gray-50]="!chargeMode()"
+        >
+          🚚 {{ chargeMode() ? 'Done with delivery' : 'Delivery charge' }}
+        </button>
+      }
+      @if (perms.allows(ACCESS.productNew)) {
+        <!-- Opens in the category chosen in the list below, if any. -->
+        <a
+          routerLink="/products/batch"
+          [queryParams]="categoryId() != null ? { categoryId: categoryId() } : {}"
+          data-testid="add-several"
+          class="flex items-center gap-2 px-4 py-2 border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-semibold rounded-lg transition-colors"
+        >
+          ⧉ Add several products
+        </a>
+      }
       @if (perms.allows(ACCESS.productNew)) {
         <a
           routerLink="/products/new"
@@ -78,6 +107,100 @@
           </div>
         </div>
 
+        <!-- Delivery charge: what a product costs to deliver, set here rather than
+             on the product form, so a new product starts on its area's price. -->
+        @if (chargeMode() && canSetCharges()) {
+          <div class="mx-5 mt-4 rounded-xl border border-indigo-200 bg-indigo-50 p-5">
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p class="text-sm font-bold text-indigo-900">Delivery charge</p>
+                <p class="mt-0.5 text-xs text-indigo-700">
+                  A product with no charge of its own is delivered at its area's price. An order pays the
+                  highest charge in the basket, once.
+                </p>
+              </div>
+              <div class="flex rounded-lg border border-indigo-200 bg-white p-0.5 text-xs font-semibold" role="tablist">
+                @for (tab of chargeTabs; track tab.id) {
+                  <button type="button" role="tab" [attr.aria-selected]="chargeTab() === tab.id"
+                    (click)="chargeTab.set(tab.id)"
+                    class="rounded-md px-3 py-1.5 transition-colors"
+                    [class.bg-indigo-600]="chargeTab() === tab.id" [class.text-white]="chargeTab() === tab.id"
+                    [class.text-gray-600]="chargeTab() !== tab.id">{{ tab.label }}</button>
+                }
+              </div>
+            </div>
+
+            @if (chargeError()) {
+              <p class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-600">{{ chargeError() }}</p>
+            }
+
+            <!-- What to set: the same for all three tabs. -->
+            <div class="flex flex-wrap items-end gap-4">
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-600" for="charge-amount">Delivery costs (৳)</label>
+                <input id="charge-amount" type="number" min="0" step="1" inputmode="decimal"
+                  [ngModel]="chargeAmount()" (ngModelChange)="chargeAmount.set($event === '' ? null : $event)"
+                  [disabled]="useAreaPrice()" placeholder="150"
+                  class="w-28 rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300 disabled:bg-gray-100 disabled:text-gray-400" />
+              </div>
+              <label class="flex items-center gap-2 pb-2 text-xs font-medium text-gray-700">
+                <input type="checkbox" [ngModel]="useAreaPrice()" (ngModelChange)="useAreaPrice.set($event)"
+                  class="h-4 w-4 cursor-pointer rounded border-gray-300 text-indigo-600" />
+                Use the area price instead
+              </label>
+              @if (chargeTab() === 'category') {
+                <div>
+                  <label class="mb-1 block text-xs font-medium text-gray-600" for="charge-category">Category</label>
+                  <select id="charge-category" [ngModel]="chargeCategoryId()"
+                    (ngModelChange)="chargeCategoryId.set($event ? +$event : null)"
+                    class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300">
+                    <option [ngValue]="null">Choose a category…</option>
+                    @for (c of categories(); track c.id) {
+                      <option [ngValue]="c.id">{{ c.name }}</option>
+                    }
+                  </select>
+                </div>
+              }
+              <div class="ml-auto flex items-center gap-3">
+                @switch (chargeTab()) {
+                  @case ('products') {
+                    <span class="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700" data-testid="picked-count">
+                      {{ pickedCount() }} ticked
+                    </span>
+                    @if (pickedCount() > 0) {
+                      <button type="button" (click)="clearPicks()" class="text-xs font-medium text-indigo-600 hover:underline">Clear ticks</button>
+                    }
+                    <button type="button" (click)="applyToPicked()" [disabled]="pickedCount() === 0 || chargeSaving()"
+                      class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
+                      {{ chargeSaving() ? 'Saving…' : 'Apply to ticked products' }}
+                    </button>
+                  }
+                  @case ('category') {
+                    <button type="button" (click)="applyToCategory()" [disabled]="!chargeCategoryId() || chargeSaving()"
+                      class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
+                      {{ chargeSaving() ? 'Saving…' : 'Apply to category' }}
+                    </button>
+                  }
+                  @case ('all') {
+                    <button type="button" (click)="applyToWholeShop()" [disabled]="chargeSaving()"
+                      class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
+                      {{ chargeSaving() ? 'Saving…' : 'Apply to every product' }}
+                    </button>
+                  }
+                }
+              </div>
+            </div>
+
+            <p class="mt-3 text-xs text-gray-600" data-testid="charge-preview">{{ chargePreview() }}</p>
+            @if (chargeTab() === 'products') {
+              <p class="mt-1 text-xs text-gray-500">Tick products in the list below. Your ticks are kept while you move between pages.</p>
+            }
+            @if (chargeTab() === 'category') {
+              <p class="mt-1 text-xs text-gray-500">The charge is remembered on the category, so products you add to it later are covered too.</p>
+            }
+          </div>
+        }
+
         <!-- Error -->
         @if (errorMessage()) {
           <div class="mx-5 mt-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
@@ -100,10 +223,19 @@
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b border-gray-100 bg-gray-50">
+                @if (pickingProducts()) {
+                  <th class="px-4 py-3 text-left w-10">
+                    <input type="checkbox" [checked]="allOnPagePicked()" (change)="togglePageSelection()"
+                      aria-label="Tick every product on this page"
+                      class="h-4 w-4 cursor-pointer rounded border-gray-300 text-indigo-600" />
+                  </th>
+                }
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider w-16">Image</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Product Info</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Category</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Price (৳)</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider"
+                  title="What this product costs to deliver. 'Area charge' means the usual Inside/Outside Dhaka price.">Delivery</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Stock</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Featured</th>
@@ -113,7 +245,14 @@
             </thead>
             <tbody class="divide-y divide-gray-50">
               @for (product of products(); track product.id) {
-                <tr class="hover:bg-gray-50 transition-colors">
+                <tr class="hover:bg-gray-50 transition-colors" [class.bg-indigo-50]="pickingProducts() && isPicked(product.id)">
+                  @if (pickingProducts()) {
+                    <td class="px-4 py-3.5">
+                      <input type="checkbox" [checked]="isPicked(product.id)" (change)="togglePick(product.id)"
+                        [attr.aria-label]="'Tick ' + product.name"
+                        class="h-4 w-4 cursor-pointer rounded border-gray-300 text-indigo-600" />
+                    </td>
+                  }
                   <!-- Image -->
                   <td class="px-4 py-3.5">
                     <div class="w-11 h-11 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
@@ -148,6 +287,13 @@
                   </td>
                   <!-- Price -->
                   <td class="px-4 py-3.5 font-semibold text-gray-800">{{ product.price.toLocaleString() }}</td>
+                  <!-- What it costs to deliver -->
+                  <td class="px-4 py-3.5">
+                    <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold"
+                      [class]="deliveryClass(product)" [title]="deliverySource(product)">
+                      {{ deliveryLabel(product) }}
+                    </span>
+                  </td>
                   <!-- Stock -->
                   <td class="px-4 py-3.5">
                     <p class="font-bold text-base" [class]="stockQtyClass(product.stockStatus)">{{ product.stockQuantity }}</p>
@@ -262,7 +408,7 @@
               }
               @empty {
                 <tr>
-                  <td colspan="9" class="px-5 py-12 text-center text-gray-400 text-sm">
+                  <td [attr.colspan]="pickingProducts() ? 11 : 10" class="px-5 py-12 text-center text-gray-400 text-sm">
                     No products found.
                   </td>
                 </tr>

@@ -30,6 +30,32 @@ export interface ShippingRulesChange {
   offerMin?: number;
 }
 
+/**
+ * One delivery-charge change, made from the Products page.
+ *
+ * Chosen products and the whole shop set the charge on the products themselves;
+ * a category sets it on the category, so products added to it later are covered.
+ */
+export interface ShippingChargeChange {
+  scope: 'PRODUCTS' | 'CATEGORY' | 'ALL';
+  productIds?: number[];
+  categoryId?: number;
+  /** In taka; 0 means delivered free. Left out when useAreaPrice is true. */
+  charge?: number;
+  /** True to take the charge away, so the customer's area price decides again. */
+  useAreaPrice?: boolean;
+}
+
+/** What a delivery-charge change did, for the message the admin sees. */
+export interface ShippingChargeResult {
+  products: number;
+  categories: number;
+  /** Products in a category that keep a charge of their own. */
+  keptOwnCharge: number;
+  scopeLabel: string;
+  message: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ShippingService {
   private http = inject(HttpClient);
@@ -45,5 +71,10 @@ export class ShippingService {
 
   updateRules(change: ShippingRulesChange): Observable<ShippingSettings> {
     return this.http.put<ShippingSettings>(`${this.base}/admin/shipping/rules`, change);
+  }
+
+  /** Sets, or takes away, the delivery charge on products or a category. */
+  setCharges(change: ShippingChargeChange): Observable<ShippingChargeResult> {
+    return this.http.put<ShippingChargeResult>(`${this.base}/admin/shipping/charges`, change);
   }
 }

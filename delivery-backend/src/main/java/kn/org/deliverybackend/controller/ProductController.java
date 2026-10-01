@@ -76,33 +76,9 @@ public class ProductController {
         return ResponseEntity.ok(productService.updateProduct(id, productRequestDTO, image));
     }
 
-    /**
-     * Parts of the product form that need a permission of their own: what
-     * customers pay (price and sale discount), the home-page flags, and
-     * "Never discount". {@code current} is null when adding; the price of a
-     * new product is covered by the endpoint's own rule.
-     */
+    /** See {@link ProductAccess#checkProductFields}. */
     private static void checkGuardedFields(ProductRequestDTO request, ProductResponseDTO current) {
-        if (current != null) {
-            BigDecimal salePriceBefore = current.getDiscountPrice() != null ? current.getDiscountPrice() : current.getPrice();
-            BigDecimal salePriceAfter = ProductPricing.salePrice(request.getPrice(), request.getDiscountPercentage());
-            if (!ProductPricing.sameAmount(request.getPrice(), current.getPrice())
-                    || !ProductPricing.sameAmount(salePriceAfter, salePriceBefore)) {
-                StaffAccess.require(Perm.PRODUCTS_PRICE);
-            }
-        }
-        if (flagChanged(request.getIsFeatured(), current == null ? null : current.getIsFeatured())
-                || flagChanged(request.getIsNewArrival(), current == null ? null : current.getIsNewArrival())) {
-            StaffAccess.require(Perm.PRODUCTS_FEATURE);
-        }
-        if (flagChanged(request.getDiscountExcluded(), current == null ? null : current.getDiscountExcluded())) {
-            StaffAccess.require(Perm.DISCOUNTS_SWITCHES);
-        }
-    }
-
-    /** True when a flag is sent and differs from what is stored. A flag not sent changes nothing; missing counts as off. */
-    private static boolean flagChanged(Boolean requested, Boolean before) {
-        return requested != null && requested != Boolean.TRUE.equals(before);
+        ProductAccess.checkProductFields(request, current);
     }
 
     @RequiresPermission(Perm.PRODUCTS_DELETE)

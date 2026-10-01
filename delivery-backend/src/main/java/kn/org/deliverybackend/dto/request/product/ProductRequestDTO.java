@@ -36,6 +36,18 @@ public class ProductRequestDTO {
     @DecimalMax(value = "100.0", message = "Discount percentage cannot exceed 100")
     private BigDecimal discountPercentage;
 
+    /**
+     * The sale discount as a fixed amount off, in taka, instead of a percentage.
+     * Send one or the other; it has to be less than the price.
+     */
+    @DecimalMin(value = "0.0", message = "The discount cannot be negative")
+    private BigDecimal discountAmount;
+
+    /** The sale price this request asks for, however the discount was given. */
+    public BigDecimal requestedSalePrice() {
+        return kn.org.deliverybackend.service.ProductPricing.salePrice(price, discountPercentage, discountAmount);
+    }
+
     @NotNull(message = "Shop ID is required")
     private Long shopId;
 

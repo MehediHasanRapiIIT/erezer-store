@@ -4,6 +4,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -18,4 +20,11 @@ public class CategoryResponseDTO {
     private Integer homeSortOrder;
     private Boolean discountExcluded;
     private Boolean showStockQuantity;
+
+    /**
+     * What every product in this category costs to deliver, unless the product
+     * has a charge of its own. Null means the customer's area price decides.
+     * Zero means delivered free.
+     */
+    private BigDecimal shippingCharge;
 }

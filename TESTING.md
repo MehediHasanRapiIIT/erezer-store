@@ -385,6 +385,128 @@ lines, as it would for anyone. Exit status 0 means everything matched.
 
 ---
 
+## 10. Delivery charges on products and categories
+
+Most products are delivered at their area's price — ৳60 inside Dhaka, ৳120
+outside — set on **Admin → Shipping**. A product or a whole category can be given
+its own charge instead, on **Admin → Products → Delivery charge**.
+
+Which charge applies to a line, nearest rule first:
+
+1. the charge set on the product
+2. the charge set on its category
+3. the area's price
+
+An order pays the **highest charge in the basket, once**: one delivery, one
+charge. A charge of **0** means delivered free. The free-shipping switches on the
+Shipping page and a free-shipping coupon still beat all of it.
+
+### Checking it by hand
+
+1. Open **Products**, press **Delivery charge**, and the panel appears with three
+   tabs: chosen products, a category, the whole shop.
+2. On **Chosen products**, tick one product, type `237`, press apply. Its row in
+   the **Delivery** column now reads `৳237`.
+3. Put that product in a cart and go to checkout: delivery is ৳237 whether the
+   address is in Dhaka or outside it.
+4. Add a second product that shows `Area charge`. Delivery stays ৳237 — the
+   highest in the basket, not the sum.
+5. Back on the panel, tick **Use the area price instead** and apply. The row reads
+   `Area charge` again and checkout goes back to ৳60.
+6. On **A category**, choose a category and type `150`. Every product in it that
+   has no charge of its own shows `৳150` in violet — inherited. Add a new product
+   to that category afterwards and it shows `৳150` too, with nothing to set.
+7. Set a product to `0`: its page in the shop says **Free delivery**, and
+   checkout charges nothing for delivery — as long as it is alone in the basket.
+
+### Checking it with the script
+
+```bash
+python deploy/verify_shipping_charges.py              # 17 checks against real quotes
+python deploy/verify_shipping_charges.py --with-order # and one real order, cancelled after
+```
+
+It puts every charge back as it found it, and the last check confirms the shop
+quotes what it quoted before the script ran. The quote endpoint is rate-limited,
+so leave a minute between runs or the checks fail with HTTP 429.
+
+### Permissions
+
+Changing a delivery charge needs **Change shipping prices and free shipping**
+(`shipping.edit`) — the same permission as the Shipping page, because it is the
+same decision. A Moderator without it does not see the **Delivery charge** button
+at all, still sees the **Delivery** column, and is refused by the API if the call
+is made directly. See §9.
+
+---
+
+## 11. Adding a product in one click
+
+**Products → Add New Product** takes everything on one form: the details, the
+price and discount, the pictures and the sizes. **Save Product** sends it all in
+one request, and the server saves all of it or none of it — a product never
+appears in the shop half-made, and a refused save leaves no picture in storage.
+
+- **Pictures:** choose or drop several at once (up to 10, 15 MB each). The first
+  is the main one; **Make main** and the arrows change the order.
+- **Discount:** the **% / ৳** switch gives it as a percentage or a fixed amount
+  off. The line under it says what customers pay. Switching keeps that the same.
+  Only the sale price is stored, so the Edit page reopens a whole percentage as
+  a percentage and anything else as the amount off.
+- **Sizes:** tick several and type the stock for each. On the Edit page,
+  **+ Add several sizes** does the same, with the sizes the product already has
+  shown but not tickable; **+ Add one size** is the old one-at-a-time form. A
+  product can never have the same size twice.
+
+### Checking it
+
+```bash
+python deploy/verify_product_upload.py   # who may send pictures, sizes, stock — as real moderators
+```
+
+By hand: add a product with three pictures, four sizes and a ৳ discount; it
+lands at the top of the Products list with all of it. Then try again with a
+text file renamed `.png` among the pictures: the form says which picture is
+wrong, keeps everything you typed, and nothing is saved.
+
+---
+
+## 12. Adding several products at once
+
+**Products → Add several products** is for a delivery or a photo shoot: up to
+20 products that share a category, description, price, discount and sizes,
+each with its own name, code and pictures. Opened while the Products list is
+showing a category, it starts in that category.
+
+- **Drop the shoot's photos** and they are dealt out into products — 4 per
+  product unless you change the number — in name order, as the camera numbered
+  them. The first of each is the main picture. Each product is named from its
+  first photo (`01-pink-floral.jpg` → "Pink Floral"); camera names like
+  `IMG_2041` are left blank to type. **+ Add a row** adds one by hand.
+- **Codes are suggested** from the category's initials and the next free number
+  (Erezer Pink → EP-1003, EP-1004…), and can be changed. A code you typed is
+  never replaced. A number is never offered again once an order has carried it,
+  even if the product was deleted. The single Add page suggests a code the same
+  way. **SKUs** are automatic, as always.
+- **Photos are stored exactly as uploaded** — same size, same format, byte for
+  byte. One save can carry up to 240 MB (15 MB per photo); the footer shows the
+  running total, and the Save button shows how much has gone up. A bigger batch
+  is refused before anything is sent: save part of it, then the rest.
+- **One click saves all of them, or none.** A mistake names its row
+  ("Row 2: Picture 1: …"), marks it, and keeps everything you typed.
+
+### Checking it
+
+```bash
+python deploy/verify_product_upload.py   # covers this page's permissions too
+```
+
+By hand: drop eight photos numbered 01–08 with 4 per product, check you get two
+rows named from the files with consecutive codes, set one row's own price, and
+save. Both land in the category's Products list with four pictures each.
+
+---
+
 ## What is not wired up locally
 
 These are stubbed on purpose, and are **not** signs of a broken setup:

@@ -161,6 +161,20 @@ import { RevealDirective } from '../core/reveal.directive';
                 }
               </div>
 
+              <!-- What delivery costs, when the shop has said so for this product. -->
+              @if (deliveryNote(p); as delivery) {
+                <p class="flex items-center gap-1.5 text-sm font-medium"
+                  [class.text-emerald-700]="delivery.free"
+                  [class.dark:text-emerald-400]="delivery.free"
+                  [class.text-neutral-600]="!delivery.free"
+                  [class.dark:text-neutral-300]="!delivery.free">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 7h11v8H3V7zm11 3h4l3 3v2h-7v-5zM7 19a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm10 0a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/>
+                  </svg>
+                  {{ delivery.label }}
+                </p>
+              }
+
               <p class="leading-relaxed text-neutral-600 dark:text-neutral-300">{{ p.description }}</p>
 
               <div class="border-t border-neutral-200 dark:border-neutral-800"></div>
@@ -1131,6 +1145,18 @@ export class ProductDetailPage implements OnInit {
   }
 
   /** Base unit price before automatic discounts (variant override or product sale price). */
+  /**
+   * What this product costs to deliver, when the shop has set a charge for it or
+   * for its category. Null when nothing is set, in which case the usual area
+   * price applies and checkout is the honest place to show it.
+   */
+  protected deliveryNote(p: ApiProduct): { label: string; free: boolean } | null {
+    const charge = p.shippingCharge ?? p.categoryShippingCharge ?? null;
+    if (charge == null) return null;
+    if (charge === 0) return { label: 'Free delivery', free: true };
+    return { label: `Delivery ৳${charge.toLocaleString()}`, free: false };
+  }
+
   protected basePrice(p: ApiProduct): number {
     const v = this.selectedVariant();
     if (v?.priceOverride != null) return v.priceOverride;

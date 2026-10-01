@@ -5,6 +5,8 @@ import jakarta.validation.Valid;
 import kn.org.deliverybackend.access.Perm;
 import kn.org.deliverybackend.access.RequiresPermission;
 import kn.org.deliverybackend.access.StaffAccess;
+import kn.org.deliverybackend.dto.shipping.BulkShippingChargeRequestDTO;
+import kn.org.deliverybackend.dto.shipping.BulkShippingChargeResultDTO;
 import kn.org.deliverybackend.dto.shipping.ShippingRulesChangeDTO;
 import kn.org.deliverybackend.dto.shipping.ShippingSettingsDTO;
 import kn.org.deliverybackend.dto.shipping.ShippingZoneDTO;
@@ -57,6 +59,19 @@ public class AdminShippingController {
         } else if (change.offerMin() != null) {
             StaffAccess.describe("Changed the free shipping offer to orders from " + taka(result.offerMin()));
         }
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Sets, or takes away, the delivery charge on chosen products, a category, or
+     * the whole shop. Driven from the admin Products page.
+     */
+    @RequiresPermission(Perm.SHIPPING_EDIT)
+    @PutMapping("/charges")
+    public ResponseEntity<BulkShippingChargeResultDTO> setCharges(
+            @Valid @RequestBody BulkShippingChargeRequestDTO request) {
+        BulkShippingChargeResultDTO result = shippingService.setCharges(request);
+        StaffAccess.describe(result.getMessage());
         return ResponseEntity.ok(result);
     }
 

@@ -1,8 +1,19 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { HttpEvent, HttpEventType } from '@angular/common/http';
+import { Observable, filter, map, tap } from 'rxjs';
+import { VariantRequest } from './variant.service';
 import { environment } from '../../../environments/environment';
 import { StockDisplay, PageResponse, ProductRequest, ProductResponse } from '../models/api.models';
+
+/** One row of "Add several products". */
+export interface BatchItem {
+  name: string;
+  productCode: string;
+  /** Its own price, when it differs from the shared one. */
+  price?: number | null;
+  pictures: File[];
+}
 
 @Injectable({ providedIn: 'root' })
 export class ProductService {
@@ -54,6 +65,67 @@ export class ProductService {
     return this.http.post<ProductResponse>(`${this.baseUrl}/api/products`, formData);
   }
 
+  /**
+   * "Add product" in one click: the product, its pictures (the first is the main
+   * one) and its sizes. The server saves all of it or none of it.
+   */
+  createWithEverything(dto: ProductRequest, sizes: VariantRequest[], pictures: File[],
+                       onProgress?: (percent: number) => void): Observable<ProductResponse> {
+    const form = new FormData();
+    form.append('product', new Blob([JSON.stringify(dto)], { type: 'application/json' }));
+    if (sizes.length > 0) {
+      form.append('sizes', new Blob([JSON.stringify(sizes)], { type: 'application/json' }));
+    }
+    for (const picture of pictures) {
+      form.append('pictures', picture, picture.name);
+    }
+    return this.withProgress<ProductResponse>(`${this.baseUrl}/admin/products/full`, form, onProgress);
+  }
+
+  /** The next product codes for a category, e.g. ["EP-1003", "EP-1004"]. A suggestion only. */
+  nextCodes(categoryId: number, count = 1): Observable<string[]> {
+    return this.http.get<string[]>(`${this.baseUrl}/admin/products/next-codes`, {
+      params: { categoryId: String(categoryId), count: String(count) },
+    });
+  }
+
+  /**
+   * "Add several products": rows sharing one description, category, price,
+   * discount and sizes, each with its own name, code, pictures and price.
+   * Saved all together or not at all.
+   */
+  createBatch(shared: ProductRequest, sizes: VariantRequest[], items: BatchItem[],
+              onProgress?: (percent: number) => void): Observable<ProductResponse[]> {
+    const form = new FormData();
+    const batch = {
+      shared,
+      sizes,
+      items: items.map((i) => ({ name: i.name, productCode: i.productCode, price: i.price ?? null })),
+    };
+    form.append('batch', new Blob([JSON.stringify(batch)], { type: 'application/json' }));
+    items.forEach((item, row) => {
+      for (const picture of item.pictures) form.append(`pictures-${row}`, picture, picture.name);
+    });
+    return this.withProgress<ProductResponse[]>(`${this.baseUrl}/admin/products/batch`, form, onProgress);
+  }
+
+  /**
+   * Posts a form and reports how much of it has gone up. Photos are sent at
+   * their original size, so a whole shoot can take minutes on a shop's
+   * connection, and "Saving…" alone would look stuck.
+   */
+  private withProgress<T>(url: string, form: FormData, onProgress?: (percent: number) => void): Observable<T> {
+    return this.http.post<T>(url, form, { reportProgress: true, observe: 'events' }).pipe(
+      tap((event: HttpEvent<T>) => {
+        if (event.type === HttpEventType.UploadProgress && event.total) {
+          onProgress?.(Math.round((event.loaded / event.total) * 100));
+        }
+      }),
+      filter((event: HttpEvent<T>) => event.type === HttpEventType.Response),
+      map((event) => (event as { body: T }).body),
+    );
+  }
+
   updateProduct(id: number, dto: ProductRequest, image?: File): Observable<ProductResponse> {
     const formData = new FormData();
     // PUT endpoint uses @RequestParam flat fields, not @RequestPart JSON blob
@@ -64,6 +136,9 @@ export class ProductService {
     formData.append('price', String(dto.price));
     if (dto.discountPercentage != null) {
       formData.append('discountPercentage', String(dto.discountPercentage));
+    }
+    if (dto.discountAmount != null) {
+      formData.append('discountAmount', String(dto.discountAmount));
     }
     formData.append('shopId', String(dto.shopId));
     formData.append('isAvailable', String(dto.isAvailable));

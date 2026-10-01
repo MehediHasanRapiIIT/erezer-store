@@ -34,6 +34,11 @@ export class VariantService {
     return this.http.post<VariantResponse>(`${this.base}/admin/products/${productId}/variants`, payload);
   }
 
+  /** Several sizes at once; all are added or none are. */
+  createMany(productId: number, payload: VariantRequest[]): Observable<VariantResponse[]> {
+    return this.http.post<VariantResponse[]>(`${this.base}/admin/products/${productId}/variants/bulk`, payload);
+  }
+
   update(productId: number, variantId: number, payload: VariantRequest): Observable<VariantResponse> {
     return this.http.put<VariantResponse>(`${this.base}/admin/products/${productId}/variants/${variantId}`, payload);
   }

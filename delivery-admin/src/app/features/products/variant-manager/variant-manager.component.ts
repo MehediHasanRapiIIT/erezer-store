@@ -1,4 +1,4 @@
-import { Component, inject, input, OnChanges, signal, SimpleChanges } from '@angular/core';
+import { Component, computed, inject, input, OnChanges, signal, SimpleChanges } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { catchError, of } from 'rxjs';
 import {
@@ -10,6 +10,9 @@ import { parseApiError } from '../../../core/utils/api-error.util';
 import { PermissionService } from '../../../core/services/permission.service';
 import { ConfirmService } from '../../../core/services/confirm.service';
 import { NoticeService } from '../../../core/services/notice.service';
+import {
+  SIZE_OPTIONS, SizeGridComponent, SizeRow, emptySizeRows, pickedSizes,
+} from '../shared/size-grid.component';
 
 interface VariantForm {
   size: string;
@@ -22,13 +25,11 @@ const EMPTY_FORM: VariantForm = {
   size: '', sku: '', stockQuantity: 0, priceOverride: null,
 };
 
-/** Fixed clothing sizes for this store — no colour variants. */
-const SIZE_OPTIONS = ['S', 'M', 'L', 'XL', 'XXL'];
 
 @Component({
   selector: 'app-variant-manager',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, SizeGridComponent],
   template: `
     <section class="bg-white rounded-xl border border-gray-200 p-5">
       <header class="mb-3 flex items-center justify-between">
@@ -37,12 +38,22 @@ const SIZE_OPTIONS = ['S', 'M', 'L', 'XL', 'XXL'];
           <p class="text-xs text-gray-500">Size &amp; stock per variant. Customers must pick a size if any exist.</p>
         </div>
         @if (perms.can('products.variants')) {
-          <button
-            type="button"
-            (click)="startCreate()"
-            class="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg">
-            + Add variant
-          </button>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              (click)="startSeveral()"
+              [disabled]="freeSizes().length === 0"
+              [title]="freeSizes().length === 0 ? 'This product has every size already' : ''"
+              class="px-3 py-1.5 text-xs font-semibold text-blue-700 border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed">
+              + Add several sizes
+            </button>
+            <button
+              type="button"
+              (click)="startCreate()"
+              class="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg">
+              + Add one size
+            </button>
+          </div>
         }
       </header>
 
@@ -56,7 +67,7 @@ const SIZE_OPTIONS = ['S', 'M', 'L', 'XL', 'XXL'];
         </p>
       } @else if (loading()) {
         <p class="text-sm text-gray-400">Loading variants…</p>
-      } @else if (variants().length === 0 && !editingId() && !creating()) {
+      } @else if (variants().length === 0 && !editingId() && !creating() && !addingSeveral()) {
         <p class="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-500">
           No variants yet. Add one to expose size options on the storefront.
         </p>
@@ -75,7 +86,7 @@ const SIZE_OPTIONS = ['S', 'M', 'L', 'XL', 'XXL'];
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-50">
-            @for (v of variants(); track v.id) {
+            @for (v of sortedVariants(); track v.id) {
               <tr [class.bg-blue-50]="editingId() === v.id">
                 <td class="px-3 py-2">{{ v.size || '—' }}</td>
                 <td class="px-3 py-2 font-mono text-xs text-gray-600">{{ v.sku || '—' }}</td>
@@ -99,6 +110,26 @@ const SIZE_OPTIONS = ['S', 'M', 'L', 'XL', 'XXL'];
             }
           </tbody>
         </table>
+      }
+
+      <!-- Several sizes at once -->
+      @if (addingSeveral() && perms.can('products.variants')) {
+        <div class="mt-4 rounded-lg border border-blue-100 bg-blue-50/60 p-4" data-testid="several-sizes">
+          <h3 class="mb-1 text-sm font-semibold">Add several sizes</h3>
+          <p class="mb-3 text-xs text-gray-500">Tick the sizes to add and type the stock for each. Sizes this product already has can't be ticked again.</p>
+          <app-size-grid [(rows)]="severalRows" [taken]="takenSizes()" [disabled]="saving()"
+            [canSetStock]="perms.can('inventory.edit')" [canSetPrice]="perms.can('products.price')" />
+          <div class="mt-4 flex justify-end gap-2">
+            <button type="button" (click)="cancelSeveral()"
+              class="px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50">
+              Cancel
+            </button>
+            <button type="button" (click)="saveSeveral()" [disabled]="saving() || severalCount() === 0"
+              class="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50">
+              {{ saving() ? 'Saving…' : severalCount() > 0 ? 'Add ' + severalCount() + (severalCount() === 1 ? ' size' : ' sizes') : 'Add sizes' }}
+            </button>
+          </div>
+        </div>
       }
 
       <!-- Inline edit / create form -->
@@ -173,6 +204,31 @@ export class VariantManagerComponent implements OnChanges {
   readonly error     = signal<string>('');
 
   protected readonly sizeOptions = SIZE_OPTIONS;
+
+  /**
+   * Sizes in the order customers see them (S, M, L, XL, XXL) rather than the
+   * server's alphabetical L, M, S, XL; anything else goes last, alphabetically.
+   */
+  readonly sortedVariants = computed(() => {
+    const rank = (size: string | null) => {
+      const i = SIZE_OPTIONS.indexOf((size ?? '').trim().toUpperCase());
+      return i < 0 ? SIZE_OPTIONS.length : i;
+    };
+    return [...this.variants()].sort((a, b) =>
+      rank(a.size) - rank(b.size) || (a.size ?? '').localeCompare(b.size ?? ''));
+  });
+
+  /** "Add several sizes" is open. */
+  readonly addingSeveral = signal(false);
+  readonly severalRows = signal<SizeRow[]>(emptySizeRows());
+  readonly severalCount = computed(() => this.severalRows().filter((r) => r.picked).length);
+  /** The sizes this product already has, which the grid won't offer again. */
+  readonly takenSizes = computed(() =>
+    this.variants().map((v) => v.size).filter((s): s is string => !!s));
+  readonly freeSizes = computed(() => {
+    const taken = new Set(this.takenSizes().map((s) => s.toUpperCase()));
+    return SIZE_OPTIONS.filter((s) => !taken.has(s));
+  });
   protected form: VariantForm = { ...EMPTY_FORM };
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -194,7 +250,40 @@ export class VariantManagerComponent implements OnChanges {
     });
   }
 
+  startSeveral(): void {
+    this.cancelEdit();
+    this.error.set('');
+    this.severalRows.set(emptySizeRows());
+    this.addingSeveral.set(true);
+  }
+
+  cancelSeveral(): void {
+    this.addingSeveral.set(false);
+    this.severalRows.set(emptySizeRows());
+  }
+
+  /** All the ticked sizes in one request: every one is added, or none is. */
+  saveSeveral(): void {
+    const rows = pickedSizes(this.severalRows());
+    if (rows.length === 0) return;
+    this.saving.set(true);
+    this.error.set('');
+    this.api.createMany(this.productId(), rows).pipe(catchError((err) => {
+      this.error.set(parseApiError(err));
+      this.saving.set(false);
+      return of(null);
+    })).subscribe((made) => {
+      this.saving.set(false);
+      if (!made) return;
+      this.variants.update((list) => [...list, ...made]);
+      this.notices.success(made.length === 1 ? 'Size added' : `${made.length} sizes added`,
+        made.map((v) => v.size).join(', '));
+      this.cancelSeveral();
+    });
+  }
+
   startCreate(): void {
+    this.addingSeveral.set(false);
     this.editingId.set(null);
     this.creating.set(true);
     this.error.set('');
@@ -202,6 +291,7 @@ export class VariantManagerComponent implements OnChanges {
   }
 
   startEdit(v: VariantResponse): void {
+    this.addingSeveral.set(false);
     this.creating.set(false);
     this.editingId.set(v.id);
     this.error.set('');

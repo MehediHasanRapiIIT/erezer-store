@@ -100,6 +100,14 @@ public class Product extends AbstractBaseEntity<Long> {
     @Column(name = "discount_excluded")
     private Boolean discountExcluded;
 
+    /**
+     * What this product costs to deliver, whatever the customer's area. Null
+     * means the category's charge decides, and if that is null too, the area's
+     * price (Inside Dhaka / Outside Dhaka). Zero means delivered free.
+     */
+    @Column(name = "shipping_charge", precision = 12, scale = 2)
+    private BigDecimal shippingCharge;
+
     /** Stock on this product's page: follow the category, the quantity, or labels. Null means follow the category. */
     @Enumerated(EnumType.STRING)
     @Column(name = "stock_display", length = 20)
