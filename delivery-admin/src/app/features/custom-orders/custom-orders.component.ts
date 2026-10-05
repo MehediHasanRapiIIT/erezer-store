@@ -6,6 +6,7 @@ import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import {
   CustomOrderDetail,
   CustomOrderService,
+  CustomOrderSourceFile,
   CustomOrderStatus,
   CustomOrderSummary,
 } from '../../core/services/custom-order.service';
@@ -143,6 +144,37 @@ const ACTIVE_FILTER_STATUSES: CustomOrderStatus[] = ['NEW', 'IN_REVIEW', 'QUOTED
                     </div>
                   }
 
+                  <!-- The files to print from: the customer's uploads and the shop's
+                       logos at their own size, not the screen-size previews above. -->
+                  @if (d.sourceFiles?.length) {
+                    <div class="space-y-2" data-testid="source-files">
+                      <div>
+                        <h3 class="text-xs font-semibold uppercase text-gray-400">Original files ({{ d.sourceFiles!.length }})</h3>
+                        <p class="text-xs text-gray-500">
+                          Print from these. They are the files exactly as uploaded, at full size — the previews above are only a picture of the garment.
+                        </p>
+                      </div>
+                      <ul class="divide-y divide-gray-100 rounded-lg border border-gray-200">
+                        @for (f of d.sourceFiles!; track f.view + f.url) {
+                          <li class="flex items-center gap-3 px-3 py-2">
+                            <img [src]="f.url" alt="" class="h-12 w-12 shrink-0 rounded border border-gray-200 bg-gray-50 object-contain" />
+                            <div class="min-w-0 flex-1">
+                              <p class="text-sm font-medium text-gray-800">
+                                {{ sourceLabel(f) }}
+                                <span class="ml-1 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-600">{{ f.view }}</span>
+                              </p>
+                              <p class="text-xs text-gray-500">{{ sourceSize(f) }}</p>
+                            </div>
+                            <a [href]="f.url" target="_blank" rel="noopener" [attr.download]="sourceFileName(d, f)"
+                              class="shrink-0 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                              Open original file
+                            </a>
+                          </li>
+                        }
+                      </ul>
+                    </div>
+                  }
+
                   <!-- Design + shipping facts -->
                   <div class="grid gap-4 sm:grid-cols-2 text-sm">
                     <div>
@@ -250,7 +282,7 @@ const ACTIVE_FILTER_STATUSES: CustomOrderStatus[] = ['NEW', 'IN_REVIEW', 'QUOTED
               }
               <a [href]="currentImage()?.url" target="_blank" rel="noopener"
                 class="ml-auto shrink-0 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
-                Open original
+                Open this preview full size
               </a>
             </footer>
           </div>
@@ -260,6 +292,25 @@ const ACTIVE_FILTER_STATUSES: CustomOrderStatus[] = ['NEW', 'IN_REVIEW', 'QUOTED
   `,
 })
 export class CustomOrdersComponent implements OnInit, OnDestroy {
+  /** What an original file is, in words. */
+  protected sourceLabel(f: CustomOrderSourceFile): string {
+    if (f.kind === 'SHOP') return f.name ? `Shop logo: ${f.name}` : 'Shop logo';
+    if (f.kind === 'EDITED') return "Customer's file, background removed in the studio";
+    return "Customer's file";
+  }
+
+  /** The picture's own size, so staff can see it is the full-size file. */
+  protected sourceSize(f: CustomOrderSourceFile): string {
+    const size = f.width && f.height ? `${f.width.toLocaleString()} × ${f.height.toLocaleString()} px` : 'Full size';
+    return f.kind === 'EDITED' ? `${size} · kept at full size inside the design` : `${size} · exactly as uploaded`;
+  }
+
+  /** A name for the saved file that says which order and side it belongs to. */
+  protected sourceFileName(d: CustomOrderDetail, f: CustomOrderSourceFile): string {
+    const ext = f.kind === 'EDITED' ? 'png' : (f.url.split('?')[0].split('.').pop() || 'png');
+    return `${d.reference}-${f.view}.${ext}`;
+  }
+
   private readonly api = inject(CustomOrderService);
   protected readonly perms = inject(PermissionService);
   private readonly confirmer = inject(ConfirmService);

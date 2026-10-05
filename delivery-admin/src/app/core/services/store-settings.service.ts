@@ -24,9 +24,18 @@ export interface BrandStory {
   body: string | null;
   ctaLabel: string | null;
   ctaLink: string | null;
+  /** The shop's social accounts, in the order shown under the story. */
+  socials?: SocialLink[] | null;
+  /** The first of `socials`, from when there could only be one. The server keeps it in step. */
   socialHandle: string | null;
   socialUrl: string | null;
   images: string[];
+}
+
+/** One social account: the name customers read, and where it leads. */
+export interface SocialLink {
+  handle: string;
+  url: string | null;
 }
 
 export interface FooterLink {
@@ -63,6 +72,10 @@ export interface Footer {
 }
 
 export interface Marquee {
+  /**
+   * No longer used: the strip is shown or hidden on the Home Page layout
+   * (HomeLayoutService). Kept, always true, because the backend still stores it.
+   */
   enabled: boolean;
   items: string[];
 }

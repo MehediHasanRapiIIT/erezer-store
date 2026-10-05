@@ -73,6 +73,14 @@ public class StoreSettings extends AbstractBaseEntity<Long> {
     @Column(name = "highlights_json", columnDefinition = "text")
     private String highlightsJson;
 
+    /**
+     * {@code List<HomeSectionDTO>} serialised as JSON: which home page sections
+     * are shown, top to bottom (V22). Null means the page as it was built.
+     * Changed on the admin "Home page layout" page, never by the Settings page.
+     */
+    @Column(name = "home_layout_json", columnDefinition = "text")
+    private String homeLayoutJson;
+
     // ── Checkout payment methods (admin-toggled). Null on legacy rows → treated
     //    as enabled so existing behaviour is preserved until an admin edits them.
     @Column(name = "payment_cod_enabled")

@@ -18,6 +18,25 @@ export interface CustomOrderImage {
   url: string;
 }
 
+/**
+ * One picture a custom order was made from, at its original size: the file the
+ * customer uploaded, or a logo from the shop's library. This is what to print
+ * from; the order's `images` are only screen-size previews of the garment.
+ */
+export interface CustomOrderSourceFile {
+  /** Which side of the garment it is on. */
+  view: string;
+  /** Where the original file is; for EDITED, the picture itself as a data: address. */
+  url: string;
+  /** The customer's own file, a shop logo, or a picture changed in the studio (background removed). */
+  kind: 'CUSTOMER' | 'SHOP' | 'EDITED';
+  /** The logo's name in the shop's library; null for a customer's file. */
+  name: string | null;
+  /** The picture's own size in pixels, when the design recorded it. */
+  width: number | null;
+  height: number | null;
+}
+
 export interface CustomOrderSummary {
   id: string;
   reference: string;
@@ -51,6 +70,8 @@ export interface CustomOrderDetail {
   status: CustomOrderStatus;
   adminNotes: string | null;
   images: CustomOrderImage[];
+  /** The original files the design was made from, for printing. */
+  sourceFiles?: CustomOrderSourceFile[] | null;
   createdAt: string;
 }
 

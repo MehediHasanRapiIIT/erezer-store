@@ -15,6 +15,13 @@ export class SettingsStore {
 
   readonly settings = signal<ApiStoreSettings | null>(null);
 
+  /**
+   * True once the settings have arrived, or it is known they won't. The home
+   * page waits for this before drawing its sections, so a section the shop
+   * switched off is never shown for a moment first.
+   */
+  readonly loaded = signal(false);
+
   constructor() {
     this.reload();
   }
@@ -22,6 +29,9 @@ export class SettingsStore {
   reload(): void {
     this.api.getStoreSettings()
       .pipe(catchError(() => of(null)))
-      .subscribe((s) => { if (s) this.settings.set(s); });
+      .subscribe((s) => {
+        if (s) this.settings.set(s);
+        this.loaded.set(true);
+      });
   }
 }

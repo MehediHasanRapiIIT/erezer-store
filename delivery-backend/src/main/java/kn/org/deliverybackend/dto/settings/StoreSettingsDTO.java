@@ -59,4 +59,11 @@ public class StoreSettingsDTO {
     private Boolean shippingFreeAll;
     private Boolean shippingOfferEnabled;
     private java.math.BigDecimal shippingOfferMin;
+
+    /**
+     * Which home page sections to show, top to bottom; every section is named
+     * once. Read-only here: it is changed on the admin "Home page layout" page,
+     * and saving the Settings page leaves it alone.
+     */
+    private java.util.List<HomeSectionDTO> homeLayout;
 }

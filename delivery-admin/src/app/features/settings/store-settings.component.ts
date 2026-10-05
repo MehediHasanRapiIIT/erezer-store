@@ -1,5 +1,6 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { catchError, of } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import {
@@ -40,7 +41,7 @@ const EMPTY_CHART: SizeChart = { columns: ['Chest', 'Length'], rows: [] };
 
 const EMPTY_BRAND: BrandStory = {
   eyebrow: 'Our story', heading: '', body: '', ctaLabel: 'Explore the collection',
-  ctaLink: '/shop', socialHandle: '', socialUrl: '', images: [],
+  ctaLink: '/shop', socials: [], socialHandle: '', socialUrl: '', images: [],
 };
 
 const EMPTY_ABOUT: AboutPage = {
@@ -56,7 +57,7 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
 @Component({
   selector: 'app-store-settings',
   standalone: true,
-  imports: [FormsModule, SidebarComponent],
+  imports: [FormsModule, RouterLink, SidebarComponent],
   template: `
     <div class="flex h-screen bg-gray-50 overflow-hidden">
       <app-sidebar />
@@ -368,16 +369,34 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                   <input [(ngModel)]="brand.ctaLink" placeholder="/shop"
                     class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
                 </label>
-                <label class="text-xs font-medium text-gray-600">
-                  Social handle
-                  <input [(ngModel)]="brand.socialHandle" placeholder="@erezer"
-                    class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
-                </label>
-                <label class="text-xs font-medium text-gray-600">
-                  Social URL
-                  <input [(ngModel)]="brand.socialUrl" placeholder="https://instagram.com/erezer"
-                    class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
-                </label>
+                <!-- Social handles: as many as the shop uses, shown under the story in this order. -->
+                <div class="col-span-full space-y-2" data-testid="socials">
+                  <div class="flex items-center justify-between gap-3">
+                    <div>
+                      <p class="text-xs font-medium text-gray-600">Social handles</p>
+                      <p class="text-xs font-normal text-gray-400">Shown under the story, each with its network's mark. The first one comes first.</p>
+                    </div>
+                    <button type="button" (click)="addSocial()" [disabled]="brand.socials!.length >= maxSocials"
+                      class="shrink-0 px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                      + Add social handle
+                    </button>
+                  </div>
+                  @for (social of brand.socials!; track $index; let i = $index) {
+                    <div class="flex items-center gap-2" [attr.data-testid]="'social-' + i">
+                      <input [(ngModel)]="social.handle" placeholder="@erezer" [attr.aria-label]="'Handle ' + (i + 1)"
+                        class="w-44 shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                      <input [(ngModel)]="social.url" placeholder="https://instagram.com/erezer" [attr.aria-label]="'Link ' + (i + 1)"
+                        class="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                      <button type="button" (click)="removeSocial(i)" class="act-btn-icon shrink-0" title="Remove this handle"
+                        [attr.aria-label]="'Remove handle ' + (i + 1)">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                      </button>
+                    </div>
+                  }
+                  @if (brand.socials!.length === 0) {
+                    <p class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">No social handles. Press “Add social handle” to show one under the story.</p>
+                  }
+                </div>
               </div>
               <div class="space-y-2">
                 <div class="flex items-center justify-between">
@@ -746,15 +765,15 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
               <div class="flex items-center justify-between">
                 <div>
                   <h2 class="text-base font-semibold">Trust strip (marquee)</h2>
-                  <p class="text-xs text-gray-500">Scrolling phrases under the featured products.</p>
+                  <p class="text-xs text-gray-500">
+                    The phrases that scroll across the home page. To show or hide the strip, or move it, use
+                    <a routerLink="/home-layout" class="font-medium text-blue-600 hover:underline">Home Page</a>.
+                  </p>
                   @if (!perms.can('settings.homepage')) {
                     <p class="text-xs text-gray-400">Needs the “Edit home page content” permission.</p>
                   }
                 </div>
                 <div class="flex items-center gap-3">
-                  <label class="flex items-center gap-2 text-xs font-medium text-gray-600">
-                    <input type="checkbox" [(ngModel)]="marquee.enabled" [disabled]="!perms.can('settings.homepage')" /> Enabled
-                  </label>
                   @if (perms.can('settings.homepage')) {
                   <button type="button" (click)="addMarqueeItem()"
                     class="px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50">+ Phrase</button>
@@ -878,7 +897,9 @@ export class StoreSettingsComponent implements OnInit {
     };
     this.footer = this.normalizeFooter(s.footer);
     this.marquee = {
-      enabled: s.marquee?.enabled ?? true,
+      // No longer a switch here: whether the strip shows is decided on the Home
+      // Page layout. Always sent as on, so nothing stored still reads as hiding it.
+      enabled: true,
       items: [...(s.marquee?.items ?? [])],
     };
     this.highlights = (s.highlights ?? []).map((h) => ({
@@ -894,6 +915,21 @@ export class StoreSettingsComponent implements OnInit {
   }
   protected removeHighlight(i: number): void { this.highlights.splice(i, 1); }
 
+  /** The server keeps at most this many social handles. */
+  protected readonly maxSocials = 8;
+  protected addSocial(): void {
+    if (this.brand.socials!.length < this.maxSocials) this.brand.socials!.push({ handle: '', url: '' });
+  }
+  protected removeSocial(i: number): void { this.brand.socials!.splice(i, 1); }
+
+  /** The story as it is saved: rows left completely empty are not sent. */
+  private brandToSave(): BrandStory {
+    const socials = this.brand.socials!
+      .map((s) => ({ handle: s.handle.trim(), url: (s.url ?? '').trim() || null }))
+      .filter((s) => s.handle !== '' || s.url !== null);
+    return { ...this.brand, socials };
+  }
+
   protected addMarqueeItem(): void { this.marquee.items.push(''); }
   protected removeMarqueeItem(i: number): void { this.marquee.items.splice(i, 1); }
 
@@ -904,6 +940,9 @@ export class StoreSettingsComponent implements OnInit {
       body: input?.body ?? '',
       ctaLabel: input?.ctaLabel ?? '',
       ctaLink: input?.ctaLink ?? '/shop',
+      // Several now; a story saved with one handle arrives as a list of that one.
+      socials: (input?.socials ?? (input?.socialHandle ? [{ handle: input.socialHandle, url: input.socialUrl }] : []))
+        .map((s) => ({ handle: s.handle ?? '', url: s.url ?? '' })),
       socialHandle: input?.socialHandle ?? '',
       socialUrl: input?.socialUrl ?? '',
       images: [...(input?.images ?? [])],
@@ -1158,7 +1197,7 @@ export class StoreSettingsComponent implements OnInit {
     const payload: StoreSettings = {
       ...this.model,
       sizeChart: this.perms.can('settings.sizechart') ? this.chart : this.model.sizeChart,
-      brandStory: homepage ? this.brand : this.model.brandStory,
+      brandStory: homepage ? this.brandToSave() : this.model.brandStory,
       footer: this.perms.can('settings.footer') ? this.footer : this.model.footer,
       marquee: homepage ? this.marquee : this.model.marquee,
       highlights: homepage ? this.highlights : this.model.highlights,

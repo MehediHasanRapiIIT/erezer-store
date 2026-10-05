@@ -23,4 +23,11 @@ public interface StoreSettingsService {
 
     /** Turns promo codes on or off; a null field leaves it as it is. */
     CouponSwitchDTO updateCouponSwitch(CouponSwitchDTO change);
+
+    /** The home page's sections, top to bottom, each named once. */
+    java.util.List<kn.org.deliverybackend.dto.settings.HomeSectionDTO> getHomeLayout();
+
+    /** Saves the order and on/off state of the home page's sections; see {@link HomeLayout#checked}. */
+    java.util.List<kn.org.deliverybackend.dto.settings.HomeSectionDTO> updateHomeLayout(
+            java.util.List<kn.org.deliverybackend.dto.settings.HomeSectionDTO> layout);
 }

@@ -35,5 +35,12 @@ public class CustomOrderDTO {
     private String status;
     private String adminNotes;
     private List<CustomOrderImageDTO> images;
+
+    /**
+     * The original pictures the design was made from — the customer's uploads
+     * and the shop's logos — at their own size, for printing. Filled for staff;
+     * {@link #images} are only screen-size previews of the garment.
+     */
+    private List<CustomOrderSourceFileDTO> sourceFiles;
     private LocalDateTime createdAt;
 }

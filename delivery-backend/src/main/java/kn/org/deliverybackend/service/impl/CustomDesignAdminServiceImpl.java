@@ -268,8 +268,16 @@ public class CustomDesignAdminServiceImpl implements CustomDesignAdminService {
                 .status(o.getStatus().name())
                 .adminNotes(o.getAdminNotes())
                 .images(images)
+                .sourceFiles(DesignSourceFiles.from(o.getDesignJson(), shopLogos()))
                 .createdAt(toLdt(o.getCreatedAt()))
                 .build();
+    }
+
+    /** The shop's logo library, address → name, so its logos can be told from a customer's own files. */
+    private java.util.Map<String, String> shopLogos() {
+        java.util.Map<String, String> logos = new java.util.HashMap<>();
+        assetRepository.findAllForAdmin().forEach(a -> logos.putIfAbsent(a.getUrl(), a.getName()));
+        return logos;
     }
 
     private static LocalDateTime toLdt(java.util.Date date) {

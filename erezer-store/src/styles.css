@@ -278,3 +278,19 @@ body {
   margin-left: calc(50% - 50vw + (var(--sbw, 0px) / 2));
   margin-right: calc(50% - 50vw + (var(--sbw, 0px) / 2));
 }
+
+/* ── Home page sections, in any order ─────────────────────────────────────────
+   The shop's admin can rearrange the sections below the top banner. Each was
+   written for a fixed neighbour, and some have space only below them, so two
+   moved together could touch. A section with no space above of its own takes
+   one whenever it follows another section; where the one before already leaves
+   more, the two overlap and the larger wins, so the original order looks
+   exactly as it always did. */
+.home-section + .home-gap {
+  margin-top: 3.5rem;
+}
+/* The one pair built to sit flush: featured products run straight into the
+   category collections, as one run of product rows. */
+.home-featured + .home-band {
+  margin-top: 0;
+}

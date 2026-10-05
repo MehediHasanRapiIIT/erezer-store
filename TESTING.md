@@ -507,6 +507,62 @@ save. Both land in the category's Products list with four pictures each.
 
 ---
 
+## 13. Pictures are stored exactly as uploaded
+
+The shop never shrinks, re-compresses or converts an uploaded picture. What is
+stored, and what the shop serves, is the same file byte for byte, so its size
+and quality are what they were on the uploader's computer.
+
+```bash
+python deploy/verify_images_unchanged.py   # a real JPEG, PNG and WebP through every upload route
+```
+
+**Custom orders.** The pictures shown on an order are flattened previews of the
+garment at screen size. Under them, **Original files** lists what the design was
+made from — the customer's uploads and the shop's logos — each at its real pixel
+size with **Open original file**. Print from those. A picture whose background
+the customer removed in the studio is listed too, kept at full size inside the
+design.
+
+---
+
+## 14. Home page layout
+
+**Admin → Home Page** chooses which sections the shop's home page shows, and in
+what order. The big top banner is fixed: always first, always shown. Under it
+are 14 sections, each with an on/off switch and up/down arrows:
+
+two-panel band · category tile grid · custom design promotion · flash sale ·
+featured bundle · shop by category · highlights · new arrivals · featured
+products · category collections · scrolling text strip · recently viewed · our
+story · newsletter sign-up
+
+- Changes stay on the page until **Save layout**; the shop keeps the old layout
+  until then. **Undo changes** drops them. The link under the list puts
+  everything back to the original order, all on.
+- A section that is on still only appears when it has something to show — a
+  flash sale only while one is running, "Our story" once it is written. Each
+  row says so.
+- The **scrolling text strip** is switched here and nowhere else. Settings
+  holds only its phrases. (It used to have its own switch there; a shop that
+  had it off was carried over as "off" here.)
+- **Our story** can show several social handles (Settings → Brand story →
+  Social handles: a name and a link each, up to 8). Each gets its network's
+  mark on the shop — Instagram, Facebook, TikTok, YouTube, X — and any other
+  link a general one. A link typed without `https://` is completed.
+- **Category collections** (categories marked "Show on home") move as one
+  block; the order inside it is set on each category.
+- Until a shop saves a layout, the home page is exactly as it was built. A
+  section added to the shop later appears at the end, switched on.
+- Seeing the page needs "See store settings" or "Edit home page content";
+  changing it needs **Edit home page content** (`settings.homepage`). Saving
+  the Settings page never touches the layout.
+
+By hand: switch "Our story" off, move "Shop by category" to the top, save, and
+reload the shop's home page.
+
+---
+
 ## What is not wired up locally
 
 These are stubbed on purpose, and are **not** signs of a broken setup:

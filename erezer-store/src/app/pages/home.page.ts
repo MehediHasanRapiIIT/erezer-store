@@ -5,7 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { catchError, of } from 'rxjs';
 import { ApiService } from '../core/api.service';
-import { ApiBanner, ApiBannerSlot, ApiHomeSection, ApiBrandStory, ApiCategory, ApiHighlight, ApiMarquee, ApiProduct } from '../core/api.models';
+import { ApiBanner, ApiBannerSlot, ApiHomeSection, ApiBrandStory, ApiSocialLink, ApiCategory, ApiHighlight, ApiMarquee, ApiProduct, HOME_SECTIONS, HomeSectionKey } from '../core/api.models';
 import { SettingsStore } from '../core/store/settings.store';
 import { ProductCardComponent } from '../components/shared/product-card.component';
 import { FlashSaleWidgetComponent } from '../components/shared/flash-sale-widget.component';
@@ -108,179 +108,6 @@ import { CountUpDirective } from '../core/count-up.directive';
       }
     </section>
 
-    <!-- ── Split band: two full-height category panels ─────────────────────── -->
-    <!-- Renders nothing until an admin fills SPLIT_LEFT / SPLIT_RIGHT. -->
-    @if (hasSplitBand()) {
-      <section class="relative reveal-band full-bleed mb-16" appReveal>
-        <div class="grid md:grid-cols-2">
-          @for (panel of [splitLeft(), splitRight()]; track $index) {
-            @if (panel) {
-              <a [href]="panel.ctaLink || '/shop'" (click)="onBandLink($event, panel.ctaLink || '/shop')"
-                class="group relative block h-[70svh] min-h-[26rem] overflow-hidden bg-neutral-900">
-                <img [src]="panel.imageUrl" [alt]="panel.promotionTitle || ''"
-                  class="h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105" />
-                <span class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/10"></span>
-                <span class="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
-                  @if (panel.promotionTitle) {
-                    <span class="text-3xl font-semibold uppercase leading-tight tracking-[0.12em] text-white drop-shadow sm:text-5xl">
-                      {{ panel.promotionTitle }}
-                    </span>
-                  }
-                  @if (panel.promotionDetails) {
-                    <span class="mt-3 max-w-sm text-sm text-white/80">{{ panel.promotionDetails }}</span>
-                  }
-                  @if (panel.ctaLabel) {
-                    <span class="mt-8 rounded-full border border-white/70 px-7 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-sm transition group-hover:bg-white group-hover:text-black">
-                      {{ panel.ctaLabel }}
-                    </span>
-                  }
-                </span>
-              </a>
-            } @else {
-              <!-- Only one half configured: keep the layout balanced. -->
-              <div class="hidden bg-neutral-100 md:block dark:bg-neutral-900"></div>
-            }
-          }
-        </div>
-      </section>
-    }
-
-    <!-- ── Category tile grid (2x2) ─────────────────────────────────────────── -->
-    @if (gridTiles().length) {
-      <section class="relative reveal-band full-bleed mb-16" appReveal>
-        <div class="grid grid-cols-1 sm:grid-cols-2">
-          @for (tile of gridTiles(); track tile.id) {
-            <a [href]="tile.ctaLink || '/shop'" (click)="onBandLink($event, tile.ctaLink || '/shop')"
-              class="group relative block h-[42svh] min-h-[16rem] overflow-hidden bg-neutral-900">
-              <img [src]="tile.imageUrl" [alt]="tile.promotionTitle || ''"
-                class="h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105" />
-              <span class="pointer-events-none absolute inset-0 bg-black/15 transition group-hover:bg-black/30"></span>
-              <span class="absolute inset-0 flex items-center justify-center">
-                <span class="rounded-full border border-white/80 bg-black/20 px-7 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-sm transition group-hover:bg-white group-hover:text-black">
-                  {{ tile.ctaLabel || tile.promotionTitle }}
-                </span>
-              </span>
-            </a>
-          }
-        </div>
-      </section>
-    }
-
-    <!-- ── Custom-design promo: flat panel + full-bleed photo ───────────────── -->
-    @if (customPromo(); as promo) {
-      <section class="relative reveal-band full-bleed mb-16" appReveal>
-        <div class="grid items-stretch md:grid-cols-2">
-          <div class="flex flex-col justify-center bg-neutral-100 px-8 py-16 sm:px-14 dark:bg-neutral-900">
-            <h2 class="text-3xl font-semibold uppercase leading-tight tracking-tight sm:text-4xl">
-              {{ promo.promotionTitle || 'Customize your apparel, your way.' }}
-            </h2>
-            <p class="app-muted mt-5 max-w-md text-sm leading-relaxed sm:text-base">
-              {{ promo.promotionDetails || 'Design your own t-shirts, hoodies and more in our online studio — no minimum order, even a single piece.' }}
-            </p>
-            <a [href]="promo.ctaLink || '/custom-design'" (click)="onBandLink($event, promo.ctaLink || '/custom-design')"
-              class="mt-8 inline-flex w-fit items-center rounded-full bg-neutral-900 px-8 py-3.5 text-xs font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-white/90">
-              {{ promo.ctaLabel || 'Try it now' }}
-            </a>
-          </div>
-          <div class="relative h-[46svh] min-h-[20rem] overflow-hidden md:h-auto">
-            <img [src]="promo.imageUrl" [alt]="promo.promotionTitle || ''"
-              class="h-full w-full object-cover" />
-          </div>
-        </div>
-      </section>
-    }
-
-    <!-- ── Flash sale promo (time-boxed; self-hides when none active) ───────── -->
-    <div class="mb-16" appReveal>
-      <app-flash-sale-widget />
-    </div>
-
-    <!-- ── Featured bundle promo (self-hides when none featured) ────────────── -->
-    <div class="mb-16" appReveal>
-      <app-bundle-widget />
-    </div>
-
-    <!-- ── Shop by category (lookbook) ─────────────────────────────────────── -->
-    @if (collectionTiles().length > 0) {
-      <!-- Full-bleed: escapes the app shell's 1280px column so the collection
-           tiles use the whole screen. Keeps the site's normal gutters so the
-           cards do not butt against the viewport edge. -->
-      <section class="relative  full-bleed mb-16">
-        <div class="mb-6 flex items-end justify-between px-4 sm:px-6 lg:px-8" appReveal>
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.28em] text-neutral-500 dark:text-neutral-400">Collections</p>
-            <h2 class="app-section-title mt-2 text-2xl">Shop by category</h2>
-          </div>
-          <a routerLink="/categories" class="text-sm font-medium underline underline-offset-4">Browse all</a>
-        </div>
-
-        <!-- No gap and square corners: the tiles butt together into one
-             continuous band, edge to edge across the viewport. -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          @for (tile of collectionTiles(); track tile.name; let i = $index) {
-            <!-- Portrait aspect on small screens. On desktop the tiles are
-                 ~630px wide, where an aspect ratio makes the height swing
-                 wildly with viewport width, so fix the height and let the
-                 image crop to fill. -->
-            <!-- Straight to the category's own page when it has a slug; the
-                 filtered shop is the fallback for a category created before
-                 slugs existed. -->
-            <a [routerLink]="tile.slug ? ['/', tile.slug] : ['/shop']"
-              [queryParams]="tile.slug ? {} : (tile.id ? { category: tile.id } : {})"
-              class="group relative block aspect-[4/5] overflow-hidden lg:aspect-auto lg:h-[36rem] xl:h-[42rem]" [appReveal]="i">
-              <img [src]="tile.image" [alt]="tile.name"
-                class="h-full w-full object-cover transition-transform duration-[900ms] ease-out group-hover:scale-110" />
-              <div class="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent"></div>
-              <div class="absolute inset-x-0 bottom-0 p-6">
-                <p class="text-[11px] font-medium uppercase tracking-[0.22em] text-white/70">Collection</p>
-                <h3 class="mt-1 text-2xl font-semibold tracking-tight text-white">{{ tile.name }}</h3>
-                <span class="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-white">
-                  Shop now
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1"
-                    fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                  </svg>
-                </span>
-              </div>
-            </a>
-          }
-        </div>
-      </section>
-    }
-
-    <!-- ── Highlights (admin-managed) ──────────────────────────────────────── -->
-    <!-- Full-bleed too, so it lines up with the collection tiles above rather
-         than stepping back into the narrower column. -->
-    <section class="relative  full-bleed mb-14 px-4 sm:px-6 lg:px-8">
-      <div class="card-grid-flush grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-      @if (adminHighlights().length > 0) {
-        @for (item of adminHighlights(); track $index; let i = $index) {
-          <article class="app-card p-6 transition duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5" [appReveal]="i">
-            <div class="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-900 text-white dark:bg-white dark:text-black">
-              <ng-container [ngTemplateOutlet]="highlightIcon" [ngTemplateOutletContext]="{ $implicit: item.icon }" />
-            </div>
-            <p class="text-3xl font-semibold tracking-tight">{{ item.value }}</p>
-            <p class="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500 dark:text-neutral-400">{{ item.label }}</p>
-            <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">{{ item.description }}</p>
-          </article>
-        }
-      } @else {
-        @for (item of highlights; track item.label; let i = $index) {
-          <article class="app-card p-6 transition duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5" [appReveal]="i">
-            <div class="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-900 text-white dark:bg-white dark:text-black">
-              <ng-container [ngTemplateOutlet]="highlightIcon" [ngTemplateOutletContext]="{ $implicit: item.icon }" />
-            </div>
-            <p class="text-3xl font-semibold tracking-tight">
-              <span>{{ item.prefix }}</span><span [appCountUp]="item.target" [decimals]="item.decimals">0</span><span class="text-lg font-medium text-neutral-500 dark:text-neutral-400">{{ item.suffix }}</span>
-            </p>
-            <p class="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500 dark:text-neutral-400">{{ item.label }}</p>
-            <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">{{ item.description }}</p>
-          </article>
-        }
-      }
-      </div>
-    </section>
-
     <!-- Shared highlight icon set -->
     <ng-template #highlightIcon let-icon>
       @switch (icon) {
@@ -302,193 +129,426 @@ import { CountUpDirective } from '../core/count-up.directive';
       }
     </ng-template>
 
-    <!-- ── New arrivals (admin-managed) ────────────────────────────────────── -->
-    @if (newArrivalProducts().length > 0) {
-      <!-- Full-bleed like the bands above; keeps the site's gutters so the
-           product cards do not sit flush against the viewport edge. -->
-      <section class="relative  full-bleed mb-14 space-y-6 px-4 sm:px-6 lg:px-8">
-        <div class="flex items-end justify-between" appReveal>
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.28em] text-neutral-500 dark:text-neutral-400">Just dropped</p>
-            <h2 class="app-section-title mt-2 text-2xl">New arrivals</h2>
+    <!-- ── Everything below the top banner, in the order the shop's admin chose ──
+         (Admin → Home page layout). A section switched off there is simply not
+         in the list. Nothing is drawn until the layout is known, so a section
+         the shop turned off never flashes up first. -->
+    @for (key of sections(); track key) {
+      @switch (key) {
+        @case ('SPLIT_BAND') {
+          <!-- ── Split band: two full-height category panels ─────────────────────── -->
+          <!-- Renders nothing until an admin fills SPLIT_LEFT / SPLIT_RIGHT. -->
+          @if (hasSplitBand()) {
+            <section class="home-section home-gap relative reveal-band full-bleed mb-16" appReveal>
+              <div class="grid md:grid-cols-2">
+                @for (panel of [splitLeft(), splitRight()]; track $index) {
+                  @if (panel) {
+                    <a [href]="panel.ctaLink || '/shop'" (click)="onBandLink($event, panel.ctaLink || '/shop')"
+                      class="group relative block h-[70svh] min-h-[26rem] overflow-hidden bg-neutral-900">
+                      <img [src]="panel.imageUrl" [alt]="panel.promotionTitle || ''"
+                        class="h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105" />
+                      <span class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/10"></span>
+                      <span class="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
+                        @if (panel.promotionTitle) {
+                          <span class="text-3xl font-semibold uppercase leading-tight tracking-[0.12em] text-white drop-shadow sm:text-5xl">
+                            {{ panel.promotionTitle }}
+                          </span>
+                        }
+                        @if (panel.promotionDetails) {
+                          <span class="mt-3 max-w-sm text-sm text-white/80">{{ panel.promotionDetails }}</span>
+                        }
+                        @if (panel.ctaLabel) {
+                          <span class="mt-8 rounded-full border border-white/70 px-7 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-sm transition group-hover:bg-white group-hover:text-black">
+                            {{ panel.ctaLabel }}
+                          </span>
+                        }
+                      </span>
+                    </a>
+                  } @else {
+                    <!-- Only one half configured: keep the layout balanced. -->
+                    <div class="hidden bg-neutral-100 md:block dark:bg-neutral-900"></div>
+                  }
+                }
+              </div>
+            </section>
+          }
+        }
+
+        @case ('TILE_GRID') {
+          <!-- ── Category tile grid (2x2) ─────────────────────────────────────────── -->
+          @if (gridTiles().length) {
+            <section class="home-section home-gap relative reveal-band full-bleed mb-16" appReveal>
+              <div class="grid grid-cols-1 sm:grid-cols-2">
+                @for (tile of gridTiles(); track tile.id) {
+                  <a [href]="tile.ctaLink || '/shop'" (click)="onBandLink($event, tile.ctaLink || '/shop')"
+                    class="group relative block h-[42svh] min-h-[16rem] overflow-hidden bg-neutral-900">
+                    <img [src]="tile.imageUrl" [alt]="tile.promotionTitle || ''"
+                      class="h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105" />
+                    <span class="pointer-events-none absolute inset-0 bg-black/15 transition group-hover:bg-black/30"></span>
+                    <span class="absolute inset-0 flex items-center justify-center">
+                      <span class="rounded-full border border-white/80 bg-black/20 px-7 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-sm transition group-hover:bg-white group-hover:text-black">
+                        {{ tile.ctaLabel || tile.promotionTitle }}
+                      </span>
+                    </span>
+                  </a>
+                }
+              </div>
+            </section>
+          }
+        }
+
+        @case ('CUSTOM_DESIGN_PROMO') {
+          <!-- ── Custom-design promo: flat panel + full-bleed photo ───────────────── -->
+          @if (customPromo(); as promo) {
+            <section class="home-section home-gap relative reveal-band full-bleed mb-16" appReveal>
+              <div class="grid items-stretch md:grid-cols-2">
+                <div class="flex flex-col justify-center bg-neutral-100 px-8 py-16 sm:px-14 dark:bg-neutral-900">
+                  <h2 class="text-3xl font-semibold uppercase leading-tight tracking-tight sm:text-4xl">
+                    {{ promo.promotionTitle || 'Customize your apparel, your way.' }}
+                  </h2>
+                  <p class="app-muted mt-5 max-w-md text-sm leading-relaxed sm:text-base">
+                    {{ promo.promotionDetails || 'Design your own t-shirts, hoodies and more in our online studio — no minimum order, even a single piece.' }}
+                  </p>
+                  <a [href]="promo.ctaLink || '/custom-design'" (click)="onBandLink($event, promo.ctaLink || '/custom-design')"
+                    class="mt-8 inline-flex w-fit items-center rounded-full bg-neutral-900 px-8 py-3.5 text-xs font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-white/90">
+                    {{ promo.ctaLabel || 'Try it now' }}
+                  </a>
+                </div>
+                <div class="relative h-[46svh] min-h-[20rem] overflow-hidden md:h-auto">
+                  <img [src]="promo.imageUrl" [alt]="promo.promotionTitle || ''"
+                    class="h-full w-full object-cover" />
+                </div>
+              </div>
+            </section>
+          }
+        }
+
+        @case ('FLASH_SALE') {
+          <!-- ── Flash sale promo (time-boxed; self-hides when none active) ───────── -->
+          <div class="home-section home-gap mb-16" appReveal>
+            <app-flash-sale-widget />
           </div>
-          <a routerLink="/shop" class="text-sm font-medium underline underline-offset-4">View all products</a>
-        </div>
-        <div class="card-grid-flush grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-          @for (product of newArrivalProducts(); track product.id; let i = $index) {
-            <app-product-card [product]="toStoreProduct(product)" [appReveal]="i" />
-          }
-        </div>
-      </section>
-    }
+        }
 
-    <!-- ── Featured products ───────────────────────────────────────────────── -->
-    <section class="relative  full-bleed space-y-6 px-4 sm:px-6 lg:px-8">
-      <div class="flex items-end justify-between" appReveal>
-        <h2 class="app-section-title text-2xl">Featured products</h2>
-        <a routerLink="/shop" class="text-sm font-medium underline underline-offset-4">View all products</a>
-      </div>
-
-      @if (loading()) {
-        <p class="app-muted">Loading products…</p>
-      } @else {
-        <div class="card-grid-flush grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-          @for (product of featuredApiProducts(); track product.id; let i = $index) {
-            <app-product-card [product]="toStoreProduct(product)" [appReveal]="i" />
-          } @empty {
-            @for (product of fallbackFeatured(); track product.id; let i = $index) {
-              <app-product-card [product]="product" [appReveal]="i" />
-            }
-          }
-        </div>
-      }
-    </section>
-
-    <!-- ── Admin-promoted category bands (e.g. Erezer Pink) ────────────────── -->
-    <!-- One per category the admin flagged "show on home". Rendered from the
-         same /app/home payload, so no extra request per section. -->
-    @for (section of homeSections(); track section.categoryId) {
-      <section class="relative full-bleed mb-14 space-y-6 px-4 sm:px-6 lg:px-8">
-        <div class="flex items-end justify-between" appReveal>
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.28em] text-neutral-500 dark:text-neutral-400">Collection</p>
-            <h2 class="mt-2 text-2xl font-semibold tracking-[-0.02em]">{{ section.name }}</h2>
+        @case ('FEATURED_BUNDLE') {
+          <!-- ── Featured bundle promo (self-hides when none featured) ────────────── -->
+          <div class="home-section home-gap mb-16" appReveal>
+            <app-bundle-widget />
           </div>
-          @if (section.slug) {
-            <a [routerLink]="['/', section.slug]" class="text-sm font-medium underline underline-offset-4">View all</a>
-          }
-        </div>
-        <div class="card-grid-flush grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-          @for (product of section.products; track product.id; let i = $index) {
-            <app-product-card [product]="toStoreProduct(product)" [appReveal]="i" />
-          }
-        </div>
-      </section>
-    }
+        }
 
-    <!-- ── Marquee trust strip (admin-managed) ─────────────────────────────── -->
-    @if (marquee().enabled && marquee().items.length > 0) {
-      <section class="relative marquee-mask full-bleed my-16 overflow-hidden bg-gradient-to-r from-neutral-950 via-neutral-800 to-neutral-950 py-4">
-        <!-- soft edge fades -->
-        <div class="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-neutral-950 to-transparent"></div>
-        <div class="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-gradient-to-l from-neutral-950 to-transparent"></div>
-        <div class="marquee-track">
-          @for (loop of marqueeLoop; track loop) {
-            @for (item of marquee().items; track $index) {
-              <span class="mx-8 inline-flex items-center gap-7 text-sm font-semibold uppercase tracking-[0.22em] text-white/90">
-                {{ item }}
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-amber-300/80" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 0l2.4 9.6L24 12l-9.6 2.4L12 24l-2.4-9.6L0 12l9.6-2.4z"/>
-                </svg>
-              </span>
+        @case ('SHOP_BY_CATEGORY') {
+          <!-- ── Shop by category (lookbook) ─────────────────────────────────────── -->
+          @if (collectionTiles().length > 0) {
+            <!-- Full-bleed: escapes the app shell's 1280px column so the collection
+                 tiles use the whole screen. Keeps the site's normal gutters so the
+                 cards do not butt against the viewport edge. -->
+            <section class="home-section home-gap relative  full-bleed mb-16">
+              <div class="mb-6 flex items-end justify-between px-4 sm:px-6 lg:px-8" appReveal>
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-[0.28em] text-neutral-500 dark:text-neutral-400">Collections</p>
+                  <h2 class="app-section-title mt-2 text-2xl">Shop by category</h2>
+                </div>
+                <a routerLink="/categories" class="text-sm font-medium underline underline-offset-4">Browse all</a>
+              </div>
+
+              <!-- No gap and square corners: the tiles butt together into one
+                   continuous band, edge to edge across the viewport. -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                @for (tile of collectionTiles(); track tile.name; let i = $index) {
+                  <!-- Portrait aspect on small screens. On desktop the tiles are
+                       ~630px wide, where an aspect ratio makes the height swing
+                       wildly with viewport width, so fix the height and let the
+                       image crop to fill. -->
+                  <!-- Straight to the category's own page when it has a slug; the
+                       filtered shop is the fallback for a category created before
+                       slugs existed. -->
+                  <a [routerLink]="tile.slug ? ['/', tile.slug] : ['/shop']"
+                    [queryParams]="tile.slug ? {} : (tile.id ? { category: tile.id } : {})"
+                    class="group relative block aspect-[4/5] overflow-hidden lg:aspect-auto lg:h-[36rem] xl:h-[42rem]" [appReveal]="i">
+                    <img [src]="tile.image" [alt]="tile.name"
+                      class="h-full w-full object-cover transition-transform duration-[900ms] ease-out group-hover:scale-110" />
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent"></div>
+                    <div class="absolute inset-x-0 bottom-0 p-6">
+                      <p class="text-[11px] font-medium uppercase tracking-[0.22em] text-white/70">Collection</p>
+                      <h3 class="mt-1 text-2xl font-semibold tracking-tight text-white">{{ tile.name }}</h3>
+                      <span class="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-white">
+                        Shop now
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1"
+                          fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                        </svg>
+                      </span>
+                    </div>
+                  </a>
+                }
+              </div>
+            </section>
+          }
+        }
+
+        @case ('HIGHLIGHTS') {
+          <!-- ── Highlights (admin-managed) ──────────────────────────────────────── -->
+          <!-- Full-bleed too, so it lines up with the collection tiles above rather
+               than stepping back into the narrower column. -->
+          <section class="home-section home-gap relative  full-bleed mb-14 px-4 sm:px-6 lg:px-8">
+            <div class="card-grid-flush grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            @if (adminHighlights().length > 0) {
+              @for (item of adminHighlights(); track $index; let i = $index) {
+                <article class="app-card p-6 transition duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5" [appReveal]="i">
+                  <div class="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-900 text-white dark:bg-white dark:text-black">
+                    <ng-container [ngTemplateOutlet]="highlightIcon" [ngTemplateOutletContext]="{ $implicit: item.icon }" />
+                  </div>
+                  <p class="text-3xl font-semibold tracking-tight">{{ item.value }}</p>
+                  <p class="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500 dark:text-neutral-400">{{ item.label }}</p>
+                  <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">{{ item.description }}</p>
+                </article>
+              }
+            } @else {
+              @for (item of highlights; track item.label; let i = $index) {
+                <article class="app-card p-6 transition duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5" [appReveal]="i">
+                  <div class="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-900 text-white dark:bg-white dark:text-black">
+                    <ng-container [ngTemplateOutlet]="highlightIcon" [ngTemplateOutletContext]="{ $implicit: item.icon }" />
+                  </div>
+                  <p class="text-3xl font-semibold tracking-tight">
+                    <span>{{ item.prefix }}</span><span [appCountUp]="item.target" [decimals]="item.decimals">0</span><span class="text-lg font-medium text-neutral-500 dark:text-neutral-400">{{ item.suffix }}</span>
+                  </p>
+                  <p class="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500 dark:text-neutral-400">{{ item.label }}</p>
+                  <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">{{ item.description }}</p>
+                </article>
+              }
             }
+            </div>
+          </section>
+        }
+
+        @case ('NEW_ARRIVALS') {
+          <!-- ── New arrivals (admin-managed) ────────────────────────────────────── -->
+          @if (newArrivalProducts().length > 0) {
+            <!-- Full-bleed like the bands above; keeps the site's gutters so the
+                 product cards do not sit flush against the viewport edge. -->
+            <section class="home-section home-gap relative  full-bleed mb-14 space-y-6 px-4 sm:px-6 lg:px-8">
+              <div class="flex items-end justify-between" appReveal>
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-[0.28em] text-neutral-500 dark:text-neutral-400">Just dropped</p>
+                  <h2 class="app-section-title mt-2 text-2xl">New arrivals</h2>
+                </div>
+                <a routerLink="/shop" class="text-sm font-medium underline underline-offset-4">View all products</a>
+              </div>
+              <div class="card-grid-flush grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                @for (product of newArrivalProducts(); track product.id; let i = $index) {
+                  <app-product-card [product]="toStoreProduct(product)" [appReveal]="i" />
+                }
+              </div>
+            </section>
           }
-        </div>
-      </section>
-    }
+        }
 
-    <!-- ── Recently viewed (Phase 8) ───────────────────────────────────────── -->
-    <section class="mt-14" appReveal>
-      <app-recently-viewed [limit]="6" />
-    </section>
+        @case ('FEATURED_PRODUCTS') {
+          <!-- ── Featured products ───────────────────────────────────────────────── -->
+          <section class="home-section home-gap home-featured relative  full-bleed space-y-6 px-4 sm:px-6 lg:px-8">
+            <div class="flex items-end justify-between" appReveal>
+              <h2 class="app-section-title text-2xl">Featured products</h2>
+              <a routerLink="/shop" class="text-sm font-medium underline underline-offset-4">View all products</a>
+            </div>
 
-    <!-- ── Brand story + lookbook gallery (admin-managed) ──────────────────── -->
-    @if (brandStory(); as bs) {
-      <!-- Editorial split: copy breathes on the left with generous padding,
-           the mosaic runs off the right edge of the screen. The asymmetry is
-           the point - a symmetric 50/50 with a uniform grid read as a form,
-           not a lookbook. -->
-      <section class="relative  full-bleed mt-16 overflow-hidden">
-        <div class="grid items-center gap-12 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-0">
-          <div class="px-6 py-4 sm:px-10 lg:py-20 lg:pl-16 lg:pr-12 xl:pl-28" appReveal>
-            @if (bs.eyebrow) {
-              <p class="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.32em] text-neutral-500 dark:text-neutral-400">
-                <span class="h-px w-10 bg-neutral-400 dark:bg-neutral-600"></span>
-                {{ bs.eyebrow }}
+            @if (loading()) {
+              <p class="app-muted">Loading products…</p>
+            } @else {
+              <div class="card-grid-flush grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                @for (product of featuredApiProducts(); track product.id; let i = $index) {
+                  <app-product-card [product]="toStoreProduct(product)" [appReveal]="i" />
+                } @empty {
+                  @for (product of fallbackFeatured(); track product.id; let i = $index) {
+                    <app-product-card [product]="product" [appReveal]="i" />
+                  }
+                }
+              </div>
+            }
+          </section>
+        }
+
+        @case ('CATEGORY_COLLECTIONS') {
+          <!-- ── Admin-promoted category bands (e.g. Erezer Pink) ────────────────── -->
+          <!-- One per category the admin flagged "show on home". Rendered from the
+               same /app/home payload, so no extra request per section. -->
+          @for (section of homeSections(); track section.categoryId) {
+            <section class="home-section home-gap home-band relative full-bleed mb-14 space-y-6 px-4 sm:px-6 lg:px-8">
+              <div class="flex items-end justify-between" appReveal>
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-[0.28em] text-neutral-500 dark:text-neutral-400">Collection</p>
+                  <h2 class="mt-2 text-2xl font-semibold tracking-[-0.02em]">{{ section.name }}</h2>
+                </div>
+                @if (section.slug) {
+                  <a [routerLink]="['/', section.slug]" class="text-sm font-medium underline underline-offset-4">View all</a>
+                }
+              </div>
+              <div class="card-grid-flush grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                @for (product of section.products; track product.id; let i = $index) {
+                  <app-product-card [product]="toStoreProduct(product)" [appReveal]="i" />
+                }
+              </div>
+            </section>
+          }
+        }
+
+        @case ('MARQUEE') {
+          <!-- ── Marquee trust strip (admin-managed) ─────────────────────────────── -->
+          @if (marquee().items.length > 0) {
+            <section class="home-section relative marquee-mask full-bleed my-16 overflow-hidden bg-gradient-to-r from-neutral-950 via-neutral-800 to-neutral-950 py-4">
+              <!-- soft edge fades -->
+              <div class="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-neutral-950 to-transparent"></div>
+              <div class="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-gradient-to-l from-neutral-950 to-transparent"></div>
+              <div class="marquee-track">
+                @for (loop of marqueeLoop; track loop) {
+                  @for (item of marquee().items; track $index) {
+                    <span class="mx-8 inline-flex items-center gap-7 text-sm font-semibold uppercase tracking-[0.22em] text-white/90">
+                      {{ item }}
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-amber-300/80" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0l2.4 9.6L24 12l-9.6 2.4L12 24l-2.4-9.6L0 12l9.6-2.4z"/>
+                      </svg>
+                    </span>
+                  }
+                }
+              </div>
+            </section>
+          }
+        }
+
+        @case ('RECENTLY_VIEWED') {
+          <!-- ── Recently viewed (Phase 8) ───────────────────────────────────────── -->
+          <section class="home-section mt-14" appReveal>
+            <app-recently-viewed [limit]="6" />
+          </section>
+        }
+
+        @case ('OUR_STORY') {
+          <!-- ── Brand story + lookbook gallery (admin-managed) ──────────────────── -->
+          @if (brandStory(); as bs) {
+            <!-- Editorial split: copy breathes on the left with generous padding,
+                 the mosaic runs off the right edge of the screen. The asymmetry is
+                 the point - a symmetric 50/50 with a uniform grid read as a form,
+                 not a lookbook. -->
+            <section class="home-section relative  full-bleed mt-16 overflow-hidden">
+              <div class="grid items-center gap-12 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-0">
+                <div class="px-6 py-4 sm:px-10 lg:py-20 lg:pl-16 lg:pr-12 xl:pl-28" appReveal>
+                  @if (bs.eyebrow) {
+                    <p class="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.32em] text-neutral-500 dark:text-neutral-400">
+                      <span class="h-px w-10 bg-neutral-400 dark:bg-neutral-600"></span>
+                      {{ bs.eyebrow }}
+                    </p>
+                  }
+                  <h2 class="mt-5 max-w-xl text-4xl font-semibold leading-[1.08] tracking-[-0.02em] md:text-5xl xl:text-[3.5rem]">{{ bs.heading }}</h2>
+                  <p class="mt-6 max-w-lg whitespace-pre-line text-base leading-relaxed text-neutral-600 dark:text-neutral-300">{{ bs.body }}</p>
+                  <div class="mt-9 flex flex-wrap items-center gap-5">
+                    @if (bs.ctaLabel) {
+                      @if (isInternal(bs.ctaLink)) {
+                        <a [routerLink]="bs.ctaLink" class="btn-primary">{{ bs.ctaLabel }}</a>
+                      } @else {
+                        <a [href]="bs.ctaLink" class="btn-primary">{{ bs.ctaLabel }}</a>
+                      }
+                    }
+                    <!-- Every social account the shop listed (Settings → Our story), each with
+                         its network's mark; a link to anywhere else gets a plain link mark. -->
+                    @for (social of socialsOf(bs); track $index) {
+                      <a [href]="social.url || null" [attr.target]="social.url ? '_blank' : null" rel="noopener"
+                        class="group inline-flex items-center gap-2 text-sm font-medium text-neutral-500 transition hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          @switch (networkOf(social.url)) {
+                            @case ('instagram') {
+                              <path d="M12 2.2c3.2 0 3.6 0 4.85.07 1.17.05 1.8.25 2.23.42.56.22.96.48 1.38.9.42.42.68.82.9 1.38.17.42.37 1.06.42 2.23.06 1.27.07 1.65.07 4.85s0 3.58-.07 4.85c-.05 1.17-.25 1.8-.42 2.23-.22.56-.48.96-.9 1.38-.42.42-.82.68-1.38.9-.42.17-1.06.37-2.23.42-1.27.06-1.65.07-4.85.07s-3.58 0-4.85-.07c-1.17-.05-1.8-.25-2.23-.42a3.8 3.8 0 01-1.38-.9 3.8 3.8 0 01-.9-1.38c-.17-.42-.37-1.06-.42-2.23C2.21 15.58 2.2 15.2 2.2 12s0-3.58.07-4.85c.05-1.17.25-1.8.42-2.23.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.42-.17 1.06-.37 2.23-.42C8.42 2.21 8.8 2.2 12 2.2zm0 3.04A6.76 6.76 0 1018.76 12 6.76 6.76 0 0012 5.24zm0 11.15A4.39 4.39 0 1116.39 12 4.39 4.39 0 0112 16.39zm6.96-11.45a1.58 1.58 0 11-1.58-1.58 1.58 1.58 0 011.58 1.58z"/>
+                            }
+                            @case ('facebook') {
+                              <path d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.96.93-1.96 1.89v2.26h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07z"/>
+                            }
+                            @case ('tiktok') {
+                              <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z"/>
+                            }
+                            @case ('youtube') {
+                              <path d="M23.5 6.19a3.02 3.02 0 00-2.12-2.14C19.5 3.55 12 3.55 12 3.55s-7.5 0-9.38.5A3.02 3.02 0 00.5 6.19C0 8.07 0 12 0 12s0 3.93.5 5.81a3.02 3.02 0 002.12 2.14c1.88.5 9.38.5 9.38.5s7.5 0 9.38-.5a3.02 3.02 0 002.12-2.14C24 15.93 24 12 24 12s0-3.93-.5-5.81zM9.55 15.57V8.43L15.82 12l-6.27 3.57z"/>
+                            }
+                            @case ('x') {
+                              <path d="M18.9 1.15h3.68l-8.04 9.19L24 22.85h-7.41l-5.8-7.58-6.64 7.58H.47l8.6-9.83L0 1.15h7.6l5.24 6.93 6.06-6.93zm-1.29 19.5h2.04L6.49 3.24H4.3l13.31 17.41z"/>
+                            }
+                            @default {
+                              <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                                d="M13.19 8.69a4.5 4.5 0 011.24 7.24l-4.5 4.5a4.5 4.5 0 01-6.36-6.36l1.76-1.76m13.35-.62l1.76-1.76a4.5 4.5 0 00-6.36-6.36l-4.5 4.5a4.5 4.5 0 001.24 7.24"/>
+                            }
+                          }
+                        </svg>
+                        <span class="underline-offset-4 group-hover:underline">{{ social.handle }}</span>
+                      </a>
+                    }
+                  </div>
+                </div>
+
+                <!-- Mosaic: the first image takes a 2x2 block so the grid has a focal
+                     point instead of six equal squares. -->
+                <div class="grid grid-cols-3 grid-rows-3 lg:h-[38rem]">
+                  @for (img of gallerySlots(); track $index) {
+                    <a routerLink="/shop"
+                      class="group relative block aspect-square overflow-hidden lg:aspect-auto"
+                      [class.col-span-2]="$index === 0"
+                      [class.row-span-2]="$index === 0"
+                      [appReveal]="$index">
+                      <img [src]="img" alt="Erezer lookbook"
+                        class="h-full w-full object-cover transition-all duration-[900ms] ease-out group-hover:scale-[1.07]"
+                        [class.opacity-0]="isSwapping($index)" [class.scale-105]="isSwapping($index)" />
+                      <div class="pointer-events-none absolute inset-0 bg-black/0 transition-colors duration-300 group-hover:bg-black/25"></div>
+                      <span class="pointer-events-none absolute inset-x-0 bottom-0 flex translate-y-2 items-center gap-1.5 p-4 text-xs font-semibold uppercase tracking-[0.18em] text-white opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+                        Shop
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                        </svg>
+                      </span>
+                    </a>
+                  }
+                </div>
+              </div>
+            </section>
+          }
+        }
+
+        @case ('NEWSLETTER') {
+          <!-- ── Newsletter ──────────────────────────────────────────────────────── -->
+          <!-- Full-bleed and square-cornered so it reads as a band rather than a
+               floating card sitting in a narrower column. -->
+          <section class="home-section relative app-card full-bleed mt-14 grid gap-6 rounded-none border-x-0 p-8 md:grid-cols-2 md:items-center md:p-10 lg:px-12" appReveal>
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.28em] text-neutral-500 dark:text-neutral-400">
+                {{ 'home.newsletter.eyebrow' | t }}
+              </p>
+              <h2 class="mt-3 text-3xl font-semibold tracking-tight">{{ 'home.newsletter.headline' | t }}</h2>
+              <p class="mt-3 max-w-xl text-neutral-600 dark:text-neutral-300">
+                {{ 'home.newsletter.copy' | t }}
+              </p>
+            </div>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <input
+                type="email"
+                [placeholder]="'home.newsletter.email_placeholder' | t"
+                [(ngModel)]="newsletterEmail"
+                [ngModelOptions]="{ standalone: true }"
+                [disabled]="newsletterDone()"
+                class="w-full rounded-full border border-neutral-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-neutral-500 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900 dark:focus:border-neutral-500"
+              />
+              <button
+                type="button"
+                class="btn-primary"
+                [disabled]="newsletterSubmitting() || newsletterDone() || !newsletterEmail.trim()"
+                (click)="subscribeNewsletter()">
+                {{ newsletterDone() ? ('home.newsletter.cta_done' | t) : newsletterSubmitting() ? ('home.newsletter.cta_busy' | t) : ('home.newsletter.cta' | t) }}
+              </button>
+            </div>
+            @if (newsletterMessage()) {
+              <p class="md:col-span-2 text-sm" [class.text-green-600]="!newsletterError()" [class.text-red-500]="newsletterError()">
+                {{ newsletterMessage() }}
               </p>
             }
-            <h2 class="mt-5 max-w-xl text-4xl font-semibold leading-[1.08] tracking-[-0.02em] md:text-5xl xl:text-[3.5rem]">{{ bs.heading }}</h2>
-            <p class="mt-6 max-w-lg whitespace-pre-line text-base leading-relaxed text-neutral-600 dark:text-neutral-300">{{ bs.body }}</p>
-            <div class="mt-9 flex flex-wrap items-center gap-5">
-              @if (bs.ctaLabel) {
-                @if (isInternal(bs.ctaLink)) {
-                  <a [routerLink]="bs.ctaLink" class="btn-primary">{{ bs.ctaLabel }}</a>
-                } @else {
-                  <a [href]="bs.ctaLink" class="btn-primary">{{ bs.ctaLabel }}</a>
-                }
-              }
-              @if (bs.socialHandle) {
-                <a [href]="bs.socialUrl || null" target="_blank" rel="noopener"
-                  class="group inline-flex items-center gap-2 text-sm font-medium text-neutral-500 transition hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.6 0 4.85.07 1.17.05 1.8.25 2.23.42.56.22.96.48 1.38.9.42.42.68.82.9 1.38.17.42.37 1.06.42 2.23.06 1.27.07 1.65.07 4.85s0 3.58-.07 4.85c-.05 1.17-.25 1.8-.42 2.23-.22.56-.48.96-.9 1.38-.42.42-.82.68-1.38.9-.42.17-1.06.37-2.23.42-1.27.06-1.65.07-4.85.07s-3.58 0-4.85-.07c-1.17-.05-1.8-.25-2.23-.42a3.8 3.8 0 01-1.38-.9 3.8 3.8 0 01-.9-1.38c-.17-.42-.37-1.06-.42-2.23C2.21 15.58 2.2 15.2 2.2 12s0-3.58.07-4.85c.05-1.17.25-1.8.42-2.23.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.42-.17 1.06-.37 2.23-.42C8.42 2.21 8.8 2.2 12 2.2zm0 3.04A6.76 6.76 0 1018.76 12 6.76 6.76 0 0012 5.24zm0 11.15A4.39 4.39 0 1116.39 12 4.39 4.39 0 0112 16.39zm6.96-11.45a1.58 1.58 0 11-1.58-1.58 1.58 1.58 0 011.58 1.58z"/></svg>
-                  <span class="underline-offset-4 group-hover:underline">{{ bs.socialHandle }}</span>
-                </a>
-              }
-            </div>
-          </div>
-
-          <!-- Mosaic: the first image takes a 2x2 block so the grid has a focal
-               point instead of six equal squares. -->
-          <div class="grid grid-cols-3 grid-rows-3 lg:h-[38rem]">
-            @for (img of gallerySlots(); track $index) {
-              <a routerLink="/shop"
-                class="group relative block aspect-square overflow-hidden lg:aspect-auto"
-                [class.col-span-2]="$index === 0"
-                [class.row-span-2]="$index === 0"
-                [appReveal]="$index">
-                <img [src]="img" alt="Erezer lookbook"
-                  class="h-full w-full object-cover transition-all duration-[900ms] ease-out group-hover:scale-[1.07]"
-                  [class.opacity-0]="isSwapping($index)" [class.scale-105]="isSwapping($index)" />
-                <div class="pointer-events-none absolute inset-0 bg-black/0 transition-colors duration-300 group-hover:bg-black/25"></div>
-                <span class="pointer-events-none absolute inset-x-0 bottom-0 flex translate-y-2 items-center gap-1.5 p-4 text-xs font-semibold uppercase tracking-[0.18em] text-white opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
-                  Shop
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                  </svg>
-                </span>
-              </a>
-            }
-          </div>
-        </div>
-      </section>
-    }
-
-    <!-- ── Newsletter ──────────────────────────────────────────────────────── -->
-    <!-- Full-bleed and square-cornered so it reads as a band rather than a
-         floating card sitting in a narrower column. -->
-    <section class="relative app-card full-bleed mt-14 grid gap-6 rounded-none border-x-0 p-8 md:grid-cols-2 md:items-center md:p-10 lg:px-12" appReveal>
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.28em] text-neutral-500 dark:text-neutral-400">
-          {{ 'home.newsletter.eyebrow' | t }}
-        </p>
-        <h2 class="mt-3 text-3xl font-semibold tracking-tight">{{ 'home.newsletter.headline' | t }}</h2>
-        <p class="mt-3 max-w-xl text-neutral-600 dark:text-neutral-300">
-          {{ 'home.newsletter.copy' | t }}
-        </p>
-      </div>
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <input
-          type="email"
-          [placeholder]="'home.newsletter.email_placeholder' | t"
-          [(ngModel)]="newsletterEmail"
-          [ngModelOptions]="{ standalone: true }"
-          [disabled]="newsletterDone()"
-          class="w-full rounded-full border border-neutral-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-neutral-500 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900 dark:focus:border-neutral-500"
-        />
-        <button
-          type="button"
-          class="btn-primary"
-          [disabled]="newsletterSubmitting() || newsletterDone() || !newsletterEmail.trim()"
-          (click)="subscribeNewsletter()">
-          {{ newsletterDone() ? ('home.newsletter.cta_done' | t) : newsletterSubmitting() ? ('home.newsletter.cta_busy' | t) : ('home.newsletter.cta' | t) }}
-        </button>
-      </div>
-      @if (newsletterMessage()) {
-        <p class="md:col-span-2 text-sm" [class.text-green-600]="!newsletterError()" [class.text-red-500]="newsletterError()">
-          {{ newsletterMessage() }}
-        </p>
+          </section>
+        }
       }
-    </section>
+    }
   `
 })
 export class HomePage implements OnInit, OnDestroy {
@@ -614,12 +674,41 @@ export class HomePage implements OnInit, OnDestroy {
     'Made for everyday',
   ];
 
-  /** Admin-managed marquee (enabled flag + phrases). */
+  /**
+   * The strip's phrases, as the shop wrote them in Settings. Whether the strip
+   * is shown at all is the Home page layout's MARQUEE switch; the `enabled`
+   * flag stored with the phrases is from before that and is not read.
+   */
   protected readonly marquee = computed<ApiMarquee>(() => {
     const m = this.settings.settings()?.marquee;
     if (m && m.items && m.items.length > 0) return m;
     return { enabled: m?.enabled ?? true, items: this.fallbackMarquee };
   });
+
+  /**
+   * The social accounts to show with the story. A backend from before there
+   * could be several sends only the one handle, which is shown on its own.
+   */
+  protected socialsOf(story: ApiBrandStory): ApiSocialLink[] {
+    if (story.socials) return story.socials.filter((s) => !!s?.handle);
+    return story.socialHandle ? [{ handle: story.socialHandle, url: story.socialUrl }] : [];
+  }
+
+  /** Which network a link belongs to, to draw its mark; 'link' for anywhere else. */
+  protected networkOf(url: string | null | undefined): 'instagram' | 'facebook' | 'tiktok' | 'youtube' | 'x' | 'link' {
+    let host = '';
+    try {
+      host = new URL(url ?? '').hostname.toLowerCase().replace(/^www\./, '');
+    } catch {
+      return 'link';
+    }
+    if (host.endsWith('instagram.com')) return 'instagram';
+    if (host.endsWith('facebook.com') || host === 'fb.com' || host === 'fb.me') return 'facebook';
+    if (host.endsWith('tiktok.com')) return 'tiktok';
+    if (host.endsWith('youtube.com') || host === 'youtu.be') return 'youtube';
+    if (host === 'x.com' || host.endsWith('twitter.com')) return 'x';
+    return 'link';
+  }
 
   /** Editorial lookbook imagery used only if the admin hasn't set gallery images. */
   protected readonly lookbook = [
@@ -631,6 +720,20 @@ export class HomePage implements OnInit, OnDestroy {
     'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=500&q=80',
   ];
 
+  /**
+   * The sections to draw below the top banner, top to bottom: the ones the
+   * shop's admin left switched on, in the order they chose (Admin → Home page
+   * layout). Empty until the settings are in, so nothing the shop turned off is
+   * drawn first; if the settings can't be had, the page is shown as it was built.
+   */
+  protected readonly sections = computed<HomeSectionKey[]>(() => {
+    if (!this.settings.loaded()) return [];
+    const layout = this.settings.settings()?.homeLayout;
+    if (!layout?.length) return [...HOME_SECTIONS];
+    const known = new Set<string>(HOME_SECTIONS);
+    return layout.filter((s) => s.enabled && known.has(s.key)).map((s) => s.key as HomeSectionKey);
+  });
+
   /** Admin-managed "Our story" content (falls back until settings load). */
   private readonly fallbackStory: ApiBrandStory = {
     eyebrow: 'Our story',
@@ -639,6 +742,7 @@ export class HomePage implements OnInit, OnDestroy {
       + 'pieces designed to live in your wardrobe for years, not seasons.',
     ctaLabel: 'Explore the collection',
     ctaLink: '/shop',
+    socials: [{ handle: '@erezer', url: 'https://instagram.com/erezer' }],
     socialHandle: '@erezer',
     socialUrl: 'https://instagram.com/erezer',
     images: [],

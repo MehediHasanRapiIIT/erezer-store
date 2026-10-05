@@ -689,9 +689,18 @@ export interface ApiBrandStory {
   body: string | null;
   ctaLabel: string | null;
   ctaLink: string | null;
+  /** The shop's social accounts, in the order to show them. Missing from an older backend. */
+  socials?: ApiSocialLink[] | null;
+  /** The first of `socials`, from when there could only be one. */
   socialHandle: string | null;
   socialUrl: string | null;
   images: string[];
+}
+
+/** One social account: the name to show, and where it leads (if anywhere). */
+export interface ApiSocialLink {
+  handle: string;
+  url: string | null;
 }
 
 export interface ApiFooterLink {
@@ -739,7 +748,29 @@ export interface ApiHighlight {
   description: string | null;
 }
 
+/**
+ * The sections of the home page below the top banner, named as the backend
+ * names them. In the order the page was originally built.
+ */
+export const HOME_SECTIONS = [
+  'SPLIT_BAND', 'TILE_GRID', 'CUSTOM_DESIGN_PROMO', 'FLASH_SALE', 'FEATURED_BUNDLE', 'SHOP_BY_CATEGORY',
+  'HIGHLIGHTS', 'NEW_ARRIVALS', 'FEATURED_PRODUCTS', 'CATEGORY_COLLECTIONS', 'MARQUEE', 'RECENTLY_VIEWED',
+  'OUR_STORY', 'NEWSLETTER',
+] as const;
+export type HomeSectionKey = (typeof HOME_SECTIONS)[number];
+
+/** One home page section in the shop's chosen layout. */
+export interface ApiHomeLayoutSection {
+  key: string;
+  enabled: boolean;
+}
+
 export interface ApiStoreSettings {
+  /**
+   * Which home page sections to show, top to bottom (Admin → Home page layout).
+   * Missing from an older backend, in which case the page is shown as built.
+   */
+  homeLayout?: ApiHomeLayoutSection[] | null;
   returnPolicyText: string | null;
   exchangeWindowDays: number | null;
   supportPhone: string | null;

@@ -13,7 +13,10 @@ import kn.org.deliverybackend.dto.settings.FooterLinkDTO;
 import kn.org.deliverybackend.dto.settings.FooterOutletDTO;
 import kn.org.deliverybackend.dto.settings.FooterPromiseDTO;
 import kn.org.deliverybackend.dto.settings.HighlightDTO;
+import kn.org.deliverybackend.dto.settings.HomeSectionDTO;
 import kn.org.deliverybackend.dto.settings.MarqueeDTO;
+import kn.org.deliverybackend.service.BrandStorySocials;
+import kn.org.deliverybackend.service.HomeLayout;
 import kn.org.deliverybackend.dto.settings.SizeChartCellDTO;
 import kn.org.deliverybackend.dto.settings.SizeChartDTO;
 import kn.org.deliverybackend.dto.settings.SizeChartRowDTO;
@@ -91,7 +94,7 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
         settings.setSupportEmail(request.getSupportEmail());
         settings.setSupportHours(request.getSupportHours());
         settings.setSizeChartJson(write(request.getSizeChart()));
-        settings.setBrandStoryJson(write(request.getBrandStory()));
+        settings.setBrandStoryJson(write(BrandStorySocials.tidy(request.getBrandStory())));
         // An older admin panel that doesn't know the About page must not wipe it.
         if (request.getAboutPage() != null) {
             settings.setAboutPageJson(write(checkedAboutPage(request.getAboutPage())));
@@ -108,6 +111,23 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
         // page can never turn discounting or promo codes on or off.
 
         return toDTO(repository.save(settings));
+    }
+
+    @Override
+    @Transactional
+    public List<HomeSectionDTO> getHomeLayout() {
+        return get().getHomeLayout();
+    }
+
+    @Override
+    @Transactional
+    public List<HomeSectionDTO> updateHomeLayout(List<HomeSectionDTO> layout) {
+        List<HomeSectionDTO> checked = HomeLayout.checked(layout);
+        StoreSettings settings = repository.findById(StoreSettings.SINGLETON_ID)
+                .orElseGet(this::seedDefaults);
+        settings.setHomeLayoutJson(write(checked));
+        repository.save(settings);
+        return checked;
     }
 
     @Override
@@ -312,6 +332,8 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
                         + "pieces designed to live in your wardrobe for years, not seasons.")
                 .ctaLabel("Explore the collection")
                 .ctaLink("/shop")
+                .socials(new java.util.ArrayList<>(List.of(
+                        new kn.org.deliverybackend.dto.settings.SocialLinkDTO("@erezer", "https://instagram.com/erezer"))))
                 .socialHandle("@erezer")
                 .socialUrl("https://instagram.com/erezer")
                 .images(List.of(
@@ -418,11 +440,15 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
                 .supportEmail(s.getSupportEmail())
                 .supportHours(s.getSupportHours())
                 .sizeChart(read(s.getSizeChartJson(), SizeChartDTO.class))
-                .brandStory(read(s.getBrandStoryJson(), BrandStoryDTO.class))
+                // A story saved with one handle is read as a list of that one.
+                .brandStory(BrandStorySocials.tidy(read(s.getBrandStoryJson(), BrandStoryDTO.class)))
                 .aboutPage(read(s.getAboutPageJson(), AboutPageDTO.class))
                 .footer(read(s.getFooterJson(), FooterDTO.class))
                 .marquee(read(s.getMarqueeJson(), MarqueeDTO.class))
                 .highlights(readList(s.getHighlightsJson(), new TypeReference<List<HighlightDTO>>() {}))
+                // Always complete: a shop that never arranged its home page gets the original layout.
+                .homeLayout(HomeLayout.complete(
+                        readList(s.getHomeLayoutJson(), new TypeReference<List<HomeSectionDTO>>() {})))
                 // The shop's pages need this to load the pixel; it is not a secret.
                 .metaPixelId(metaSettings.credentials().pixelId())
                 // Null (legacy rows) → enabled, so existing checkouts keep every method.

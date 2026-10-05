@@ -28,6 +28,8 @@ export const ACCESS = {
   inventory:    { any: ['inventory.view'] },
   analytics:    { any: ['analytics.view'] },
   banners:      { any: ['banners.view'] },
+  // Seen with either settings permission; changing it needs settings.homepage.
+  homeLayout:   { any: ['settings.view', 'settings.homepage'] },
   reviews:      { any: ['reviews.view'] },
   reports:      { all: ['reports.view', 'finance.revenue'] },
   coupons:      { any: ['coupons.view'] },
@@ -63,6 +65,7 @@ export const ADMIN_PAGES: AdminPage[] = [
   { label: 'Inventory',     icon: 'inventory',  route: '/inventory',     access: ACCESS.inventory },
   { label: 'Analytics',     icon: 'analytics',  route: '/analytics',     access: ACCESS.analytics },
   { label: 'Banners',       icon: 'banners',    route: '/banners',       access: ACCESS.banners },
+  { label: 'Home Page',     icon: 'dashboard',  route: '/home-layout',   access: ACCESS.homeLayout },
   { label: 'Reviews',       icon: 'reviews',    route: '/reviews',       access: ACCESS.reviews },
   { label: 'Reports',       icon: 'analytics',  route: '/reports',       access: ACCESS.reports },
   { label: 'Coupons',       icon: 'banners',    route: '/coupons',       access: ACCESS.coupons },
