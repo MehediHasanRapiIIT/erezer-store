@@ -57,8 +57,10 @@ import { EcommerceStore } from '../../core/store/ecommerce.store';
           </svg>
         </button>
 
-        <!-- slide-up add to cart: always visible on touch, hover-reveal on desktop -->
-        <div class="absolute inset-x-0 bottom-0 p-2 transition-all duration-300 sm:p-3 md:translate-y-full md:opacity-0 md:group-hover:translate-y-0 md:group-hover:opacity-100">
+        <!-- slide-up add to cart: always visible on a tablet, hover-reveal on desktop.
+             Not on a phone, where it covered a third of a small picture: there the
+             cart button sits beside the product's name (below). -->
+        <div class="absolute inset-x-0 bottom-0 hidden p-2 transition-all duration-300 sm:block sm:p-3 md:translate-y-full md:opacity-0 md:group-hover:translate-y-0 md:group-hover:opacity-100">
           <button
             type="button"
             (click)="quickAddToCart()"
@@ -75,12 +77,26 @@ import { EcommerceStore } from '../../core/store/ecommerce.store';
         <p class="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-neutral-500 dark:text-neutral-400 sm:text-[11px] sm:tracking-[0.18em]">
           {{ product().category }}
         </p>
-        <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-          <a [routerLink]="['/product', product().slug]" class="line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-5 tracking-tight underline-offset-4 hover:underline sm:line-clamp-none sm:min-h-0 sm:text-base sm:leading-normal">
+        <div class="flex items-start justify-between gap-2 sm:gap-3">
+          <a [routerLink]="['/product', product().slug]" class="min-w-0 flex-1 sm:flex-initial line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-5 tracking-tight underline-offset-4 hover:underline sm:line-clamp-none sm:min-h-0 sm:text-base sm:leading-normal">
             {{ product().name }}
           </a>
-          <span class="shrink-0 text-sm font-semibold sm:text-base">{{ product().price | currency:'BDT':'৳' }}</span>
+          <!-- Phone: add to cart, as an icon where the thumb already is. -->
+          <button
+            type="button"
+            (click)="quickAddToCart()"
+            [disabled]="product().inStock <= 0"
+            [attr.aria-label]="product().inStock <= 0 ? product().name + ' is sold out' : 'Add ' + product().name + ' to cart'"
+            data-testid="card-cart"
+            class="-mt-1.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-white transition active:scale-90 disabled:opacity-35 dark:bg-white dark:text-black sm:hidden"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+            </svg>
+          </button>
+          <span class="hidden shrink-0 text-base font-semibold sm:inline" data-testid="card-price-wide">{{ product().price | currency:'BDT':'৳' }}</span>
         </div>
+        <p class="text-sm font-semibold sm:hidden" data-testid="card-price-phone">{{ product().price | currency:'BDT':'৳' }}</p>
         <p class="text-xs text-neutral-500 dark:text-neutral-400 sm:text-sm">
           {{ store.getAverageRating(product()).toFixed(1) }} / 5 · {{ store.getReviewCount(product().id) }} reviews
         </p>
