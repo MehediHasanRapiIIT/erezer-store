@@ -24,7 +24,7 @@ import { baseProductPrice } from '../../core/discount-pricing';
           <p class="text-xs font-semibold uppercase tracking-[0.28em] text-neutral-500 dark:text-neutral-400">Recently viewed</p>
           <h2 class="app-section-title mt-2 text-2xl">{{ title() }}</h2>
         </div>
-        <div class="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+        <div class="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-6">
           @for (p of products(); track p.id) {
             <a [routerLink]="['/product', p.id]"
               class="group app-card overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/10 dark:hover:shadow-black/40">

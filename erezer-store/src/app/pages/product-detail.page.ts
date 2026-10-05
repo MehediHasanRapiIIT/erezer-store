@@ -407,7 +407,7 @@ import { RevealDirective } from '../core/reveal.directive';
               </div>
               <a routerLink="/shop" class="text-sm font-medium underline underline-offset-4">Browse all</a>
             </div>
-            <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <div class="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-4">
               @for (rel of related(); track rel.id; let i = $index) {
                 <app-product-card [product]="store.toStoreProduct(rel)" [appReveal]="i" />
               }

@@ -43,7 +43,7 @@ const PAGE_SIZE = 9;
     } @else {
       <!-- Same treatment as the home page's collection band: edge to edge, no
            gaps, square corners. -->
-      <section class="relative full-bleed grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+      <section class="relative full-bleed grid grid-cols-2 lg:grid-cols-3">
         @for (cat of visible(); track cat.id; let i = $index) {
           <a [routerLink]="cat.slug ? ['/', cat.slug] : ['/shop']"
             [queryParams]="cat.slug ? {} : { category: cat.id }"
@@ -52,10 +52,10 @@ const PAGE_SIZE = 9;
             <img [src]="imageFor(cat, i)" [alt]="cat.name"
               class="h-full w-full object-cover transition-transform duration-[900ms] ease-out group-hover:scale-105" />
             <span class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent"></span>
-            <span class="absolute inset-x-0 bottom-0 p-6">
-              <span class="block text-[11px] font-medium uppercase tracking-[0.22em] text-white/70">Collection</span>
-              <span class="mt-1 block text-2xl font-semibold tracking-tight text-white">{{ cat.name }}</span>
-              <span class="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-white">
+            <span class="absolute inset-x-0 bottom-0 p-3 sm:p-6">
+              <span class="block text-[9px] font-medium uppercase tracking-[0.18em] text-white/70 sm:text-[11px] sm:tracking-[0.22em]">Collection</span>
+              <span class="mt-0.5 block text-base font-semibold leading-tight tracking-tight text-white sm:mt-1 sm:text-2xl">{{ cat.name }}</span>
+              <span class="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-white sm:mt-3 sm:text-sm">
                 Shop now
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1"
                   fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">

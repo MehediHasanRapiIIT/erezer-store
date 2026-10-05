@@ -178,15 +178,15 @@ import { CountUpDirective } from '../core/count-up.directive';
           <!-- ── Category tile grid (2x2) ─────────────────────────────────────────── -->
           @if (gridTiles().length) {
             <section class="home-section home-gap relative reveal-band full-bleed mb-16" appReveal>
-              <div class="grid grid-cols-1 sm:grid-cols-2">
+              <div class="grid grid-cols-2">
                 @for (tile of gridTiles(); track tile.id) {
                   <a [href]="tile.ctaLink || '/shop'" (click)="onBandLink($event, tile.ctaLink || '/shop')"
-                    class="group relative block h-[42svh] min-h-[16rem] overflow-hidden bg-neutral-900">
+                    class="group relative block h-[26svh] min-h-[11rem] overflow-hidden bg-neutral-900 sm:h-[42svh] sm:min-h-[16rem]">
                     <img [src]="tile.imageUrl" [alt]="tile.promotionTitle || ''"
                       class="h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105" />
                     <span class="pointer-events-none absolute inset-0 bg-black/15 transition group-hover:bg-black/30"></span>
                     <span class="absolute inset-0 flex items-center justify-center">
-                      <span class="rounded-full border border-white/80 bg-black/20 px-7 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-sm transition group-hover:bg-white group-hover:text-black">
+                      <span class="rounded-full border border-white/80 bg-black/20 px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-white sm:px-7 sm:py-3 sm:text-xs sm:tracking-[0.18em] backdrop-blur-sm transition group-hover:bg-white group-hover:text-black">
                         {{ tile.ctaLabel || tile.promotionTitle }}
                       </span>
                     </span>
@@ -254,7 +254,7 @@ import { CountUpDirective } from '../core/count-up.directive';
 
               <!-- No gap and square corners: the tiles butt together into one
                    continuous band, edge to edge across the viewport. -->
-              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              <div class="grid grid-cols-2 lg:grid-cols-3">
                 @for (tile of collectionTiles(); track tile.name; let i = $index) {
                   <!-- Portrait aspect on small screens. On desktop the tiles are
                        ~630px wide, where an aspect ratio makes the height swing
@@ -269,10 +269,10 @@ import { CountUpDirective } from '../core/count-up.directive';
                     <img [src]="tile.image" [alt]="tile.name"
                       class="h-full w-full object-cover transition-transform duration-[900ms] ease-out group-hover:scale-110" />
                     <div class="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent"></div>
-                    <div class="absolute inset-x-0 bottom-0 p-6">
-                      <p class="text-[11px] font-medium uppercase tracking-[0.22em] text-white/70">Collection</p>
-                      <h3 class="mt-1 text-2xl font-semibold tracking-tight text-white">{{ tile.name }}</h3>
-                      <span class="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-white">
+                    <div class="absolute inset-x-0 bottom-0 p-3 sm:p-6">
+                      <p class="text-[9px] font-medium uppercase tracking-[0.18em] text-white/70 sm:text-[11px] sm:tracking-[0.22em]">Collection</p>
+                      <h3 class="mt-0.5 text-base font-semibold leading-tight tracking-tight text-white sm:mt-1 sm:text-2xl">{{ tile.name }}</h3>
+                      <span class="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-white sm:mt-3 sm:text-sm">
                         Shop now
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1"
                           fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -292,29 +292,29 @@ import { CountUpDirective } from '../core/count-up.directive';
           <!-- Full-bleed too, so it lines up with the collection tiles above rather
                than stepping back into the narrower column. -->
           <section class="home-section home-gap relative  full-bleed mb-14 px-4 sm:px-6 lg:px-8">
-            <div class="card-grid-flush grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            <div class="card-grid-flush grid grid-cols-2 lg:grid-cols-4">
             @if (adminHighlights().length > 0) {
               @for (item of adminHighlights(); track $index; let i = $index) {
-                <article class="app-card p-6 transition duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5" [appReveal]="i">
-                  <div class="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-900 text-white dark:bg-white dark:text-black">
+                <article class="app-card p-3 transition duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5 sm:p-6" [appReveal]="i">
+                  <div class="mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-neutral-900 text-white dark:bg-white dark:text-black sm:mb-4 sm:h-11 sm:w-11 [&>svg]:h-3.5 [&>svg]:w-3.5 sm:[&>svg]:h-5 sm:[&>svg]:w-5">
                     <ng-container [ngTemplateOutlet]="highlightIcon" [ngTemplateOutletContext]="{ $implicit: item.icon }" />
                   </div>
-                  <p class="text-3xl font-semibold tracking-tight">{{ item.value }}</p>
-                  <p class="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500 dark:text-neutral-400">{{ item.label }}</p>
-                  <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">{{ item.description }}</p>
+                  <p class="text-base font-semibold leading-tight tracking-tight sm:text-3xl sm:leading-9">{{ item.value }}</p>
+                  <p class="mt-1 text-[9px] font-semibold uppercase leading-tight tracking-[0.1em] text-neutral-500 dark:text-neutral-400 sm:mt-2 sm:text-xs sm:leading-4 sm:tracking-[0.16em]">{{ item.label }}</p>
+                  <p class="mt-0.5 text-[11px] leading-snug text-neutral-600 dark:text-neutral-400 sm:mt-1 sm:text-sm sm:leading-5">{{ item.description }}</p>
                 </article>
               }
             } @else {
               @for (item of highlights; track item.label; let i = $index) {
-                <article class="app-card p-6 transition duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5" [appReveal]="i">
-                  <div class="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-900 text-white dark:bg-white dark:text-black">
+                <article class="app-card p-3 transition duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5 sm:p-6" [appReveal]="i">
+                  <div class="mb-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-neutral-900 text-white dark:bg-white dark:text-black sm:mb-4 sm:h-11 sm:w-11 [&>svg]:h-3.5 [&>svg]:w-3.5 sm:[&>svg]:h-5 sm:[&>svg]:w-5">
                     <ng-container [ngTemplateOutlet]="highlightIcon" [ngTemplateOutletContext]="{ $implicit: item.icon }" />
                   </div>
-                  <p class="text-3xl font-semibold tracking-tight">
-                    <span>{{ item.prefix }}</span><span [appCountUp]="item.target" [decimals]="item.decimals">0</span><span class="text-lg font-medium text-neutral-500 dark:text-neutral-400">{{ item.suffix }}</span>
+                  <p class="text-base font-semibold leading-tight tracking-tight sm:text-3xl sm:leading-9">
+                    <span>{{ item.prefix }}</span><span [appCountUp]="item.target" [decimals]="item.decimals">0</span><span class="text-xs font-medium text-neutral-500 dark:text-neutral-400 sm:text-lg">{{ item.suffix }}</span>
                   </p>
-                  <p class="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500 dark:text-neutral-400">{{ item.label }}</p>
-                  <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">{{ item.description }}</p>
+                  <p class="mt-1 text-[9px] font-semibold uppercase leading-tight tracking-[0.1em] text-neutral-500 dark:text-neutral-400 sm:mt-2 sm:text-xs sm:leading-4 sm:tracking-[0.16em]">{{ item.label }}</p>
+                  <p class="mt-0.5 text-[11px] leading-snug text-neutral-600 dark:text-neutral-400 sm:mt-1 sm:text-sm sm:leading-5">{{ item.description }}</p>
                 </article>
               }
             }
@@ -335,7 +335,7 @@ import { CountUpDirective } from '../core/count-up.directive';
                 </div>
                 <a routerLink="/shop" class="text-sm font-medium underline underline-offset-4">View all products</a>
               </div>
-              <div class="card-grid-flush grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              <div class="card-grid-flush grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                 @for (product of newArrivalProducts(); track product.id; let i = $index) {
                   <app-product-card [product]="toStoreProduct(product)" [appReveal]="i" />
                 }
@@ -355,7 +355,7 @@ import { CountUpDirective } from '../core/count-up.directive';
             @if (loading()) {
               <p class="app-muted">Loading products…</p>
             } @else {
-              <div class="card-grid-flush grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              <div class="card-grid-flush grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                 @for (product of featuredApiProducts(); track product.id; let i = $index) {
                   <app-product-card [product]="toStoreProduct(product)" [appReveal]="i" />
                 } @empty {
@@ -383,7 +383,7 @@ import { CountUpDirective } from '../core/count-up.directive';
                   <a [routerLink]="['/', section.slug]" class="text-sm font-medium underline underline-offset-4">View all</a>
                 }
               </div>
-              <div class="card-grid-flush grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              <div class="card-grid-flush grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                 @for (product of section.products; track product.id; let i = $index) {
                   <app-product-card [product]="toStoreProduct(product)" [appReveal]="i" />
                 }

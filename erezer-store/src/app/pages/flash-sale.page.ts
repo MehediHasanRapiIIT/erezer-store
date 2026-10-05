@@ -67,21 +67,21 @@ import { EcommerceStore } from '../core/store/ecommerce.store';
           <a routerLink="/shop" class="text-sm font-medium underline underline-offset-4">Browse all</a>
         </div>
 
-        <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
           @for (p of s.products; track p.id) {
             <article class="app-card group flex flex-col overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/10">
               <a [routerLink]="['/product', p.id]" class="relative block overflow-hidden">
-                <img [src]="p.imageUrl" [alt]="p.name" class="h-64 w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105" />
-                <span class="absolute left-3 top-3 rounded-md bg-red-600 px-2.5 py-1 text-xs font-bold text-white">{{ offerBadge() }}</span>
+                <img [src]="p.imageUrl" [alt]="p.name" class="h-44 w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105 sm:h-64" />
+                <span class="absolute left-2 top-2 rounded-md bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white sm:left-3 sm:top-3 sm:px-2.5 sm:py-1 sm:text-xs">{{ offerBadge() }}</span>
               </a>
-              <div class="flex flex-1 flex-col p-4">
-                <a [routerLink]="['/product', p.id]" class="font-semibold tracking-tight underline-offset-4 hover:underline">{{ p.name }}</a>
+              <div class="flex flex-1 flex-col p-3 sm:p-4">
+                <a [routerLink]="['/product', p.id]" class="line-clamp-2 text-sm font-semibold tracking-tight underline-offset-4 hover:underline sm:line-clamp-none sm:text-base">{{ p.name }}</a>
                 @if (p.brand) {
                   <p class="mt-0.5 text-xs uppercase tracking-[0.16em] text-neutral-400">{{ p.brand }}</p>
                 }
-                <p class="mt-2 flex items-baseline gap-2">
-                  <span class="text-lg font-bold text-red-600">{{ salePrice(p) | currency:'BDT':'৳' }}</span>
-                  <span class="text-sm text-neutral-400 line-through">{{ p.price | currency:'BDT':'৳' }}</span>
+                <p class="mt-2 flex flex-wrap items-baseline gap-x-2">
+                  <span class="text-base font-bold text-red-600 sm:text-lg">{{ salePrice(p) | currency:'BDT':'৳' }}</span>
+                  <span class="text-xs text-neutral-400 line-through sm:text-sm">{{ p.price | currency:'BDT':'৳' }}</span>
                 </p>
                 <button
                   type="button"

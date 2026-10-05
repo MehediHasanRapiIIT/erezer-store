@@ -156,7 +156,7 @@ import { RevealDirective } from '../core/reveal.directive';
 
     <!-- ── Product grid ────────────────────────────────────────────────────── -->
     @if (loading()) {
-      <section class="relative card-grid-flush full-bleed grid grid-cols-1 px-4 pt-6 sm:grid-cols-2 sm:px-6 lg:grid-cols-3 lg:px-8 xl:grid-cols-4 2xl:grid-cols-5">
+      <section class="relative card-grid-flush full-bleed grid grid-cols-2 px-4 pt-6 sm:px-6 lg:grid-cols-3 lg:px-8 xl:grid-cols-4 2xl:grid-cols-5">
         @for (s of skeletons; track s) {
           <div class="app-card overflow-hidden">
             <div class="h-80 w-full animate-pulse bg-neutral-200 dark:bg-neutral-800"></div>
@@ -169,7 +169,7 @@ import { RevealDirective } from '../core/reveal.directive';
         }
       </section>
     } @else {
-      <section class="relative card-grid-flush full-bleed grid grid-cols-1 px-4 pt-6 sm:grid-cols-2 sm:px-6 lg:grid-cols-3 lg:px-8 xl:grid-cols-4 2xl:grid-cols-5">
+      <section class="relative card-grid-flush full-bleed grid grid-cols-2 px-4 pt-6 sm:px-6 lg:grid-cols-3 lg:px-8 xl:grid-cols-4 2xl:grid-cols-5">
         @for (product of products(); track product.id; let i = $index) {
           <app-product-card [product]="store.toStoreProduct(product)" [appReveal]="i % pageSize" />
         } @empty {

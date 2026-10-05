@@ -53,26 +53,35 @@ export class App {
    * overflows by the scrollbar width and adds a horizontal scrollbar. Headless
    * browsers use overlay scrollbars and hide the problem, which is exactly how
    * it slips through. Measuring it makes the maths exact on every platform.
+   *
+   * It is the width the scrollbar is taking *right now* that matters, and that
+   * changes without the window changing size: the page grows long enough to
+   * scroll, or the kind of scrollbar changes (Chrome's device toolbar switching
+   * between a phone and a desktop of the same width). A figure measured once
+   * goes stale and leaves every full-bleed section off-centre, with the page a
+   * few pixels wider than the screen. So it is read from what the browser is
+   * actually doing, and read again whenever the page's usable width changes.
    */
   private publishScrollbarWidth(): void {
     if (typeof window === 'undefined') return;
+    const root = document.documentElement;
+    let published = '';
     const apply = () => {
-      // Measured with a throwaway probe rather than
-      // `innerWidth - documentElement.clientWidth`: that difference is 0 until
-      // the page is long enough to scroll, so reading it at startup reports no
-      // scrollbar and the correction silently does nothing. A probe reports the
-      // platform's scrollbar width whatever the page is currently doing, and
-      // returns 0 on overlay-scrollbar platforms, which is also correct.
-      const probe = document.createElement('div');
-      probe.style.cssText =
-        'position:absolute;top:-9999px;width:100px;height:100px;overflow:scroll;visibility:hidden';
-      document.body.appendChild(probe);
-      const width = probe.offsetWidth - probe.clientWidth;
-      probe.remove();
-      document.documentElement.style.setProperty('--sbw', `${Math.max(0, width)}px`);
+      // What the scrollbar occupies at this moment: the window's width less the
+      // width left for the page. Zero when there is no scrollbar, or it floats
+      // over the page as on phones — which is exactly what the sums need.
+      const width = `${Math.max(0, window.innerWidth - root.clientWidth)}px`;
+      if (width === published) return;
+      published = width;
+      root.style.setProperty('--sbw', width);
     };
     apply();
     window.addEventListener('resize', apply, { passive: true });
+    // The page's usable width changes exactly when a scrollbar appears, goes
+    // away or changes kind — none of which is a window resize.
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(apply).observe(root);
+    }
   }
 
   /**

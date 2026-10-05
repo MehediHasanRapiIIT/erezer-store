@@ -49,7 +49,7 @@ import { SeoService } from '../core/seo.service';
           <a routerLink="/shop" class="btn-primary mt-6 inline-flex">Browse the shop</a>
         </div>
       } @else {
-        <section class="card-grid-flush relative full-bleed grid grid-cols-1 px-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-3 lg:px-8 xl:grid-cols-4 2xl:grid-cols-5">
+        <section class="card-grid-flush relative full-bleed grid grid-cols-2 px-4 sm:px-6 lg:grid-cols-3 lg:px-8 xl:grid-cols-4 2xl:grid-cols-5">
           @for (product of products(); track product.id; let i = $index) {
             <app-product-card [product]="store.toStoreProduct(product)" [appReveal]="i % 10" />
           }

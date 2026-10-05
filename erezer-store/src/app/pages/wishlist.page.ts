@@ -16,11 +16,11 @@ import { EcommerceStore } from '../core/store/ecommerce.store';
         <a routerLink="/shop" class="text-sm underline underline-offset-4">Continue shopping</a>
       </header>
 
-      <section class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <section class="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3">
         @for (product of store.wishlistProducts(); track product.id) {
           <app-product-card [product]="product" />
         } @empty {
-          <article class="app-card p-6">
+          <article class="app-card col-span-full p-6">
             <p class="app-muted">No items in wishlist yet. Save products to revisit them later.</p>
           </article>
         }
