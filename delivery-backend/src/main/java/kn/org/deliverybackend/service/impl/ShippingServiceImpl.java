@@ -212,7 +212,14 @@ public class ShippingServiceImpl implements ShippingService {
         category.setShippingCharge(charge);
         categoryRepository.save(category);
 
-        List<Product> inCategory = productRepository.findLiveByCategory(categoryId);
+        // Its subcategories follow it too, except any that set a charge of their own.
+        java.util.Set<Long> following = new java.util.LinkedHashSet<>();
+        following.add(categoryId);
+        int subcategoriesOwn = 0;
+        for (Category sub : categoryRepository.findByParentIdAndDeletedFalse(categoryId)) {
+            if (sub.getShippingCharge() == null) following.add(sub.getId()); else subcategoriesOwn++;
+        }
+        List<Product> inCategory = productRepository.findLiveByCategories(following);
         int keptOwn = (int) inCategory.stream().filter(p -> p.getShippingCharge() != null).count();
         int follow = inCategory.size() - keptOwn;
 
@@ -225,6 +232,11 @@ public class ShippingServiceImpl implements ShippingService {
             message.append(' ').append(keptOwn)
                     .append(keptOwn == 1 ? " product has its own charge and keeps it."
                             : " products have their own charge and keep it.");
+        }
+        if (subcategoriesOwn > 0) {
+            message.append(' ').append(subcategoriesOwn)
+                    .append(subcategoriesOwn == 1 ? " subcategory has its own charge and keeps it."
+                            : " subcategories have their own charge and keep it.");
         }
         return BulkShippingChargeResultDTO.builder()
                 .categories(1)

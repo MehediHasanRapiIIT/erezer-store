@@ -86,6 +86,9 @@ export interface ApiCategory {
   slug?: string | null;
   showOnHome?: boolean;
   homeSortOrder?: number;
+  /** The main category a subcategory sits under; absent for a main category. */
+  parentId?: number | null;
+  parentName?: string | null;
 }
 
 // ─── Product ──────────────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { Component, signal, OnInit, inject } from '@angular/core';
+import { Component, signal, OnInit, inject, computed } from '@angular/core';
 import { RouterLink, Router, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { SidebarComponent } from '../../../shared/sidebar/sidebar.component';
@@ -7,6 +7,7 @@ import { UploadService } from '../../../core/services/upload.service';
 import { parseApiError } from '../../../core/utils/api-error.util';
 import { HttpErrorResponse } from '@angular/common/http';
 import { PermissionService } from '../../../core/services/permission.service';
+import { CategoryResponse } from '../../../core/models/api.models';
 import { NoticeService } from '../../../core/services/notice.service';
 
 @Component({
@@ -22,6 +23,24 @@ export class EditCategoryComponent implements OnInit {
   private uploadService = inject(UploadService);
   protected readonly perms = inject(PermissionService);
   private readonly notices = inject(NoticeService);
+
+  /** The main category this one sits under; null for a main category. */
+  parentId = signal<number | null>(null);
+  /** Main categories it could sit under. */
+  mainCategories = signal<CategoryResponse[]>([]);
+  /** A category with subcategories of its own can't become one. */
+  hasSubcategories = signal(false);
+  /** "Subcategory" is chosen, whether or not its main category has been picked yet. */
+  isSub = signal(false);
+  /** Save was pressed on a subcategory with no main category chosen. */
+  parentMissing = signal(false);
+
+  setKind(sub: boolean): void {
+    this.isSub.set(sub);
+    this.parentMissing.set(false);
+    if (!sub) this.parentId.set(null);
+  }
+  parentName = computed(() => this.mainCategories().find((c) => c.id === this.parentId())?.name ?? 'its main category');
 
   categoryId   = signal<number>(0);
   categoryName = signal('');
@@ -61,6 +80,11 @@ export class EditCategoryComponent implements OnInit {
     const id = Number(this.route.snapshot.paramMap.get('id'));
     this.categoryId.set(id);
 
+    this.categoryService.getCategories().subscribe({
+      next: (all) => this.mainCategories.set(all.filter((c) => c.parentId == null && c.id !== id)),
+      error: () => {},
+    });
+
     this.categoryService.getCategory(id).subscribe({
       next: (cat) => {
         this.categoryName.set(cat.name);
@@ -70,6 +94,9 @@ export class EditCategoryComponent implements OnInit {
         this.discountExcluded.set(cat.discountExcluded ?? false);
         this.showStockQuantity.set(cat.showStockQuantity ?? false);
         this.homeSortOrder.set(cat.homeSortOrder ?? 0);
+        this.parentId.set(cat.parentId ?? null);
+        this.isSub.set(cat.parentId != null);
+        this.hasSubcategories.set((cat.subcategoryCount ?? 0) > 0);
         this.isFetching.set(false);
       },
       error: (err) => {
@@ -81,6 +108,10 @@ export class EditCategoryComponent implements OnInit {
 
   onSave() {
     if (!this.categoryName().trim()) return;
+    if (this.isSub() && this.parentId() == null) {
+      this.parentMissing.set(true);
+      return;
+    }
 
     this.isLoading.set(true);
     this.errorMessage.set('');
@@ -94,6 +125,7 @@ export class EditCategoryComponent implements OnInit {
       discountExcluded: this.discountExcluded(),
       showStockQuantity: this.showStockQuantity(),
       homeSortOrder: this.homeSortOrder(),
+      parentId: this.parentId(),
     }).subscribe({
       next: () => {
         this.isLoading.set(false);

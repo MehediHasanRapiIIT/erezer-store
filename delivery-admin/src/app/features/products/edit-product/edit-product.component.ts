@@ -64,7 +64,7 @@ export class EditProductComponent implements OnInit {
   protected readonly categoryStockHint = computed(() => {
     const cat = this.categories().find((c) => c.id === this.categoryId());
     if (!cat) return 'choose a category';
-    return cat.showStockQuantity ? `${cat.name} shows quantities` : `${cat.name} shows labels`;
+    return (cat.effectiveShowStockQuantity ?? cat.showStockQuantity) ? `${cat.name} shows quantities` : `${cat.name} shows labels`;
   });
 
   // Clothing / catalog attributes

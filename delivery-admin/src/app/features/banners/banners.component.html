@@ -222,7 +222,7 @@
                           <option [ngValue]="null">No collections yet — add one first</option>
                         }
                         @for (cat of categories(); track cat.id) {
-                          <option [ngValue]="cat.id">{{ cat.name }}</option>
+                          <option [ngValue]="cat.id">{{ cat.label || cat.name }}</option>
                         }
                       </select>
                     </div>

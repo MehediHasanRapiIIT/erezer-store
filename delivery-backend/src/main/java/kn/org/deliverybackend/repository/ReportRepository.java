@@ -265,7 +265,8 @@ public interface ReportRepository extends JpaRepository<Order, UUID> {
             "FROM order_item oi " +
             "JOIN orders   o ON o.id = oi.order_id " +
             "JOIN product  p ON p.id = oi.product_id " +
-            "JOIN category c ON c.id = p.category_id " +
+            "JOIN category pc ON pc.id = p.category_id " +
+            "JOIN category c ON c.id = COALESCE(pc.parent_id, pc.id) " +
             "WHERE " + WINDOW +
             "  AND " + COUNTED +
             "  AND COALESCE(oi.deleted, false) = false " +

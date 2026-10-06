@@ -17,7 +17,7 @@
 
         <h1 class="text-3xl font-extrabold text-gray-900 mb-1">Add several products</h1>
         <p class="text-sm text-gray-400 mb-6">
-          Products that share a category, description, price and sizes — each with its own name, code and pictures.
+          Products that share a name, category, description, price and sizes — each with its own code and pictures.
         </p>
 
         @if (errorMessage()) {
@@ -43,10 +43,18 @@
                   class="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-300">
                   <option [ngValue]="null">Choose a category…</option>
                   @for (c of categories(); track c.id) {
-                    <option [ngValue]="c.id">{{ c.name }}</option>
+                    <option [ngValue]="c.id">{{ c.label || c.name }}</option>
                   }
                 </select>
-                <p class="text-xs text-gray-400 mt-1">The product codes start from this category's letters.</p>
+                <p class="text-xs text-gray-400 mt-1">The product codes start from this category's letters. Main categories are listed by name. A subcategory is set in under its main category with ↳.</p>
+              </div>
+              <div>
+                <label for="batch-name" class="block text-sm font-medium text-gray-700 mb-1.5">Name</label>
+                <input id="batch-name" type="text" maxlength="100" placeholder="Classic Cotton T-Shirt"
+                  data-testid="batch-name"
+                  [ngModel]="sharedName()" (ngModelChange)="onSharedNameChange($event)" [disabled]="saving()"
+                  class="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300" />
+                <p class="text-xs text-gray-400 mt-1">Every product starts with this name. You can change any of them in its row below.</p>
               </div>
               <div>
                 <label for="batch-description" class="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
@@ -74,6 +82,52 @@
                   [disabled]="saving()" class="h-4 w-4 rounded border-gray-300 accent-blue-600" />
                 On sale in the shop straight away
               </label>
+              <div class="space-y-2.5 border-t border-gray-100 pt-4">
+                <label class="flex items-center gap-2 text-sm text-gray-700">
+                  <input type="checkbox" data-testid="batch-new-arrival" [ngModel]="isNewArrival()" (ngModelChange)="isNewArrival.set($event)"
+                    [disabled]="saving() || !perms.can('products.feature')" class="h-4 w-4 rounded border-gray-300 accent-blue-600" />
+                  <span>Show in <strong>New arrivals</strong> on the home page</span>
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-700">
+                  <input type="checkbox" data-testid="batch-featured" [ngModel]="isFeatured()" (ngModelChange)="isFeatured.set($event)"
+                    [disabled]="saving() || !perms.can('products.feature')" class="h-4 w-4 rounded border-gray-300 accent-blue-600" />
+                  <span>Show in <strong>Featured products</strong> on the home page</span>
+                </label>
+                @if (!perms.can('products.feature')) {
+                  <p class="text-xs text-gray-400">Needs the “Feature products on the home page” permission.</p>
+                }
+                <label class="flex items-start gap-2 text-sm text-gray-700">
+                  <input type="checkbox" data-testid="batch-never-discount" [ngModel]="discountExcluded()" (ngModelChange)="discountExcluded.set($event)"
+                    [disabled]="saving() || !perms.can('discounts.switches')" class="mt-0.5 h-4 w-4 rounded border-gray-300 accent-blue-600" />
+                  <span>
+                    <strong>Never discount</strong> these products
+                    <span class="block text-xs text-gray-500">
+                      Keeps them at full price, ignoring every automatic discount including store-wide ones.
+                      Their own sale price still applies.
+                    </span>
+                  </span>
+                </label>
+                @if (!perms.can('discounts.switches')) {
+                  <p class="text-xs text-gray-400">Needs the “Turn discounts on or off” permission.</p>
+                }
+              </div>
+              <div class="border-t border-gray-100 pt-4" role="radiogroup" aria-labelledby="batch-stock-display-label">
+                <p class="text-sm font-medium text-gray-700" id="batch-stock-display-label">Stock on the product page</p>
+                <p class="text-xs text-gray-400 mb-2">Show the real number (“12 in stock”) or the labels (In stock / Only a few left / Out of stock).</p>
+                @for (opt of stockDisplayOptions; track opt.value) {
+                  <label class="mt-1.5 flex items-start gap-2 cursor-pointer">
+                    <input type="radio" name="batchStockDisplay" [value]="opt.value" [checked]="stockDisplay() === opt.value"
+                      [attr.data-testid]="'batch-stock-' + opt.value" [disabled]="saving()"
+                      (change)="stockDisplay.set(opt.value)" class="mt-0.5 accent-blue-600" />
+                    <span class="text-sm text-gray-700">
+                      {{ opt.label }}
+                      @if (opt.value === 'CATEGORY') {
+                        <span class="text-xs text-gray-500">— {{ categoryStockHint() }}</span>
+                      }
+                    </span>
+                  </label>
+                }
+              </div>
             </div>
           </div>
 
@@ -186,8 +240,12 @@
                     <td class="py-3 pr-3">
                       <input type="text" maxlength="100" placeholder="Product name"
                         [attr.aria-label]="'Name of row ' + (i + 1)" [attr.data-testid]="'name-' + (i + 1)"
-                        [ngModel]="row.name" (ngModelChange)="patchRow(i, { name: $event })" [disabled]="saving()"
-                        class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300" />
+                        [ngModel]="row.name" (ngModelChange)="onNameTyped(i, $event)" (blur)="onNameLeft(i)" [disabled]="saving()"
+                        class="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-300"
+                        [class.border-gray-200]="!row.nameTyped" [class.border-amber-300]="row.nameTyped" />
+                      @if (row.nameTyped) {
+                        <span class="mt-0.5 block text-[10px] text-amber-600">changed by you</span>
+                      }
                     </td>
                     <td class="py-3 pr-3">
                       <input type="text" maxlength="40" placeholder="choose a category"

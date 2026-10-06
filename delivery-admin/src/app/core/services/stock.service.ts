@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   BulkStockAdjustRequest, BulkStockResult, BulkStockUpdateRequest, InventorySummary, PageResponse,
-  StockResponse, StockUpdateRequest,
+  SizeStockUpdateRequest, StockResponse, StockUpdateRequest,
 } from '../models/api.models';
 
 @Injectable({ providedIn: 'root' })
@@ -36,6 +36,11 @@ export class StockService {
 
   updateStock(productId: number, request: StockUpdateRequest): Observable<StockResponse> {
     return this.http.put<StockResponse>(`${this.baseUrl}/admin/products/${productId}/stock`, request);
+  }
+
+  /** For a product sold in sizes: an exact figure for each size. Its stock becomes their total. */
+  setSizeStock(productId: number, request: SizeStockUpdateRequest): Observable<StockResponse> {
+    return this.http.put<StockResponse>(`${this.baseUrl}/admin/products/${productId}/stock/sizes`, request);
   }
 
   /** One change for chosen products, a whole category, or every product. */

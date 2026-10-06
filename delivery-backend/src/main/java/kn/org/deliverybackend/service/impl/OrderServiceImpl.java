@@ -620,7 +620,8 @@ public class OrderServiceImpl implements OrderService {
             Variant variant = lockedVariants.get(i);
             if (variant != null) {
                 variant.setStockQuantity(variant.getStockQuantity() - qty);
-                variantRepository.save(variant);
+                variantRepository.saveAndFlush(variant);
+                inventoryService.followSizes(variant.getProductId());
             } else {
                 Product product = lockedProducts.get(i);
                 inventoryService.decrementStock(product, qty);

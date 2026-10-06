@@ -58,13 +58,24 @@ import { RevealDirective } from '../core/reveal.directive';
 
         @for (cat of categories(); track cat.id) {
           <button (click)="selectCategory(cat.id)"
-            [class]="selectedCategoryId() === cat.id
+            [class]="selectedMainId() === cat.id
               ? 'shrink-0 rounded-full border border-transparent bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white transition dark:bg-white dark:text-black'
               : 'shrink-0 rounded-full border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-600 transition hover:border-neutral-900 hover:text-neutral-900 dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-white dark:hover:text-white'">
             {{ cat.name }}
           </button>
         }
       </div>
+      @if (subcategories().length > 0) {
+        <!-- The chosen category's subcategories, to narrow it further. -->
+        <div class="no-scrollbar -mx-1 mt-2 flex gap-2 overflow-x-auto px-1 pb-1" data-testid="shop-subcategories">
+          <button (click)="selectCategory(selectedMainId())" [class]="subPillClass(selectedCategoryId() === selectedMainId())">
+            All {{ selectedMainName() }}
+          </button>
+          @for (sub of subcategories(); track sub.id) {
+            <button (click)="selectCategory(sub.id)" [class]="subPillClass(selectedCategoryId() === sub.id)">{{ sub.name }}</button>
+          }
+        </div>
+      }
     </section>
 
     <!-- ── Sticky filter toolbar ───────────────────────────────────────────── -->
@@ -349,7 +360,23 @@ export class ShopPage implements OnInit {
   protected readonly loading            = signal(false);
   /** The next page is on its way ("Load more"). */
   protected readonly loadingMore        = signal(false);
-  protected readonly categories         = signal<ApiCategory[]>([]);
+  private readonly allCategories        = signal<ApiCategory[]>([]);
+  /** The first row of pills: main categories. */
+  protected readonly categories         = computed(() => this.allCategories().filter((c) => c.parentId == null));
+  /** The main category in play: the one chosen, or the one the chosen subcategory sits under. */
+  protected readonly selectedMainId     = computed(() => {
+    const id = this.selectedCategoryId();
+    if (id === null) return null;
+    return this.allCategories().find((c) => c.id === id)?.parentId ?? id;
+  });
+  protected readonly selectedMainName   = computed(() =>
+    this.allCategories().find((c) => c.id === this.selectedMainId())?.name ?? '');
+  /** The second row of pills: that main category's subcategories. */
+  protected readonly subcategories      = computed(() => {
+    const mainId = this.selectedMainId();
+    return mainId === null ? [] : this.allCategories().filter((c) => c.parentId === mainId)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  });
   /** Every page loaded so far, in order. */
   protected readonly products           = signal<ApiProduct[]>([]);
   /** How many products match in total, as counted by the server. */
@@ -511,8 +538,14 @@ export class ShopPage implements OnInit {
 
   private loadCategories(): void {
     this.api.getCategories().pipe(catchError(() => of([]))).subscribe((cats) => {
-      this.categories.set(cats.filter((c) => c.isActive));
+      this.allCategories.set(cats.filter((c) => c.isActive));
     });
+  }
+
+  protected subPillClass(active: boolean): string {
+    return active
+      ? 'shrink-0 rounded-full border border-transparent bg-neutral-900 px-4 py-1.5 text-xs font-medium text-white transition dark:bg-white dark:text-black'
+      : 'shrink-0 rounded-full border border-neutral-300 px-4 py-1.5 text-xs font-medium text-neutral-600 transition hover:border-neutral-900 hover:text-neutral-900 dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-white dark:hover:text-white';
   }
 
   /** What the server is asked for: the current search, category, filters and sort. */

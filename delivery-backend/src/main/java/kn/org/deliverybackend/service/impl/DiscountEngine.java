@@ -72,7 +72,7 @@ public class DiscountEngine {
 
         List<Discount> candidates = new ArrayList<>();
         for (Discount d : discountService.activeDiscounts()) {
-            if (applies(d, productId, categoryId)) {
+            if (applies(d, productId, categoryId, parentCategoryId(categoryId))) {
                 candidates.add(d);
             }
         }
@@ -127,17 +127,26 @@ public class DiscountEngine {
         }
         // One lookup per line. Within a checkout transaction Hibernate serves
         // repeats of the same category from its first-level cache.
+        // A subcategory is kept at full price when its main category is.
         return categoryRepository.findById(categoryId)
-                .map(c -> Boolean.TRUE.equals(c.getDiscountExcluded()))
+                .map(c -> kn.org.deliverybackend.service.CategoryTree.discountExcluded(categoryRepository, c))
                 .orElse(false);
     }
 
-    private boolean applies(Discount d, Long productId, Long categoryId) {
+    /** The main category a product's subcategory sits under, or null. */
+    private Long parentCategoryId(Long categoryId) {
+        if (categoryId == null) return null;
+        return categoryRepository.findById(categoryId).map(kn.org.deliverybackend.entity.Category::getParentId).orElse(null);
+    }
+
+    /** A category discount covers the category's own products and its subcategories'. */
+    private boolean applies(Discount d, Long productId, Long categoryId, Long parentCategoryId) {
         DiscountScope scope = DiscountScope.parse(d.getScope()).orElse(null);
         if (scope == null) return false;
         return switch (scope) {
             case GLOBAL -> true;
-            case CATEGORY -> d.getTargetId() != null && d.getTargetId().equals(categoryId);
+            case CATEGORY -> d.getTargetId() != null
+                    && (d.getTargetId().equals(categoryId) || d.getTargetId().equals(parentCategoryId));
             case PRODUCT -> d.getTargetId() != null && d.getTargetId().equals(productId);
         };
     }

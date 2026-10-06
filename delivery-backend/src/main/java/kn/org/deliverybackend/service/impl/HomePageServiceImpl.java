@@ -65,8 +65,10 @@ public class HomePageServiceImpl implements HomePageService {
 
         // Get categories (active only)
         List<Category> allCategories = categoryRepository.findAll();
+        // "Shop by category" lists main categories; subcategories are reached through them.
         List<Category> categories = allCategories.stream()
                 .filter(Category::getIsActive)
+                .filter(c -> c.getParentId() == null)
                 .collect(Collectors.toList());
         response.setCategories(categoryMapper.toDTOs(categories));
 
@@ -82,7 +84,9 @@ public class HomePageServiceImpl implements HomePageService {
                     ? null : categoriesById.get(product.getCategoryId());
             if (category != null) {
                 dto.setCategoryName(category.getName());
-                dto.setCategoryDiscountExcluded(Boolean.TRUE.equals(category.getDiscountExcluded()));
+                Category parent = category.getParentId() == null ? null : categoriesById.get(category.getParentId());
+                dto.setCategoryDiscountExcluded(Boolean.TRUE.equals(category.getDiscountExcluded())
+                        || (parent != null && Boolean.TRUE.equals(parent.getDiscountExcluded())));
             } else {
                 dto.setCategoryDiscountExcluded(false);
             }
@@ -132,7 +136,8 @@ public class HomePageServiceImpl implements HomePageService {
 
     private HomeCategorySectionDTO toHomeSection(Category category,
                                                  java.util.function.Function<Product, ProductResponseDTO> toCard) {
-        List<ProductResponseDTO> products = productRepository.findByCategoryId(category.getId()).stream()
+        List<ProductResponseDTO> products = productRepository.findByCategoryIdIn(
+                        kn.org.deliverybackend.service.CategoryTree.family(categoryRepository, category.getId())).stream()
                 .filter(pr -> !Boolean.TRUE.equals(pr.getDeleted()))
                 .filter(pr -> !Boolean.FALSE.equals(pr.getIsAvailable()))
                 .limit(HOME_SECTION_PRODUCT_LIMIT)

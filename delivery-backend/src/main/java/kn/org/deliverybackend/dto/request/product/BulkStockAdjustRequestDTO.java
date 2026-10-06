@@ -35,4 +35,13 @@ public class BulkStockAdjustRequestDTO {
     @Min(value = 0, message = "Quantity must be 0 or more")
     @Max(value = 1_000_000, message = "That quantity is too large")
     private Integer quantity;
+
+    /**
+     * For products sold in sizes the quantity is per size. Name sizes here
+     * (e.g. M, L) to change only those; products without them, and products
+     * not sold in sizes, are then left alone. Empty means every size, and
+     * products not sold in sizes are changed on their own stock.
+     */
+    @Size(max = 20, message = "Too many sizes")
+    private List<String> sizes;
 }

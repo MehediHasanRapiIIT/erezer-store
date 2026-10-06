@@ -29,6 +29,13 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     /** Guards slug uniqueness on create/update. */
     Optional<Category> findBySlugIgnoreCaseAndDeletedFalseAndIdNot(String slug, Long id);
 
+    /** A main category's subcategories, by name. */
+    List<Category> findByParentIdAndDeletedFalseOrderByNameAsc(Long parentId);
+
+    default List<Category> findByParentIdAndDeletedFalse(Long parentId) {
+        return findByParentIdAndDeletedFalseOrderByNameAsc(parentId);
+    }
+
     /** Categories the admin promoted to their own landing-page section. */
     List<Category> findByShowOnHomeTrueAndIsActiveTrueAndDeletedFalseOrderByHomeSortOrderAscNameAsc();
 }

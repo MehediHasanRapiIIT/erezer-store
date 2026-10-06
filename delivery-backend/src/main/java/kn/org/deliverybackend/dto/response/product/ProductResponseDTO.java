@@ -76,4 +76,11 @@ public class ProductResponseDTO {
     private kn.org.deliverybackend.enumeration.StockDisplay stockDisplay;
     /** Whether the product page shows the quantity, with the category already taken into account. */
     private Boolean showStockQuantity;
+
+    /**
+     * The admin Products list only: the stock of each size, so a total such as
+     * 3000 can be seen to be five sizes of 600. Left out everywhere else.
+     */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    private java.util.List<StockResponseDTO.SizeStock> sizeStock;
 }

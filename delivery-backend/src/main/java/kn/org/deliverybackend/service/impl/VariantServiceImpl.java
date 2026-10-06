@@ -9,6 +9,7 @@ import kn.org.deliverybackend.exception.InvalidRequestException;
 import kn.org.deliverybackend.exception.ResourceNotFoundException;
 import kn.org.deliverybackend.repository.ProductRepository;
 import kn.org.deliverybackend.repository.VariantRepository;
+import kn.org.deliverybackend.service.InventoryService;
 import kn.org.deliverybackend.service.VariantService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ public class VariantServiceImpl implements VariantService {
 
     private final VariantRepository variantRepository;
     private final ProductRepository productRepository;
+    private final InventoryService inventoryService;
 
     @Override
     @Transactional(readOnly = true)
@@ -48,7 +50,9 @@ public class VariantServiceImpl implements VariantService {
         v.setCategoryId(product.getCategoryId());
         v.setShopId(product.getShopId());
         applyFields(v, request, product);
-        return toDTO(variantRepository.save(v));
+        Variant saved = variantRepository.saveAndFlush(v);
+        inventoryService.followSizes(productId);
+        return toDTO(saved);
     }
 
     @Override
@@ -119,7 +123,9 @@ public class VariantServiceImpl implements VariantService {
             }
         }
         applyFields(v, request, product);
-        return toDTO(variantRepository.save(v));
+        Variant saved = variantRepository.saveAndFlush(v);
+        inventoryService.followSizes(productId);
+        return toDTO(saved);
     }
 
     @Override
@@ -133,7 +139,8 @@ public class VariantServiceImpl implements VariantService {
         }
         // Soft-delete (preserves FK integrity with OrderItem.variantId).
         v.setDeleted(true);
-        variantRepository.save(v);
+        variantRepository.saveAndFlush(v);
+        inventoryService.followSizes(productId);
     }
 
     // ── helpers ────────────────────────────────────────────────────────────────

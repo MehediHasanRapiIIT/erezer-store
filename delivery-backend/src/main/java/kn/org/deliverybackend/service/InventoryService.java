@@ -24,6 +24,10 @@ public interface InventoryService {
     kn.org.deliverybackend.dto.response.product.BulkStockResultDTO adjustStock(
             kn.org.deliverybackend.dto.request.product.BulkStockAdjustRequestDTO request);
 
+    /** The Inventory page, for a product sold in sizes: an exact stock figure for each size listed. */
+    StockResponseDTO setSizeStock(Long productId,
+                                  kn.org.deliverybackend.dto.request.product.SizeStockUpdateRequestDTO request);
+
     /** Sets an exact stock figure for each product listed. */
     List<StockResponseDTO> setStockForEach(kn.org.deliverybackend.dto.request.product.BulkStockUpdateRequestDTO request);
 
@@ -35,6 +39,13 @@ public interface InventoryService {
 
     /** Credits units back, e.g. when an order that reserved them is cancelled. */
     void incrementStock(Product product, int quantity);
+
+    /**
+     * For a product sold in sizes, makes its own stock the total of its sizes.
+     * Called whenever a size's stock changes. A product with no sizes is left
+     * as it is.
+     */
+    void followSizes(Long productId);
 
     List<StockResponseDTO> getAllStockDetails();
 

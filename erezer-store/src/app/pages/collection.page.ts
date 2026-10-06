@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, of, switchMap } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -31,7 +31,11 @@ import { SeoService } from '../core/seo.service';
       <section class="relative full-bleed mb-8 border-b border-neutral-200 px-4 pb-8 sm:px-6 lg:px-8 dark:border-neutral-800" appReveal>
         <p class="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.32em] text-neutral-500 dark:text-neutral-400">
           <span class="h-px w-10 bg-neutral-400 dark:bg-neutral-600"></span>
-          Collection
+          @if (main(); as m) {
+            <a [routerLink]="linkTo(m)" [queryParams]="queryFor(m)" class="underline-offset-4 hover:underline" data-testid="collection-parent">{{ m.name }}</a>
+          } @else {
+            Collection
+          }
         </p>
         <!-- Size set directly: app-section-title hardcodes 1.875rem and ties
              with Tailwind's text-* utilities on specificity. -->
@@ -41,6 +45,17 @@ import { SeoService } from '../core/seo.service';
         <p class="app-muted mt-4 text-base">
           {{ loading() ? 'Loading…' : (total() + ' ' + (total() === 1 ? 'product' : 'products')) }}
         </p>
+        @if (subcategories().length > 0) {
+          <!-- The main category and its subcategories, to narrow the page by. -->
+          <nav class="no-scrollbar -mx-1 mt-6 flex gap-2 overflow-x-auto px-1 pb-1" aria-label="Subcategories" data-testid="collection-subcategories">
+            @if (main() || category(); as top) {
+              <a [routerLink]="linkTo(top)" [queryParams]="queryFor(top)" [class]="pillClass(!main())">All {{ top.name }}</a>
+            }
+            @for (sub of subcategories(); track sub.id) {
+              <a [routerLink]="linkTo(sub)" [queryParams]="queryFor(sub)" [class]="pillClass(sub.id === category()?.id)">{{ sub.name }}</a>
+            }
+          </nav>
+        }
       </section>
 
       @if (!loading() && products().length === 0) {
@@ -77,6 +92,20 @@ export class CollectionPage {
   private readonly pageSize = 20;
 
   protected readonly category = signal<ApiCategory | null>(null);
+  /** Every active category, to find this one's subcategories or its main category. */
+  private readonly allCategories = signal<ApiCategory[]>([]);
+  /** The main category this page's subcategory sits under; null on a main category's page. */
+  protected readonly main = computed(() => {
+    const parentId = this.category()?.parentId;
+    return parentId == null ? null : this.allCategories().find((c) => c.id === parentId) ?? null;
+  });
+  /** On a main category's page its subcategories; on a subcategory's page, it and its siblings. */
+  protected readonly subcategories = computed(() => {
+    const category = this.category();
+    if (!category) return [];
+    const mainId = category.parentId ?? category.id;
+    return this.allCategories().filter((c) => c.parentId === mainId).sort((a, b) => a.name.localeCompare(b.name));
+  });
   protected readonly products = signal<ApiProduct[]>([]);
   /** How many products the collection has, as counted by the server. */
   protected readonly total = signal(0);
@@ -86,6 +115,9 @@ export class CollectionPage {
   private page = 0;
 
   constructor() {
+    this.api.getCategories().pipe(catchError(() => of([] as ApiCategory[])))
+      .subscribe((cats) => this.allCategories.set(cats.filter((c) => c.isActive !== false)));
+
     // paramMap rather than a snapshot: Angular reuses this component when
     // navigating between two collections, and a snapshot would keep showing
     // the first one.
@@ -120,6 +152,20 @@ export class CollectionPage {
             this.loading.set(false);
           });
       });
+  }
+
+  protected linkTo(cat: ApiCategory): string[] {
+    return cat.slug ? ['/', cat.slug] : ['/shop'];
+  }
+
+  protected queryFor(cat: ApiCategory): Record<string, number> {
+    return cat.slug ? {} : { category: cat.id };
+  }
+
+  protected pillClass(active: boolean): string {
+    return active
+      ? 'shrink-0 rounded-full border border-transparent bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white transition dark:bg-white dark:text-black'
+      : 'shrink-0 rounded-full border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-600 transition hover:border-neutral-900 hover:text-neutral-900 dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-white dark:hover:text-white';
   }
 
   protected loadMore(): void {

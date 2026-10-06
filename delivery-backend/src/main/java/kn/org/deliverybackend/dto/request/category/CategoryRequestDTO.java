@@ -36,6 +36,9 @@ public class CategoryRequestDTO {
     /** True to keep this category's products at full price. */
     private Boolean discountExcluded;
 
+    /** The main category this one sits under; null for a main category. */
+    private Long parentId;
+
     /** True: product pages in this category show the stock quantity. Null leaves it unchanged. */
     private Boolean showStockQuantity;
 }

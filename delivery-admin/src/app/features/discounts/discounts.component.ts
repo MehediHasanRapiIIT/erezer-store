@@ -251,7 +251,7 @@ const EMPTY_FORM: DiscountForm = {
                         class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white">
                         <option [ngValue]="null">Select category…</option>
                         @for (c of categories(); track c.id) {
-                          <option [ngValue]="c.id">{{ c.name }}</option>
+                          <option [ngValue]="c.id">{{ c.label || c.name }}</option>
                         }
                       </select>
                     </label>

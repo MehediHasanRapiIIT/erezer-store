@@ -95,7 +95,7 @@
               class="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 bg-white outline-none focus:ring-2 focus:ring-blue-300">
               <option [ngValue]="null">All categories</option>
               @for (c of categories(); track c.id) {
-                <option [ngValue]="c.id">{{ c.name }}</option>
+                <option [ngValue]="c.id">{{ c.label || c.name }}</option>
               }
             </select>
             <button class="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
@@ -156,7 +156,7 @@
                     class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300">
                     <option [ngValue]="null">Choose a category…</option>
                     @for (c of categories(); track c.id) {
-                      <option [ngValue]="c.id">{{ c.name }}</option>
+                      <option [ngValue]="c.id">{{ c.label || c.name }}</option>
                     }
                   </select>
                 </div>
@@ -298,6 +298,18 @@
                   <td class="px-4 py-3.5">
                     <p class="font-bold text-base" [class]="stockQtyClass(product.stockStatus)">{{ product.stockQuantity }}</p>
                     <p class="text-xs text-gray-400">{{ stockLabel(product.stockStatus) }}</p>
+                    @if (product.sizeStock?.length) {
+                      <div class="mt-1 flex max-w-[11rem] flex-wrap gap-1" [attr.data-testid]="'sizes-' + product.id"
+                        title="The number above is the total of these sizes">
+                        @for (s of product.sizeStock; track s.variantId) {
+                          <span class="rounded border px-1.5 py-0.5 text-[11px] font-medium"
+                            [class.border-gray-200]="s.stockQuantity > 0" [class.text-gray-600]="s.stockQuantity > 0"
+                            [class.border-red-200]="s.stockQuantity === 0" [class.text-red-500]="s.stockQuantity === 0">
+                            {{ s.size }} <span class="font-bold">{{ s.stockQuantity }}</span>
+                          </span>
+                        }
+                      </div>
+                    }
                   </td>
                   <!-- Status toggle -->
                   <td class="px-4 py-3.5">

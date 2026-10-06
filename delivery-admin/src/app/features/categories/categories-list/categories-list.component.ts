@@ -130,6 +130,7 @@ export class CategoriesListComponent implements OnInit, OnDestroy {
       showOnHome: !!cat.showOnHome,
       homeSortOrder: cat.homeSortOrder ?? 0,
       discountExcluded: !!cat.discountExcluded,
+      parentId: cat.parentId ?? null,
     }).subscribe({
       next: (updated) => {
         this.categories.update(list =>
@@ -140,6 +141,11 @@ export class CategoriesListComponent implements OnInit, OnDestroy {
       },
       error: (err) => this.errorMessage.set(parseApiError(err)),
     });
+  }
+
+  /** Opens "Add category" already set to sit under this main category. */
+  addSubcategory(parentId: number) {
+    this.router.navigate(['/categories/new'], { queryParams: { parentId } });
   }
 
   editCategory(id: number) {

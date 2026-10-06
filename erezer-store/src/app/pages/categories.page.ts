@@ -110,7 +110,8 @@ export class CategoriesPage {
     });
 
     this.api.getCategories().pipe(catchError(() => of([] as ApiCategory[]))).subscribe((cats) => {
-      this.categories.set(cats.filter((c) => c.isActive !== false));
+      // Main categories only; each one's page lists its subcategories.
+      this.categories.set(cats.filter((c) => c.isActive !== false && c.parentId == null));
       this.loading.set(false);
     });
   }

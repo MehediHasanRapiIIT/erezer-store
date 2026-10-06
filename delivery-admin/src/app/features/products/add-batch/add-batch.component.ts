@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { SidebarComponent } from '../../../shared/sidebar/sidebar.component';
 import { ProductService, BatchItem } from '../../../core/services/product.service';
 import { CategoryService } from '../../../core/services/category.service';
-import { CategoryResponse, ProductRequest } from '../../../core/models/api.models';
+import { CategoryResponse, ProductRequest, StockDisplay } from '../../../core/models/api.models';
 import { parseApiError } from '../../../core/utils/api-error.util';
 import { PermissionService } from '../../../core/services/permission.service';
 import { NoticeService } from '../../../core/services/notice.service';
@@ -28,6 +28,10 @@ interface BatchRow {
   /** Stable identity for the list; rows move and disappear. */
   key: number;
   name: string;
+  /** Typed by staff in this row, so the shared name leaves it alone. */
+  nameTyped: boolean;
+  /** What its first photo suggests, used while there is no shared name. */
+  nameFromPhoto: string;
   code: string;
   /** Typed by staff, so suggestions leave it alone. */
   codeTyped: boolean;
@@ -40,7 +44,8 @@ interface BatchRow {
  * Products → Add several products.
  *
  * Several products that share a category, description, price, discount and
- * sizes, each with its own name, code and pictures. Drop a shoot's photos and
+ * sizes, each with its own code and pictures. They start with one shared name,
+ * which any row can change. Drop a shoot's photos and
  * they are dealt out into products, a few photos each, the first of each being
  * the main picture. Codes are suggested from the category and can be changed.
  * One click saves all of them, or none.
@@ -62,12 +67,29 @@ export class AddBatchComponent implements OnInit, OnDestroy {
   // ── shared by every product ───────────────────────────────────────────────
   readonly categories = signal<CategoryResponse[]>([]);
   readonly categoryId = signal<number | null>(null);
+  /** The name every product starts with; a row can then have its own. */
+  readonly sharedName = signal('');
   readonly description = signal('');
   readonly price = signal<number | null>(null);
   readonly discountMode = signal<DiscountMode>('PERCENT');
   readonly discountValue = signal<number | null>(null);
   readonly sizeRows = signal<SizeRow[]>(emptySizeRows());
   readonly isAvailable = signal(true);
+  readonly isNewArrival = signal(false);
+  readonly isFeatured = signal(false);
+  readonly discountExcluded = signal(false);
+  /** Stock on the product page: follow the category (default), the quantity, or labels. */
+  readonly stockDisplay = signal<StockDisplay>('CATEGORY');
+  protected readonly stockDisplayOptions: { value: StockDisplay; label: string }[] = [
+    { value: 'CATEGORY', label: 'Same as category' },
+    { value: 'QUANTITY', label: 'Show quantity' },
+    { value: 'LABEL', label: 'Show labels' },
+  ];
+  protected readonly categoryStockHint = computed(() => {
+    const cat = this.categories().find((c) => c.id === this.categoryId());
+    if (!cat) return 'choose a category';
+    return (cat.effectiveShowStockQuantity ?? cat.showStockQuantity) ? `${cat.name} shows quantities` : `${cat.name} shows labels`;
+  });
 
   // ── the products ──────────────────────────────────────────────────────────
   readonly rows = signal<BatchRow[]>([]);
@@ -169,6 +191,33 @@ export class AddBatchComponent implements OnInit, OnDestroy {
     if (code.trim() === '') this.refreshCodes();
   }
 
+  // ── names ─────────────────────────────────────────────────────────────────
+
+  /** The shared name goes into every row whose name staff haven't typed. */
+  onSharedNameChange(value: string): void {
+    this.sharedName.set(value ?? '');
+    this.rows.update((rows) => rows.map((r) => (r.nameTyped ? r : { ...r, name: this.startingName(r.nameFromPhoto) })));
+  }
+
+  onNameTyped(index: number, value: string): void {
+    const name = value ?? '';
+    const shared = this.sharedName().trim();
+    // Cleared, or put back to the shared name: the row follows the shared name again.
+    this.patchRow(index, { name, nameTyped: name.trim() !== '' && name.trim() !== shared });
+  }
+
+  /** Leaving a row's name empty brings the shared name back into it. */
+  onNameLeft(index: number): void {
+    const row = this.rows()[index];
+    if (row && !row.nameTyped && !row.name.trim()) {
+      this.patchRow(index, { name: this.startingName(row.nameFromPhoto) });
+    }
+  }
+
+  private startingName(fromPhoto: string): string {
+    return this.sharedName().trim().slice(0, 100) || fromPhoto;
+  }
+
   // ── photos ────────────────────────────────────────────────────────────────
 
   onDragOver(event: DragEvent): void {
@@ -192,7 +241,8 @@ export class AddBatchComponent implements OnInit, OnDestroy {
   /**
    * Photos in, products out: sorted by name (a camera numbers its shots in
    * order), then dealt out a few at a time, the first of each being the main
-   * picture, and each product named after its first photo.
+   * picture. Each product takes the shared name, or, while there is none, the
+   * name of its first photo.
    */
   private async dealOut(chosen: File[]): Promise<void> {
     this.errorMessage.set('');
@@ -297,8 +347,11 @@ export class AddBatchComponent implements OnInit, OnDestroy {
     this.patchRow(index, { price: value === '' || value == null ? null : +value });
   }
 
-  private newRow(name: string, pictures: File[]): BatchRow {
-    return { key: this.nextKey++, name, code: '', codeTyped: false, price: null, pictures };
+  private newRow(nameFromPhoto: string, pictures: File[]): BatchRow {
+    return {
+      key: this.nextKey++, name: this.startingName(nameFromPhoto), nameTyped: false, nameFromPhoto,
+      code: '', codeTyped: false, price: null, pictures,
+    };
   }
 
   // ── save ──────────────────────────────────────────────────────────────────
@@ -368,6 +421,10 @@ export class AddBatchComponent implements OnInit, OnDestroy {
       ...discountFields(this.discountMode(), this.discountValue()),
       shopId: 1,
       isAvailable: this.isAvailable(),
+      isNewArrival: this.isNewArrival(),
+      isFeatured: this.isFeatured(),
+      discountExcluded: this.discountExcluded(),
+      stockDisplay: this.stockDisplay(),
     };
     const sizes = this.canAddSizes() ? pickedSizes(this.sizeRows()) : [];
     const items: BatchItem[] = this.rows().map((r) => ({

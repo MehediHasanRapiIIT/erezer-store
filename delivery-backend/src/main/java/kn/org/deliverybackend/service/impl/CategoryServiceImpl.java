@@ -38,6 +38,11 @@ public class CategoryServiceImpl implements CategoryService {
         List<Category> matching = categoryRepository.findAll(org.springframework.data.domain.Sort.by("id")).stream()
                 .filter(c -> !Boolean.TRUE.equals(c.getDeleted()))
                 .filter(c -> text.isEmpty() || contains(c.getName(), text) || contains(c.getSlug(), text))
+                // Each main category, then its subcategories by name.
+                .sorted(java.util.Comparator
+                        .comparing((Category c) -> c.getParentId() != null ? c.getParentId() : c.getId())
+                        .thenComparing(c -> c.getParentId() != null)
+                        .thenComparing(c -> c.getName() == null ? "" : c.getName().toLowerCase(java.util.Locale.ROOT)))
                 .toList();
         int safeSize = kn.org.deliverybackend.util.SearchText.pageSize(size);
         int safePage = Math.max(page, 0);
@@ -69,6 +74,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public CategoryResponseDTO createCategory(CategoryRequestDTO categoryRequestDTO) {
         Category category = categoryMapper.toEntity(categoryRequestDTO);
+        category.setParentId(checkedParent(categoryRequestDTO.getParentId(), null));
         applyHomeSectionFields(category, categoryRequestDTO, null);
         Category saved = categoryRepository.save(category);
         return toEnrichedDTO(saved);
@@ -81,13 +87,44 @@ public class CategoryServiceImpl implements CategoryService {
         category.setName(categoryRequestDTO.getName());
         category.setIsActive(categoryRequestDTO.getIsActive());
         category.setImageUrl(categoryRequestDTO.getImageUrl());
+        category.setParentId(checkedParent(categoryRequestDTO.getParentId(), id));
         applyHomeSectionFields(category, categoryRequestDTO, id);
         return toEnrichedDTO(categoryRepository.save(category));
     }
 
     @Override
     public void deleteCategory(Long id) {
+        int subcategories = categoryRepository.findByParentIdAndDeletedFalse(id).size();
+        if (subcategories > 0) {
+            throw new kn.org.deliverybackend.exception.InvalidRequestException(
+                    "This category has " + subcategories + (subcategories == 1 ? " subcategory" : " subcategories")
+                            + ". Delete or move " + (subcategories == 1 ? "it" : "them") + " first.");
+        }
         categoryRepository.deleteById(id);
+    }
+
+    /**
+     * The parent a category is being put under, checked: it has to exist, be a
+     * main category itself, and not be the category in hand; and a category
+     * that has subcategories can't become one. Two levels, no more.
+     */
+    private Long checkedParent(Long parentId, Long selfId) {
+        if (parentId == null) return null;
+        if (parentId.equals(selfId)) {
+            throw new kn.org.deliverybackend.exception.InvalidRequestException("A category can't be its own subcategory.");
+        }
+        Category parent = categoryRepository.findById(parentId)
+                .filter(p -> !Boolean.TRUE.equals(p.getDeleted()))
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + parentId));
+        if (parent.getParentId() != null) {
+            throw new kn.org.deliverybackend.exception.InvalidRequestException(
+                    parent.getName() + " is a subcategory itself. Choose a main category.");
+        }
+        if (selfId != null && !categoryRepository.findByParentIdAndDeletedFalse(selfId).isEmpty()) {
+            throw new kn.org.deliverybackend.exception.InvalidRequestException(
+                    "This category has subcategories, so it can't become one. Move them first.");
+        }
+        return parentId;
     }
 
     /**
@@ -95,7 +132,8 @@ public class CategoryServiceImpl implements CategoryService {
      * left it blank and guaranteeing it is unique.
      */
     private void applyHomeSectionFields(Category category, CategoryRequestDTO dto, Long selfId) {
-        category.setShowOnHome(Boolean.TRUE.equals(dto.getShowOnHome()));
+        // The landing page gives sections to main categories only.
+        category.setShowOnHome(category.getParentId() == null && Boolean.TRUE.equals(dto.getShowOnHome()));
         category.setHomeSortOrder(dto.getHomeSortOrder() != null ? dto.getHomeSortOrder() : 0);
         category.setDiscountExcluded(Boolean.TRUE.equals(dto.getDiscountExcluded()));
         // Null leaves it as it is, so a save that doesn't know the switch can't turn it off.
@@ -141,8 +179,18 @@ public class CategoryServiceImpl implements CategoryService {
 
     private CategoryResponseDTO toEnrichedDTO(Category category) {
         CategoryResponseDTO dto = categoryMapper.toResponseDTO(category);
-        long count = productRepository.findByCategoryId(category.getId()).size();
-        dto.setProductCount(count);
+        // A main category counts what is in its subcategories too.
+        java.util.Set<Long> family = kn.org.deliverybackend.service.CategoryTree.family(categoryRepository, category.getId());
+        dto.setProductCount(productRepository.findByCategoryIdIn(family).size());
+        dto.setOwnProductCount(family.size() == 1 ? dto.getProductCount()
+                : productRepository.findByCategoryIdIn(java.util.Set.of(category.getId())).size());
+        dto.setSubcategoryCount(family.size() - 1);
+        kn.org.deliverybackend.service.CategoryTree.parentOf(categoryRepository, category)
+                .ifPresent(parent -> dto.setParentName(parent.getName()));
+        dto.setEffectiveShippingCharge(kn.org.deliverybackend.service.CategoryTree.shippingCharge(categoryRepository, category));
+        dto.setEffectiveDiscountExcluded(kn.org.deliverybackend.service.CategoryTree.discountExcluded(categoryRepository, category));
+        dto.setEffectiveShowStockQuantity(Boolean.TRUE.equals(
+                kn.org.deliverybackend.service.CategoryTree.showStockQuantity(categoryRepository, category)));
         return dto;
     }
 }

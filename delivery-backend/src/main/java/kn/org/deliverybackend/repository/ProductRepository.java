@@ -27,6 +27,14 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     @Query(value = "SELECT * FROM product WHERE category_id = :categoryId", nativeQuery = true)
     List<Product> findByCategoryId(@Param("categoryId") Long categoryId);
 
+    /** Products in any of these categories: a main category together with its subcategories. */
+    @Query(value = "SELECT * FROM product WHERE category_id IN (:categoryIds)", nativeQuery = true)
+    List<Product> findByCategoryIdIn(@Param("categoryIds") java.util.Collection<Long> categoryIds);
+
+    /** Live products in any of these categories, by name. */
+    @Query("SELECT p FROM Product p WHERE p.categoryId IN :categoryIds AND p.deleted = false ORDER BY p.name, p.id")
+    List<Product> findLiveByCategories(@Param("categoryIds") java.util.Collection<Long> categoryIds);
+
     /** A category's products, leaving out deleted ones, by name: the rows of a category price change. */
     @Query("SELECT p FROM Product p WHERE p.categoryId = :categoryId AND p.deleted = false ORDER BY p.name, p.id")
     List<Product> findLiveByCategory(@Param("categoryId") Long categoryId);

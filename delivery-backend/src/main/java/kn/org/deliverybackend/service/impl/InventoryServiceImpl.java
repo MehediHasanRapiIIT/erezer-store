@@ -5,6 +5,7 @@ import kn.org.deliverybackend.dto.response.product.InventorySummaryDTO;
 import kn.org.deliverybackend.dto.response.product.StockResponseDTO;
 import kn.org.deliverybackend.entity.Inventory;
 import kn.org.deliverybackend.entity.Product;
+import kn.org.deliverybackend.entity.Variant;
 import kn.org.deliverybackend.enumeration.StockOperation;
 import kn.org.deliverybackend.enumeration.StockStatus;
 import kn.org.deliverybackend.event.StockUpdateEvent;
@@ -30,6 +31,7 @@ public class InventoryServiceImpl implements InventoryService {
     private final ProductRepository productRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final kn.org.deliverybackend.repository.CategoryRepository categoryRepository;
+    private final kn.org.deliverybackend.repository.VariantRepository variantRepository;
 
     // -------------------------------------------------------------------------
     // Status computation
@@ -167,9 +169,24 @@ public class InventoryServiceImpl implements InventoryService {
         Inventory inventory = inventoryRepository.findByProductIdWithLock(productId)
                 .orElseGet(() -> createInventoryForProduct(product));
 
-        int current = inventory.getStockQuantity();
         int qty = request.getQuantity();
         StockOperation operation = request.getOperation();
+
+        // Sold in sizes: the figure is per size, and the product's own stock
+        // is their total.
+        List<Variant> sizes = variantRepository.findByProductId(productId);
+        if (!sizes.isEmpty()) {
+            if (operation != StockOperation.SET && qty <= 0) {
+                throw new InvalidStockOperationException(
+                        "Quantity must be greater than 0 for " + operation + " operations");
+            }
+            changeSizes(sizes, operation, qty);
+            applyUnitAndThreshold(product, inventory, request.getUnit(), request.getLowStockThreshold());
+            followSizes(productId);
+            return toStockResponseDTO(product, inventory);
+        }
+
+        int current = inventory.getStockQuantity();
 
         if (operation == StockOperation.INCREMENT || operation == StockOperation.DECREMENT) {
             if (qty <= 0) {
@@ -215,10 +232,79 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     @Transactional
+    public StockResponseDTO setSizeStock(Long productId,
+            kn.org.deliverybackend.dto.request.product.SizeStockUpdateRequestDTO request) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
+        Inventory inventory = inventoryRepository.findByProductIdWithLock(productId)
+                .orElseGet(() -> createInventoryForProduct(product));
+
+        java.util.Map<Long, Variant> mine = new java.util.HashMap<>();
+        for (Variant v : variantRepository.findByProductId(productId)) {
+            mine.put(v.getId(), v);
+        }
+        // Every size is checked before the first is changed.
+        for (var item : request.getSizes()) {
+            if (!mine.containsKey(item.getVariantId())) {
+                throw new InvalidRequestException("That size isn't one of this product's sizes.");
+            }
+        }
+        for (var item : request.getSizes()) {
+            Variant v = mine.get(item.getVariantId());
+            v.setStockQuantity(item.getQuantity());
+            variantRepository.save(v);
+        }
+        variantRepository.flush();
+        applyUnitAndThreshold(product, inventory, request.getUnit(), request.getLowStockThreshold());
+        followSizes(productId);
+        return toStockResponseDTO(product, inventory);
+    }
+
+    /** One change on each of these sizes; taking off more than a size has leaves it at 0. Returns how many hit 0 that way. */
+    private int changeSizes(List<Variant> sizes, StockOperation operation, int quantity) {
+        int emptied = 0;
+        for (Variant v : sizes) {
+            int current = v.getStockQuantity() == null ? 0 : v.getStockQuantity();
+            int next = switch (operation) {
+                case SET -> quantity;
+                case INCREMENT -> current + quantity;
+                case DECREMENT -> Math.max(current - quantity, 0);
+            };
+            if (operation == StockOperation.DECREMENT && quantity > current) emptied++;
+            v.setStockQuantity(next);
+            variantRepository.save(v);
+        }
+        variantRepository.flush();
+        return emptied;
+    }
+
+    private void applyUnitAndThreshold(Product product, Inventory inventory, String unit, Integer threshold) {
+        if (unit != null && !unit.isBlank()) {
+            inventory.setUnit(unit);
+            product.setUnit(unit);
+        }
+        if (threshold != null) {
+            inventory.setLowStockThreshold(threshold);
+            product.setLowStockThreshold(threshold);
+        }
+        inventoryRepository.save(inventory);
+        productRepository.save(product);
+    }
+
+    @Override
+    @Transactional
     public List<StockResponseDTO> setStockForEach(
             kn.org.deliverybackend.dto.request.product.BulkStockUpdateRequestDTO request) {
         List<StockResponseDTO> results = new java.util.ArrayList<>();
         for (var item : request.getUpdates()) {
+            if (item.getSizes() != null && !item.getSizes().isEmpty()) {
+                var bySize = new kn.org.deliverybackend.dto.request.product.SizeStockUpdateRequestDTO();
+                bySize.setSizes(item.getSizes());
+                bySize.setUnit(item.getUnit());
+                bySize.setLowStockThreshold(item.getLowStockThreshold());
+                results.add(setSizeStock(item.getProductId(), bySize));
+                continue;
+            }
             AdminStockUpdateRequestDTO one = new AdminStockUpdateRequestDTO();
             one.setOperation(StockOperation.SET);
             one.setQuantity(item.getQuantity());
@@ -259,7 +345,9 @@ public class InventoryServiceImpl implements InventoryService {
                 var category = categoryRepository.findById(categoryId)
                         .filter(c -> !Boolean.TRUE.equals(c.getDeleted()))
                         .orElseThrow(() -> new ResourceNotFoundException("Category not found: " + categoryId));
-                products = productRepository.findLiveByCategory(categoryId);
+                // A main category covers its subcategories' products too.
+                products = productRepository.findLiveByCategories(
+                        kn.org.deliverybackend.service.CategoryTree.family(categoryRepository, categoryId));
                 scopeLabel = category.getName();
             }
             default -> {
@@ -272,8 +360,39 @@ public class InventoryServiceImpl implements InventoryService {
             throw new InvalidRequestException("There are no products to update.");
         }
 
+        // Sizes named for this change, e.g. only M and L. None named means every size.
+        java.util.Set<String> onlySizes = new java.util.HashSet<>();
+        if (request.getSizes() != null) {
+            for (String s : request.getSizes()) {
+                if (s != null && !s.isBlank()) onlySizes.add(s.trim().toUpperCase());
+            }
+        }
+
         int setToZero = 0;
+        int inSizes = 0;
+        int sizesChanged = 0;
+        int leftAlone = 0;
         for (Product product : products) {
+            List<Variant> sizes = variantRepository.findByProductId(product.getId());
+            if (!sizes.isEmpty()) {
+                List<Variant> chosen = onlySizes.isEmpty() ? sizes : sizes.stream()
+                        .filter(v -> v.getSize() != null && onlySizes.contains(v.getSize().trim().toUpperCase()))
+                        .toList();
+                if (chosen.isEmpty()) {
+                    leftAlone++;
+                    continue;
+                }
+                if (changeSizes(chosen, operation, quantity) > 0) setToZero++;
+                followSizes(product.getId());
+                inSizes++;
+                sizesChanged += chosen.size();
+                continue;
+            }
+            if (!onlySizes.isEmpty()) {
+                // Not sold in sizes, and the change is for named sizes only.
+                leftAlone++;
+                continue;
+            }
             Inventory inventory = inventoryRepository.findByProductIdWithLock(product.getId())
                     .orElseGet(() -> createInventoryForProduct(product));
             int current = inventory.getStockQuantity();
@@ -299,12 +418,22 @@ public class InventoryServiceImpl implements InventoryService {
             case INCREMENT -> "Added " + quantity + " to ";
             case DECREMENT -> "Removed " + quantity + " from ";
         };
-        String message = what + products.size() + " product" + (products.size() == 1 ? "" : "s")
+        int changed = products.size() - leftAlone;
+        if (changed == 0) {
+            throw new InvalidRequestException("None of those products has "
+                    + (onlySizes.size() == 1 ? "that size." : "any of those sizes."));
+        }
+        String message = what + changed + " product" + (changed == 1 ? "" : "s")
                 + " in " + scopeLabel + "."
+                + (inSizes > 0 ? " For the " + inSizes + " sold in sizes that is per size ("
+                    + sizesChanged + " size" + (sizesChanged == 1 ? "" : "s") + " changed)." : "")
+                + (leftAlone > 0 ? " " + leftAlone + " without "
+                    + (onlySizes.size() == 1 ? "that size" : "those sizes")
+                    + (leftAlone == 1 ? " was" : " were") + " left as " + (leftAlone == 1 ? "it was." : "they were.") : "")
                 + (setToZero > 0 ? " " + setToZero + " had less than that and " + (setToZero == 1 ? "is" : "are") + " now 0." : "");
 
         return kn.org.deliverybackend.dto.response.product.BulkStockResultDTO.builder()
-                .updated(products.size())
+                .updated(changed)
                 .setToZero(setToZero)
                 .scopeLabel(scopeLabel)
                 .message(message)
@@ -335,6 +464,31 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     /**
+     * A product sold in sizes has stock in two places: each size's, which is
+     * what an order takes from, and the product's own, which is what the shop
+     * and the Inventory page show. The second is kept as the total of the
+     * first, so a product given 20 of each size is never shown as out of stock,
+     * and one whose sizes have all sold is never shown as in stock.
+     */
+    @Override
+    @Transactional
+    public void followSizes(Long productId) {
+        if (variantRepository.findByProductId(productId).isEmpty()) return;
+        Product product = productRepository.findById(productId).orElse(null);
+        if (product == null) return;
+        int total = (int) Math.min(Integer.MAX_VALUE, variantRepository.sumStockByProduct(productId));
+        Inventory inventory = inventoryRepository.findByProductIdWithLock(productId)
+                .orElseGet(() -> createInventoryForProduct(product));
+        if (inventory.getStockQuantity() == total && product.getStockQuantity() == total) return;
+        inventory.setStockQuantity(total);
+        inventoryRepository.save(inventory);
+        product.setStockQuantity(total);
+        productRepository.save(product);
+        eventPublisher.publishEvent(new StockUpdateEvent(this, productId, total,
+                computeStatusFromQty(total, inventory.getLowStockThreshold())));
+    }
+
+    /**
      * Single write path for both directions, so the inventory row and the
      * denormalised product.stockQuantity can never disagree.
      *
@@ -358,7 +512,30 @@ public class InventoryServiceImpl implements InventoryService {
     // Internal helpers
     // -------------------------------------------------------------------------
 
+    /** The product's sizes with the stock of each, in the order customers see them. */
+    private List<StockResponseDTO.SizeStock> sizesOf(Long productId) {
+        return variantRepository.findByProductId(productId).stream()
+                .sorted(java.util.Comparator.comparingInt(InventoryServiceImpl::sizeRank))
+                .map(v -> new StockResponseDTO.SizeStock(v.getId(), v.getSize(),
+                        v.getStockQuantity() == null ? 0 : v.getStockQuantity()))
+                .toList();
+    }
+
+    private static final List<String> SIZE_ORDER = List.of("XS", "S", "M", "L", "XL", "XXL", "XXXL");
+
+    /** S, M, L rather than the alphabet's L, M, S; anything else keeps its place after them. */
+    private static int sizeRank(Variant v) {
+        int i = v.getSize() == null ? -1 : SIZE_ORDER.indexOf(v.getSize().trim().toUpperCase());
+        return i < 0 ? SIZE_ORDER.size() : i;
+    }
+
     private StockResponseDTO toStockResponseDTO(Product product, Inventory inventory) {
+        StockResponseDTO dto = stockRowOf(product, inventory);
+        dto.setSizes(sizesOf(product.getId()));
+        return dto;
+    }
+
+    private StockResponseDTO stockRowOf(Product product, Inventory inventory) {
         StockStatus status = computeStatusFromQty(inventory.getStockQuantity(), inventory.getLowStockThreshold());
         return new StockResponseDTO(
                 product.getId(),

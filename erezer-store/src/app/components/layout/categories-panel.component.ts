@@ -48,7 +48,7 @@ import { TranslatePipe } from '../../core/i18n/translate.pipe';
           } @else if (categories().length === 0) {
             <p class="py-10 text-center text-sm text-neutral-500 dark:text-neutral-400">{{ 'categories_panel.empty' | t }}</p>
           } @else {
-            <ul class="grid grid-cols-2 gap-3">
+            <ul class="grid grid-cols-2 items-start gap-3">
               @for (cat of categories(); track cat.id; let i = $index) {
                 <li>
                   <a [routerLink]="cat.slug ? ['/', cat.slug] : ['/shop']"
@@ -67,6 +67,20 @@ import { TranslatePipe } from '../../core/i18n/translate.pipe';
                       <span class="mt-0.5 text-sm font-bold uppercase leading-tight tracking-wide text-white drop-shadow">{{ cat.name }}</span>
                     </div>
                   </a>
+                  @if (subcategoriesOf(cat.id).length > 0) {
+                    <ul class="mt-2 flex flex-wrap gap-1.5" [attr.aria-label]="cat.name">
+                      @for (sub of subcategoriesOf(cat.id); track sub.id) {
+                        <li>
+                          <a [routerLink]="sub.slug ? ['/', sub.slug] : ['/shop']"
+                            [queryParams]="sub.slug ? {} : { category: sub.id }"
+                            (click)="close()" data-testid="panel-subcategory"
+                            class="inline-flex rounded-full border border-neutral-300 px-2.5 py-1 text-xs font-medium text-neutral-700 transition hover:border-neutral-900 hover:text-neutral-900 dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-white dark:hover:text-white">
+                            {{ sub.name }}
+                          </a>
+                        </li>
+                      }
+                    </ul>
+                  }
                 </li>
               }
             </ul>
@@ -101,7 +115,9 @@ export class CategoriesPanelComponent {
   readonly open = input(false);
   readonly closed = output<void>();
 
+  /** Main categories: the tiles. Their subcategories are listed under each. */
   protected readonly categories = signal<ApiCategory[]>([]);
+  private readonly subcategories = signal<ApiCategory[]>([]);
   protected readonly loading = signal(false);
   protected readonly wishCount = computed(() => this.store.wishlist().length);
   protected readonly skeleton = [1, 2, 3, 4, 5, 6];
@@ -117,13 +133,19 @@ export class CategoriesPanelComponent {
         this.loaded = true;
         this.loading.set(true);
         this.api.getCategories().pipe(catchError(() => of([] as ApiCategory[]))).subscribe((cats) => {
-          this.categories.set(cats.filter((c) => c.isActive !== false));
+          const active = cats.filter((c) => c.isActive !== false);
+          this.categories.set(active.filter((c) => c.parentId == null));
+          this.subcategories.set(active.filter((c) => c.parentId != null));
           this.loading.set(false);
         });
       }
       // Put keyboard focus inside the panel once it is on screen.
       queueMicrotask(() => this.closeButton()?.nativeElement.focus());
     });
+  }
+
+  protected subcategoriesOf(mainId: number): ApiCategory[] {
+    return this.subcategories().filter((c) => c.parentId === mainId).sort((a, b) => a.name.localeCompare(b.name));
   }
 
   /** "01", "02", … as on the tiles. */

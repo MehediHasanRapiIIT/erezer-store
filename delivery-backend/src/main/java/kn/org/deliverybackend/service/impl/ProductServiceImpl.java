@@ -38,6 +38,7 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import kn.org.deliverybackend.service.CategoryTree;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -55,6 +56,7 @@ public class ProductServiceImpl implements ProductService {
     private final InventoryRepository inventoryRepository;
     private final CategoryRepository categoryRepository;
     private final EntityManager entityManager;
+    private final kn.org.deliverybackend.repository.VariantRepository variantRepository;
 
     @Override
     public List<ProductResponseDTO> searchProducts(String name) {
@@ -65,7 +67,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public List<ProductResponseDTO> getProductsByCategory(Long categoryId) {
-        return productRepository.findByCategoryId(categoryId).stream()
+        return productRepository.findByCategoryIdIn(CategoryTree.family(categoryRepository, categoryId)).stream()
                 .map(this::toEnrichedResponseDTO)
                 .collect(Collectors.toList());
     }
@@ -129,16 +131,40 @@ public class ProductServiceImpl implements ProductService {
                         cb.like(cb.lower(root.get("brand")), pattern, '\\'),
                         root.get("categoryId").in(byCategory)));
             }
-            if (categoryId != null) where.add(cb.equal(root.get("categoryId"), categoryId));
+            // A main category shows what is in its subcategories too.
+            if (categoryId != null) where.add(root.get("categoryId").in(CategoryTree.family(categoryRepository, categoryId)));
             return cb.and(where.toArray(Predicate[]::new));
         };
         PageRequest request = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), MAX_BROWSE_PAGE_SIZE),
                 Sort.by(Sort.Direction.DESC, "id"));
-        return productRepository.findAll(spec, request).map(this::toEnrichedResponseDTO);
+        Page<ProductResponseDTO> found = productRepository.findAll(spec, request).map(this::toEnrichedResponseDTO);
+        addSizeStock(found.getContent());
+        return found;
+    }
+
+    /** Each row's sizes with their stock, S before M before L, read for the whole page at once. */
+    private void addSizeStock(List<ProductResponseDTO> rows) {
+        if (rows.isEmpty()) return;
+        Map<Long, List<kn.org.deliverybackend.dto.response.product.StockResponseDTO.SizeStock>> byProduct = new java.util.HashMap<>();
+        for (var v : variantRepository.findLiveByProductIds(rows.stream().map(ProductResponseDTO::getId).toList())) {
+            byProduct.computeIfAbsent(v.getProductId(), k -> new ArrayList<>())
+                    .add(new kn.org.deliverybackend.dto.response.product.StockResponseDTO.SizeStock(
+                            v.getId(), v.getSize(), v.getStockQuantity() == null ? 0 : v.getStockQuantity()));
+        }
+        List<String> order = List.of("XS", "S", "M", "L", "XL", "XXL", "XXXL");
+        for (ProductResponseDTO row : rows) {
+            var sizes = byProduct.get(row.getId());
+            if (sizes == null) continue;
+            sizes.sort(java.util.Comparator.comparingInt(s -> {
+                int i = s.getSize() == null ? -1 : order.indexOf(s.getSize().trim().toUpperCase());
+                return i < 0 ? order.size() : i;
+            }));
+            row.setSizeStock(sizes);
+        }
     }
 
     /** Never deleted products; search in name, brand or description; then each filter that is set. */
-    private static List<Predicate> browsePredicates(Root<Product> root, CriteriaBuilder cb, ProductBrowseFilter f) {
+    private List<Predicate> browsePredicates(Root<Product> root, CriteriaBuilder cb, ProductBrowseFilter f) {
         List<Predicate> where = new ArrayList<>();
         where.add(cb.isFalse(cb.coalesce(root.<Boolean>get("deleted"), Boolean.FALSE)));
         String q = f.q() == null ? "" : f.q().trim().toLowerCase(Locale.ROOT);
@@ -152,7 +178,8 @@ public class ProductServiceImpl implements ProductService {
                     cb.like(cb.lower(root.get("description")), pattern, '\\'),
                     cb.like(cb.lower(root.get("productCode")), pattern, '\\')));
         }
-        if (f.categoryId() != null) where.add(cb.equal(root.get("categoryId"), f.categoryId()));
+        // A main category shows what is in its subcategories too.
+        if (f.categoryId() != null) where.add(root.get("categoryId").in(CategoryTree.family(categoryRepository, f.categoryId())));
         if (f.gender() != null && !f.gender().isBlank()) where.add(cb.equal(root.get("gender"), f.gender().trim()));
         if (f.brand() != null && !f.brand().isBlank()) where.add(cb.equal(root.get("brand"), f.brand().trim()));
         if (f.maxPrice() != null) where.add(cb.le(shownPrice(root, cb), f.maxPrice()));
@@ -323,9 +350,11 @@ public class ProductServiceImpl implements ProductService {
         if (product.getCategoryId() != null) {
             categoryRepository.findById(product.getCategoryId()).ifPresent(cat -> {
                 dto.setCategoryName(cat.getName());
-                dto.setCategoryDiscountExcluded(Boolean.TRUE.equals(cat.getDiscountExcluded()));
-                dto.setShowStockQuantity(StockDisplay.showsQuantity(product.getStockDisplay(), cat.getShowStockQuantity()));
-                dto.setCategoryShippingCharge(cat.getShippingCharge());
+                // A subcategory follows its parent in each of these unless it sets its own.
+                dto.setCategoryDiscountExcluded(CategoryTree.discountExcluded(categoryRepository, cat));
+                dto.setShowStockQuantity(StockDisplay.showsQuantity(product.getStockDisplay(),
+                        CategoryTree.showStockQuantity(categoryRepository, cat)));
+                dto.setCategoryShippingCharge(CategoryTree.shippingCharge(categoryRepository, cat));
             });
         }
         return dto;

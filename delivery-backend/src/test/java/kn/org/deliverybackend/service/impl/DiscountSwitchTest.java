@@ -170,6 +170,42 @@ class DiscountSwitchTest {
         assertEquals(0, BigDecimal.ZERO.compareTo(engine.discountForLine(product(false), null)));
     }
 
+    // ── subcategories ───────────────────────────────────────────────────────
+
+    private static final long MAIN_CATEGORY_ID = 9L;
+
+    /** The product's category becomes a subcategory of another one. */
+    private void productIsInASubcategory(boolean mainNeverDiscounted) {
+        Category sub = category(false);
+        sub.setParentId(MAIN_CATEGORY_ID);
+        Category main = new Category();
+        main.setId(MAIN_CATEGORY_ID);
+        main.setDiscountExcluded(mainNeverDiscounted);
+        when(categoryRepository.findById(CATEGORY_ID)).thenReturn(Optional.of(sub));
+        when(categoryRepository.findById(MAIN_CATEGORY_ID)).thenReturn(Optional.of(main));
+    }
+
+    @Test
+    void aDiscountOnAMainCategoryCoversItsSubcategories() {
+        productIsInASubcategory(false);
+        DiscountEngine engine = engineWith(discount(DiscountScope.CATEGORY, MAIN_CATEGORY_ID, 20));
+        assertEquals(0, new BigDecimal("200.00").compareTo(engine.discountForLine(product(false), LINE)));
+    }
+
+    @Test
+    void aDiscountOnAnotherCategoryDoesNotReachIt() {
+        productIsInASubcategory(false);
+        DiscountEngine engine = engineWith(discount(DiscountScope.CATEGORY, 77L, 20));
+        assertEquals(0, BigDecimal.ZERO.compareTo(engine.discountForLine(product(false), LINE)));
+    }
+
+    @Test
+    void neverDiscountOnTheMainCategoryKeepsItsSubcategoriesAtFullPrice() {
+        productIsInASubcategory(true);
+        DiscountEngine engine = engineWith(discount(DiscountScope.GLOBAL, null, 10));
+        assertEquals(0, BigDecimal.ZERO.compareTo(engine.discountForLine(product(false), LINE)));
+    }
+
     /** The switch and the exclusion are independent, so both routes must end at full price. */
     @Test
     void masterSwitchOffAlsoReachesTheEngine() {

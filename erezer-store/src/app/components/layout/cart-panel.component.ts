@@ -179,7 +179,7 @@ export class CartPanelComponent {
 
   protected priceOf(p: ApiProduct): number {
     return effectiveUnitPrice(baseProductPrice(p.price, p.discountPrice), p.id, p.categoryId,
-      this.discounts.discounts(), isDiscountExcluded(p));
+      this.discounts.discountsFor(p.categoryId), isDiscountExcluded(p));
   }
 
   protected add(p: ApiProduct): void {

@@ -51,8 +51,15 @@ public class MetaCatalogController {
     @GetMapping(value = "/catalog.csv", produces = "text/csv")
     public ResponseEntity<byte[]> catalog() {
         Map<Long, String> categoryNames = new HashMap<>();
-        for (Category c : categoryRepository.findAll()) {
-            if (c.getId() != null) categoryNames.put(c.getId(), c.getName());
+        List<Category> all = categoryRepository.findAll();
+        Map<Long, String> plain = new HashMap<>();
+        for (Category c : all) {
+            if (c.getId() != null) plain.put(c.getId(), c.getName());
+        }
+        for (Category c : all) {
+            if (c.getId() == null) continue;
+            String parent = c.getParentId() == null ? null : plain.get(c.getParentId());
+            categoryNames.put(c.getId(), parent == null ? c.getName() : parent + " > " + c.getName());
         }
 
         StringBuilder csv = new StringBuilder();

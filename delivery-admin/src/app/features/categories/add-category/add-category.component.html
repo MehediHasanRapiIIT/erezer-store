@@ -34,7 +34,7 @@
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
             </svg>
-            Save Category
+            {{ isSub() ? 'Save Subcategory' : 'Save Category' }}
           }
         </button>
       </div>
@@ -49,10 +49,10 @@
         <svg class="w-3.5 h-3.5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
         <a routerLink="/categories" class="text-gray-400 hover:text-gray-600">Categories</a>
         <svg class="w-3.5 h-3.5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-        <span class="text-blue-600 font-medium">Add Category</span>
+        <span class="text-blue-600 font-medium">{{ isSub() ? 'Add Subcategory' : 'Add Category' }}</span>
       </nav>
 
-      <h1 class="text-2xl font-extrabold text-gray-900 mb-1">Add New Category</h1>
+      <h1 class="text-2xl font-extrabold text-gray-900 mb-1">{{ isSub() ? 'Add New Subcategory' : 'Add New Category' }}</h1>
       <p class="text-sm text-gray-400 mb-6">Create a new category for products in the customer app.</p>
 
       <!-- Global error message -->
@@ -68,6 +68,62 @@
       <div class="max-w-xl">
         <div class="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
           <h2 class="text-base font-bold text-gray-900">General Information</h2>
+
+          <!-- Main category or subcategory -->
+          <fieldset>
+            <legend class="block text-sm font-medium text-gray-700 mb-1.5">What are you adding?</legend>
+            <div class="grid grid-cols-2 gap-3">
+              <label class="flex cursor-pointer items-start gap-2.5 rounded-lg border p-3 transition-colors"
+                [class.border-blue-500]="!isSub()" [class.bg-blue-50]="!isSub()" [class.border-gray-200]="isSub()"
+                [class.opacity-60]="false">
+                <input type="radio" name="category-kind" class="mt-0.5 accent-blue-600" data-testid="kind-main"
+                  [checked]="!isSub()" (change)="setKind(false)" />
+                <span>
+                  <span class="block text-sm font-semibold text-gray-800">Main category</span>
+                  <span class="block text-xs text-gray-500">Stands on its own, like Hoodies or T-Shirts.</span>
+                </span>
+              </label>
+              <label class="flex items-start gap-2.5 rounded-lg border p-3 transition-colors"
+                [class.cursor-pointer]="!hasSubcategories()" [class.cursor-not-allowed]="hasSubcategories()"
+                [class.opacity-50]="hasSubcategories()"
+                [class.border-blue-500]="isSub()" [class.bg-blue-50]="isSub()" [class.border-gray-200]="!isSub()">
+                <input type="radio" name="category-kind" class="mt-0.5 accent-blue-600" data-testid="kind-sub"
+                  [checked]="isSub()" [disabled]="hasSubcategories()" (change)="setKind(true)" />
+                <span>
+                  <span class="block text-sm font-semibold text-gray-800">Subcategory</span>
+                  <span class="block text-xs text-gray-500">Sits inside a main category, like Zip Hoodies inside Hoodies.</span>
+                </span>
+              </label>
+            </div>
+            @if (hasSubcategories()) {
+              <p class="mt-1.5 text-xs text-gray-400">This category has subcategories of its own, so it stays a main category.</p>
+            }
+          </fieldset>
+
+          @if (isSub()) {
+            <div>
+              <label for="category-parent" class="block text-sm font-medium text-gray-700 mb-1.5">
+                Inside which main category? <span class="text-red-500">*</span>
+              </label>
+              <select id="category-parent" data-testid="category-parent"
+                [ngModel]="parentId()" (ngModelChange)="parentId.set($event)"
+                class="w-full px-3.5 py-2.5 text-sm border rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-300"
+                [class.border-red-400]="parentMissing()" [class.border-gray-200]="!parentMissing()">
+                <option [ngValue]="null">Choose a main category…</option>
+                @for (m of mainCategories(); track m.id) {
+                  <option [ngValue]="m.id">{{ m.name }}</option>
+                }
+              </select>
+              @if (parentMissing()) {
+                <p class="mt-1 text-xs text-red-600">Choose the main category this subcategory sits inside.</p>
+              } @else if (parentId() != null) {
+                <p class="mt-1.5 text-xs text-gray-500" data-testid="subcategory-note">
+                  Its products also show when a customer opens {{ parentName() }}, and it follows
+                  {{ parentName() }}'s delivery charge, discounts and stock display unless you set its own below.
+                </p>
+              }
+            </div>
+          }
 
           <!-- Category Name -->
           <div>
@@ -137,8 +193,8 @@
           </div>
 
 
-          <!-- Landing-page section -->
-          <div class="border-t border-gray-100 pt-5 space-y-4">
+          <!-- Landing-page section: main categories only -->
+          <div class="border-t border-gray-100 pt-5 space-y-4" [class.hidden]="isSub()">
             <div class="flex items-center justify-between">
               <div>
                 <p class="text-sm font-medium text-gray-700">Show as a section on the home page</p>

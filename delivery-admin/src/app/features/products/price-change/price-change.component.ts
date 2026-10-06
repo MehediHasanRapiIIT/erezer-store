@@ -66,7 +66,7 @@ const SALE_MODES: { value: SaleMode; label: string }[] = [
                   class="mt-1 block w-full max-w-sm rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
                   <option [ngValue]="null">Choose a category…</option>
                   @for (c of categories(); track c.id) {
-                    <option [ngValue]="c.id">{{ c.name }} ({{ c.productCount }} products)</option>
+                    <option [ngValue]="c.id">{{ c.label || c.name }} ({{ c.productCount }} products)</option>
                   }
                 </select>
               </label>

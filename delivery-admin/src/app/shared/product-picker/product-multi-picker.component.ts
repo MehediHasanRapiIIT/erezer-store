@@ -42,7 +42,7 @@ const MAX_PAGE = 60;
         [ngModelOptions]="{ standalone: true }" aria-label="Category"
         class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm sm:w-52">
         <option value="all">All categories</option>
-        @for (c of categories(); track c.id) { <option [value]="c.id">{{ c.name }}</option> }
+        @for (c of categories(); track c.id) { <option [value]="c.id">{{ c.label || c.name }}</option> }
       </select>
     </div>
     <div class="rounded-lg border border-gray-200 divide-y divide-gray-50" [class.opacity-60]="loading()">

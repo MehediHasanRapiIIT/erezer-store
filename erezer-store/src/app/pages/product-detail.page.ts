@@ -16,6 +16,7 @@ import {
   ApiVariant,
 } from '../core/api.models';
 import { EcommerceStore } from '../core/store/ecommerce.store';
+import { DiscountsStore } from '../core/store/discounts.store';
 import { AuthService } from '../core/auth.service';
 import { ProductCardComponent } from '../components/shared/product-card.component';
 import { RecentlyViewedComponent } from '../components/shared/recently-viewed.component';
@@ -58,11 +59,14 @@ import { RevealDirective } from '../core/reveal.directive';
 
           <!-- Gallery -->
           <div class="flex flex-col gap-3 lg:flex-row-reverse lg:items-start">
-            <!-- Main image -->
-            <div class="group relative aspect-[3/4] flex-1 overflow-hidden rounded-3xl bg-neutral-100 dark:bg-neutral-900">
+            <!-- Main image: the whole picture at its own shape. The frame takes
+                 the picture's height rather than a fixed 3:4, which cut the
+                 sides or the top off anything that wasn't 3:4. A very tall
+                 picture is held to the screen's height and shown whole inside it. -->
+            <div class="group relative min-w-0 flex-1 overflow-hidden rounded-3xl bg-neutral-100 dark:bg-neutral-900" data-testid="pdp-image-frame">
               @for (url of [activeImageUrl(p)]; track url) {
-                <img [src]="url" [alt]="p.name"
-                  class="fade-img absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105" />
+                <img [src]="url" [alt]="p.name" data-testid="pdp-image"
+                  class="fade-img block h-auto max-h-[calc(100vh-7rem)] min-h-[12rem] w-full object-contain" />
               }
 
               <!-- badges -->
@@ -767,6 +771,8 @@ export class ProductDetailPage implements OnInit {
   // ── store settings + automatic discounts (Phase 9) ─────────────────────────
   protected readonly settings        = signal<ApiStoreSettings | null>(null);
   protected readonly activeDiscounts  = signal<ApiActiveDiscount[]>([]);
+  /** Knows which main category a subcategory sits under, so its discounts apply here too. */
+  private readonly discountsStore = inject(DiscountsStore);
   protected readonly sizeUnit         = signal<'cm' | 'inch'>('cm');
 
   // ── rating summary / reviews ──────────────────────────────────────────────
@@ -1165,7 +1171,7 @@ export class ProductDetailPage implements OnInit {
 
   /** Unit price after automatic product/category/global discounts. */
   protected effectivePrice(p: ApiProduct): number {
-    return effectiveUnitPrice(this.basePrice(p), p.id, p.categoryId, this.activeDiscounts(),
+    return effectiveUnitPrice(this.basePrice(p), p.id, p.categoryId, this.discountsStore.discountsFor(p.categoryId),
       isDiscountExcluded(p));
   }
 
@@ -1180,7 +1186,7 @@ export class ProductDetailPage implements OnInit {
     return baseProductPrice(p.price, p.discountPrice);
   }
   protected listEffectivePrice(p: ApiProduct): number {
-    return effectiveUnitPrice(this.listBasePrice(p), p.id, p.categoryId, this.activeDiscounts());
+    return effectiveUnitPrice(this.listBasePrice(p), p.id, p.categoryId, this.discountsStore.discountsFor(p.categoryId));
   }
   protected listHasDiscount(p: ApiProduct): boolean {
     return this.listEffectivePrice(p) < this.listBasePrice(p) - 0.001;

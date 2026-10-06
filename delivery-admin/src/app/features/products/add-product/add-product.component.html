@@ -219,9 +219,10 @@
                   >
                     <option [value]="null">Select category</option>
                     @for (cat of categories(); track cat.id) {
-                      <option [value]="cat.id">{{ cat.name }}</option>
+                      <option [value]="cat.id">{{ cat.label || cat.name }}</option>
                     }
                   </select>
+                  <p class="text-xs text-gray-400 mt-1">Main categories are listed by name. A subcategory is set in under its main category with ↳.</p>
                   @if (fieldErrors()['categoryId']) {
                     <p class="text-xs text-red-500 mt-1">{{ fieldErrors()['categoryId'] }}</p>
                   }

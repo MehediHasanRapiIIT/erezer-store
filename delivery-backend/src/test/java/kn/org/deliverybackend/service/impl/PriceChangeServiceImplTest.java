@@ -55,7 +55,8 @@ class PriceChangeServiceImplTest {
         xxl.setProductId(1L);
         xxl.setSize("XXL");
         xxl.setPriceOverride(new BigDecimal("1500"));
-        when(products.findLiveByCategory(7L)).thenReturn(List.of(hoodie, tee));
+        // The category and its subcategories (it has none here).
+        when(products.findLiveByCategories(java.util.Set.of(7L))).thenReturn(List.of(hoodie, tee));
         when(variants.findLiveByProductIds(anyCollection())).thenReturn(List.of(xxl));
     }
 

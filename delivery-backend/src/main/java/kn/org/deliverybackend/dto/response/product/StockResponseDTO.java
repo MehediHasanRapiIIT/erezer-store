@@ -5,9 +5,10 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
 public class StockResponseDTO {
     private Long productId;
     private String productName;
@@ -19,4 +20,34 @@ public class StockResponseDTO {
     private Integer lowStockThreshold;
     /** Typed by staff; several products may share one. */
     private String productCode;
+    /**
+     * The product's sizes and the stock of each, in the order customers see
+     * them. Empty for a product not sold in sizes; when there are any,
+     * {@link #stockQuantity} is their total.
+     */
+    private List<SizeStock> sizes = List.of();
+
+    public StockResponseDTO(Long productId, String productName, String sku, String imageUrl, String unit,
+                            int stockQuantity, StockStatus stockStatus, Integer lowStockThreshold,
+                            String productCode) {
+        this.productId = productId;
+        this.productName = productName;
+        this.sku = sku;
+        this.imageUrl = imageUrl;
+        this.unit = unit;
+        this.stockQuantity = stockQuantity;
+        this.stockStatus = stockStatus;
+        this.lowStockThreshold = lowStockThreshold;
+        this.productCode = productCode;
+    }
+
+    /** One size of a product and how many of it there are. */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SizeStock {
+        private Long variantId;
+        private String size;
+        private int stockQuantity;
+    }
 }

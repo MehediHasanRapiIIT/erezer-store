@@ -94,6 +94,8 @@ export interface ProductResponse {
   categoryDiscountExcluded: boolean | null;
   stockDisplay?: StockDisplay | null;
   showStockQuantity?: boolean | null;
+  /** The Products list: the stock of each size; stockQuantity is their total. Absent when not sold in sizes. */
+  sizeStock?: SizeStock[];
 }
 
 // --- Stock ---
@@ -107,6 +109,8 @@ export interface StockUpdateRequest {
 export interface BulkStockItem {
   productId: number;
   quantity: number;
+  /** For a product sold in sizes: an exact figure for each size. When given, quantity is not used. */
+  sizes?: { variantId: number; quantity: number }[];
   unit?: string;
   lowStockThreshold?: number;
 }
@@ -125,6 +129,25 @@ export interface BulkStockAdjustRequest {
   categoryId?: number;
   operation: 'SET' | 'INCREMENT' | 'DECREMENT';
   quantity: number;
+  /**
+   * For products sold in sizes the quantity is per size. Name sizes to change
+   * only those; leave out for every size.
+   */
+  sizes?: string[];
+}
+
+/** One size of a product and how many of it there are. */
+export interface SizeStock {
+  variantId: number;
+  size: string;
+  stockQuantity: number;
+}
+
+/** An exact stock figure for each size of one product. */
+export interface SizeStockUpdateRequest {
+  sizes: { variantId: number; quantity: number }[];
+  unit?: string;
+  lowStockThreshold?: number;
 }
 
 export interface BulkStockResult {
@@ -144,6 +167,8 @@ export interface StockResponse {
   stockStatus: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK';
   lowStockThreshold: number | null;
   productCode: string | null;
+  /** The product's sizes; empty when it isn't sold in sizes. When there are any, stockQuantity is their total. */
+  sizes?: SizeStock[];
 }
 
 export interface InventorySummary {
@@ -167,6 +192,12 @@ export interface CategoryRequest {
   discountExcluded?: boolean;
   /** Product pages in this category show the stock quantity instead of labels. */
   showStockQuantity?: boolean;
+  /**
+   * The main category this one sits under, making it a subcategory. The server
+   * replaces every field on save, so leaving this out turns a subcategory back
+   * into a main category: always send it.
+   */
+  parentId?: number | null;
 }
 
 export interface CategoryResponse {
@@ -185,6 +216,21 @@ export interface CategoryResponse {
    * its own charge. Null means the area price decides. 0 means free.
    */
   shippingCharge?: number | null;
+  /** The main category this one sits under; null or absent for a main category. */
+  parentId?: number | null;
+  parentName?: string | null;
+  /** Products put directly in it. productCount also counts its subcategories'. */
+  ownProductCount?: number;
+  subcategoryCount?: number;
+  /** What applies after a subcategory has taken what it doesn't set from its parent. */
+  effectiveShippingCharge?: number | null;
+  effectiveDiscountExcluded?: boolean;
+  effectiveShowStockQuantity?: boolean;
+  /**
+   * The name to show in a list of categories: "Hoodies › Zip Hoodies" for a
+   * subcategory. Filled in by CategoryService.
+   */
+  label?: string;
 }
 
 /** Stock on a product page: follow the category, show the quantity, or show labels. */

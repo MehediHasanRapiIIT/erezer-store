@@ -7,6 +7,7 @@ import kn.org.deliverybackend.entity.Variant;
 import kn.org.deliverybackend.exception.InvalidRequestException;
 import kn.org.deliverybackend.repository.ProductRepository;
 import kn.org.deliverybackend.repository.VariantRepository;
+import kn.org.deliverybackend.service.InventoryService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -28,7 +29,8 @@ class VariantSizesTest {
 
     private final VariantRepository variants = mock(VariantRepository.class);
     private final ProductRepository products = mock(ProductRepository.class);
-    private final VariantServiceImpl service = new VariantServiceImpl(variants, products);
+    private final InventoryService inventory = mock(InventoryService.class);
+    private final VariantServiceImpl service = new VariantServiceImpl(variants, products, inventory);
 
     /** What the product already has. */
     private final List<Variant> onTheProduct = new ArrayList<>();
@@ -40,7 +42,7 @@ class VariantSizesTest {
         p.setSku("ER-00007");
         when(products.findById(7L)).thenReturn(Optional.of(p));
         when(variants.findByProductId(7L)).thenReturn(onTheProduct);
-        when(variants.save(any(Variant.class))).thenAnswer(inv -> {
+        when(variants.saveAndFlush(any(Variant.class))).thenAnswer(inv -> {
             Variant v = inv.getArgument(0);
             if (v.getId() == null) v.setId(100L + onTheProduct.size());
             return v;
@@ -60,6 +62,25 @@ class VariantSizesTest {
         v.setProductId(7L);
         v.setSize(size);
         onTheProduct.add(v);
+    }
+
+    @Test
+    void addingChangingOrRemovingASizeBringsTheProductsStockUpToDate() {
+        VariantResponseDTO made = service.create(7L, size("S", 5));
+        verify(inventory, org.mockito.Mockito.times(1)).followSizes(7L);
+
+        Variant stored = new Variant();
+        stored.setId(made.getId());
+        stored.setProductId(7L);
+        stored.setSize("S");
+        stored.setDeleted(false);
+        when(variants.findById(made.getId())).thenReturn(Optional.of(stored));
+
+        service.update(7L, made.getId(), size("S", 9));
+        verify(inventory, org.mockito.Mockito.times(2)).followSizes(7L);
+
+        service.delete(7L, made.getId());
+        verify(inventory, org.mockito.Mockito.times(3)).followSizes(7L);
     }
 
     @Test

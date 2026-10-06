@@ -12,6 +12,7 @@ import { PermissionService } from '../../core/services/permission.service';
 import { NoticeService } from '../../core/services/notice.service';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { CategoryService } from '../../core/services/category.service';
+import { SIZE_OPTIONS } from '../products/shared/size-grid.component';
 
 /**
  * The Inventory page. The list is searched and paged by the server; the
@@ -59,6 +60,8 @@ export class InventoryComponent implements OnInit, OnDestroy {
   quantity = signal<number>(0);
   selectedUnit = signal<string>('units');
   threshold = signal<number | null>(null);
+  /** The open product's sizes and the stock typed for each, when it is sold in sizes. */
+  sizeDraft = signal<Map<number, number>>(new Map());
   updateLoading = signal(false);
   updateError = signal('');
   updateSuccess = signal(false);
@@ -72,6 +75,8 @@ export class InventoryComponent implements OnInit, OnDestroy {
   bulkTab = signal<'products' | 'category' | 'all'>('products');
   /** Ticked products and the new stock figure for each; kept while you page. */
   private readonly picks = signal<Map<number, number>>(new Map());
+  /** For ticked products sold in sizes: the new stock of each size, by size id. */
+  private readonly sizePicks = signal<Map<number, Map<number, number>>>(new Map());
   bulkLoading = signal(false);
   bulkError = signal('');
 
@@ -80,6 +85,13 @@ export class InventoryComponent implements OnInit, OnDestroy {
   categoryId = signal<number | null>(null);
   categoryOp = signal<'INCREMENT' | 'DECREMENT' | 'SET'>('INCREMENT');
   categoryQty = signal(0);
+
+  /**
+   * Category and whole-shop tabs: the sizes the change is for. None ticked
+   * means every size.
+   */
+  readonly sizeOptions = SIZE_OPTIONS;
+  bulkSizes = signal<Set<string>>(new Set());
 
   /** Whole-shop tab. */
   allOp = signal<'INCREMENT' | 'DECREMENT' | 'SET'>('INCREMENT');
@@ -189,8 +201,32 @@ export class InventoryComponent implements OnInit, OnDestroy {
     this.quantity.set(product.stockQuantity);
     this.selectedUnit.set(product.unit || 'units');
     this.threshold.set(product.lowStockThreshold ?? null);
+    this.sizeDraft.set(new Map((product.sizes ?? []).map((s) => [s.variantId, s.stockQuantity])));
     this.updateError.set('');
     this.updateSuccess.set(false);
+  }
+
+  /** Sold in sizes: its stock is typed per size and the product's figure is their total. */
+  hasSizes(product: StockResponse): boolean {
+    return (product.sizes?.length ?? 0) > 0;
+  }
+
+  draftFor(variantId: number): number {
+    return this.sizeDraft().get(variantId) ?? 0;
+  }
+
+  setDraft(variantId: number, value: unknown): void {
+    const n = Math.max(0, Math.trunc(+(value as number) || 0));
+    const map = new Map(this.sizeDraft());
+    map.set(variantId, n);
+    this.sizeDraft.set(map);
+  }
+
+  /** What the product will have once the sizes on screen are saved. */
+  draftTotal(): number {
+    let total = 0;
+    for (const n of this.sizeDraft().values()) total += n;
+    return total;
   }
 
   closeUpdatePanel(): void {
@@ -201,7 +237,10 @@ export class InventoryComponent implements OnInit, OnDestroy {
 
   submitUpdate(): void {
     const id = this.activeProductId();
-    if (!id || this.quantity() < 0) return;
+    const product = this.activeProduct();
+    if (!id || !product) return;
+    const bySize = this.hasSizes(product);
+    if (!bySize && this.quantity() < 0) return;
 
     const request: StockUpdateRequest = {
       operation: this.operation(),
@@ -214,15 +253,17 @@ export class InventoryComponent implements OnInit, OnDestroy {
     this.updateError.set('');
     this.updateSuccess.set(false);
 
-    this.stockService.updateStock(id, request).subscribe({
+    const save = bySize
+      ? this.stockService.setSizeStock(id, {
+          sizes: [...this.sizeDraft()].map(([variantId, quantity]) => ({ variantId, quantity })),
+          unit: this.selectedUnit(),
+          lowStockThreshold: this.threshold() ?? undefined,
+        })
+      : this.stockService.updateStock(id, request);
+
+    save.subscribe({
       next: (updated) => {
-        this.products.update((list) =>
-          list.map((p) =>
-            p.productId === id
-              ? { ...p, stockQuantity: updated.stockQuantity, stockStatus: updated.stockStatus }
-              : p
-          )
-        );
+        this.products.update((list) => list.map((p) => (p.productId === id ? { ...p, ...updated } : p)));
         this.loadAlertsAndSummary();
         this.updateLoading.set(false);
         this.updateSuccess.set(true);
@@ -247,6 +288,7 @@ export class InventoryComponent implements OnInit, OnDestroy {
     this.bulkMode.update((v) => !v);
     if (!this.bulkMode()) {
       this.picks.set(new Map());
+      this.sizePicks.set(new Map());
       this.bulkError.set('');
     } else {
       this.closeUpdatePanel();
@@ -264,12 +306,45 @@ export class InventoryComponent implements OnInit, OnDestroy {
 
   togglePick(product: StockResponse): void {
     const map = new Map(this.picks());
+    const sizes = new Map(this.sizePicks());
     if (map.has(product.productId)) {
       map.delete(product.productId);
+      sizes.delete(product.productId);
     } else {
-      map.set(product.productId, product.stockQuantity);
+      this.startPick(product, map, sizes);
     }
     this.picks.set(map);
+    this.sizePicks.set(sizes);
+  }
+
+  /**
+   * A ticked product starts with what it has now: one figure, or for a
+   * product sold in sizes, one for each size.
+   */
+  private startPick(product: StockResponse, picks: Map<number, number>, sizes: Map<number, Map<number, number>>): void {
+    picks.set(product.productId, product.stockQuantity);
+    if (this.hasSizes(product)) {
+      sizes.set(product.productId, new Map(product.sizes!.map((s) => [s.variantId, s.stockQuantity])));
+    }
+  }
+
+  pickedSizeQty(productId: number, variantId: number): number {
+    return this.sizePicks().get(productId)?.get(variantId) ?? 0;
+  }
+
+  setPickedSizeQty(productId: number, variantId: number, quantity: number): void {
+    const sizes = new Map(this.sizePicks());
+    const mine = new Map(sizes.get(productId) ?? []);
+    mine.set(variantId, Math.max(0, Math.trunc(quantity || 0)));
+    sizes.set(productId, mine);
+    this.sizePicks.set(sizes);
+  }
+
+  /** What a ticked product sold in sizes will have in all. */
+  pickedSizeTotal(productId: number): number {
+    let total = 0;
+    for (const n of this.sizePicks().get(productId)?.values() ?? []) total += n;
+    return total;
   }
 
   pickedQty(productId: number): number {
@@ -290,16 +365,19 @@ export class InventoryComponent implements OnInit, OnDestroy {
 
   togglePageSelection(): void {
     const map = new Map(this.picks());
+    const sizes = new Map(this.sizePicks());
     if (this.allOnPagePicked()) {
-      this.products().forEach((p) => map.delete(p.productId));
+      this.products().forEach((p) => { map.delete(p.productId); sizes.delete(p.productId); });
     } else {
-      this.products().forEach((p) => map.set(p.productId, map.get(p.productId) ?? p.stockQuantity));
+      this.products().forEach((p) => { if (!map.has(p.productId)) this.startPick(p, map, sizes); });
     }
     this.picks.set(map);
+    this.sizePicks.set(sizes);
   }
 
   clearPicks(): void {
     this.picks.set(new Map());
+    this.sizePicks.set(new Map());
   }
 
   /** Applies the figure typed against each ticked product. */
@@ -308,18 +386,26 @@ export class InventoryComponent implements OnInit, OnDestroy {
     if (picks.size === 0 || this.bulkLoading()) return;
     const ok = await this.confirmer.ask({
       title: `Update stock for ${picks.size} product${picks.size === 1 ? '' : 's'}?`,
-      message: 'Each ticked product is set to the number you typed for it.',
+      message: 'Each ticked product is set to the number you typed for it. '
+        + 'For a product sold in sizes, each size is set to the number typed for that size.',
       confirmLabel: 'Update stock',
     });
     if (!ok) return;
 
-    const updates: BulkStockItem[] = [...picks].map(([productId, quantity]) => ({ productId, quantity }));
+    const bySize = this.sizePicks();
+    const updates: BulkStockItem[] = [...picks].map(([productId, quantity]) => {
+      const sizes = bySize.get(productId);
+      return sizes
+        ? { productId, quantity, sizes: [...sizes].map(([variantId, qty]) => ({ variantId, quantity: qty })) }
+        : { productId, quantity };
+    });
     this.bulkLoading.set(true);
     this.bulkError.set('');
     this.stockService.bulkUpdateStock({ updates }).subscribe({
       next: (results) => {
         this.bulkLoading.set(false);
         this.picks.set(new Map());
+        this.sizePicks.set(new Map());
         this.notices.success('Stock updated', `${results.length} product${results.length === 1 ? '' : 's'}`);
         this.afterBulkChange();
       },
@@ -341,18 +427,46 @@ export class InventoryComponent implements OnInit, OnDestroy {
     return `Set stock to ${qty} for`;
   }
 
+  isBulkSize(size: string): boolean {
+    return this.bulkSizes().has(size);
+  }
+
+  toggleBulkSize(size: string): void {
+    const set = new Set(this.bulkSizes());
+    if (set.has(size)) set.delete(size); else set.add(size);
+    this.bulkSizes.set(set);
+  }
+
+  /** The ticked sizes in shop order, e.g. ["M", "L"]; empty for every size. */
+  private pickedBulkSizes(): string[] {
+    return this.sizeOptions.filter((s) => this.bulkSizes().has(s));
+  }
+
+  /** How the quantity is applied, in words, for the preview line and the confirmation. */
+  sizeWords(op?: 'INCREMENT' | 'DECREMENT' | 'SET', qty = 0): string {
+    const sizes = this.pickedBulkSizes();
+    if (sizes.length === 0 && op === 'SET') {
+      return `For products sold in sizes, each size is set to ${qty}, replacing what it has; `
+        + `the product then shows the total of its sizes (5 sizes = ${qty * 5}).`;
+    }
+    return sizes.length === 0
+      ? 'For products sold in sizes, that is for each size.'
+      : `Only size${sizes.length === 1 ? '' : 's'} ${sizes.join(', ')} — other sizes, and products without `
+        + `${sizes.length === 1 ? 'that size' : 'those sizes'}, are left as they are.`;
+  }
+
   /** What the category tab will do, in words. */
   categoryPreview(): string {
     const name = this.categories().find((c) => c.id === this.categoryId())?.name;
     if (!name) return 'Choose a category.';
     const n = this.categoryProductCount();
-    return `${this.operationWords(this.categoryOp(), this.categoryQty())} ${n} product${n === 1 ? '' : 's'} in ${name}.`;
+    return `${this.operationWords(this.categoryOp(), this.categoryQty())} ${n} product${n === 1 ? '' : 's'} in ${name}. ${this.sizeWords(this.categoryOp(), this.categoryQty())}`;
   }
 
   /** What the whole-shop tab will do, in words. */
   allPreview(): string {
     const n = this.shopProductCount();
-    return `${this.operationWords(this.allOp(), this.allQty())} all ${n} product${n === 1 ? '' : 's'} in the shop.`;
+    return `${this.operationWords(this.allOp(), this.allQty())} all ${n} product${n === 1 ? '' : 's'} in the shop. ${this.sizeWords(this.allOp(), this.allQty())}`;
   }
 
   async applyCategory(): Promise<void> {
@@ -384,11 +498,11 @@ export class InventoryComponent implements OnInit, OnDestroy {
     }
     const ok = await this.confirmer.ask({
       title: `${this.operationWords(op, qty)} ${count} product${count === 1 ? '' : 's'}?`,
-      message: op === 'SET'
+      message: (op === 'SET'
         ? `Every product in ${where} will have exactly ${qty} in stock, whatever it has now. This cannot be undone.`
         : op === 'DECREMENT'
           ? `Anything with less than ${qty} in stock will be set to 0.`
-          : `This adds ${qty} to what each product already has.`,
+          : `This adds ${qty} to what each product already has.`) + ' ' + this.sizeWords(op, qty),
       confirmLabel: op === 'INCREMENT' ? 'Add stock' : op === 'DECREMENT' ? 'Remove stock' : 'Set stock',
       danger: op !== 'INCREMENT',
     });
@@ -396,7 +510,8 @@ export class InventoryComponent implements OnInit, OnDestroy {
 
     this.bulkLoading.set(true);
     this.bulkError.set('');
-    this.stockService.adjustStock(request).subscribe({
+    const sizes = this.pickedBulkSizes();
+    this.stockService.adjustStock(sizes.length ? { ...request, sizes } : request).subscribe({
       next: (result) => {
         this.bulkLoading.set(false);
         this.notices.success('Stock updated', result.message);

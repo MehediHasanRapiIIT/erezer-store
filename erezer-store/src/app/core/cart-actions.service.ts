@@ -75,7 +75,7 @@ export class CartActionsService {
         if (variants.length > 1) return of('choose-size');
         const variant = variants[0] ?? null;
         const base = variant?.priceOverride != null ? variant.priceOverride : baseProductPrice(p.price, p.discountPrice);
-        const unitPrice = effectiveUnitPrice(base, p.id, p.categoryId, this.discounts.discounts(), isDiscountExcluded(p));
+        const unitPrice = effectiveUnitPrice(base, p.id, p.categoryId, this.discounts.discountsFor(p.categoryId), isDiscountExcluded(p));
         const size = variant?.size ?? 'One Size';
         this.pixel.addToCart(p.id, p.name, unitPrice, 1);
 

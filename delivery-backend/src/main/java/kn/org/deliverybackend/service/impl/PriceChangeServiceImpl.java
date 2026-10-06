@@ -51,7 +51,7 @@ public class PriceChangeServiceImpl implements PriceChangeService {
         Category category = checked(request);
         // Worked out for the whole category (a few hundred products at most), so the
         // counts and the changeable products cover every page; only one page is sent.
-        List<Planned> plan = plan(productRepository.findLiveByCategory(category.getId()), request);
+        List<Planned> plan = plan(productRepository.findLiveByCategories(kn.org.deliverybackend.service.CategoryTree.family(categoryRepository, category.getId())), request);
         String text = q == null ? "" : q.trim().toLowerCase(Locale.ROOT);
         List<Row> matching = plan.stream()
                 .map(Planned::row)
@@ -75,7 +75,7 @@ public class PriceChangeServiceImpl implements PriceChangeService {
             throw new InvalidRequestException("Tick at least one product to change.");
         }
         Set<Long> ticked = new LinkedHashSet<>(request.productIds());
-        List<Product> products = productRepository.findLiveByCategory(category.getId()).stream()
+        List<Product> products = productRepository.findLiveByCategories(kn.org.deliverybackend.service.CategoryTree.family(categoryRepository, category.getId())).stream()
                 .filter(p -> ticked.contains(p.getId()))
                 .toList();
         if (products.size() != ticked.size()) {

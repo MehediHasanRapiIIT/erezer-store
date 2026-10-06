@@ -63,7 +63,8 @@ public class OrderStockRestorer {
                 variantRepository.findById(item.getVariantId()).ifPresentOrElse(variant -> {
                     int current = variant.getStockQuantity() != null ? variant.getStockQuantity() : 0;
                     variant.setStockQuantity(current + qty);
-                    variantRepository.save(variant);
+                    variantRepository.saveAndFlush(variant);
+                    inventoryService.followSizes(variant.getProductId());
                     log.info("Order {} cancelled: returned {} unit(s) to variant {}", orderId, qty, variant.getId());
                 }, () -> log.warn("Order {} cancelled: variant {} no longer exists, {} unit(s) not restored",
                         orderId, item.getVariantId(), qty));

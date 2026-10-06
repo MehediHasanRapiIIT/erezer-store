@@ -1,5 +1,5 @@
-import { Component, inject, signal } from '@angular/core';
-import { RouterLink, Router } from '@angular/router';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ActivatedRoute, RouterLink, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { KeyValuePipe } from '@angular/common';
 import { SidebarComponent } from '../../../shared/sidebar/sidebar.component';
@@ -9,6 +9,7 @@ import { parseApiError } from '../../../core/utils/api-error.util';
 import { HttpErrorResponse } from '@angular/common/http';
 import { PermissionService } from '../../../core/services/permission.service';
 import { NoticeService } from '../../../core/services/notice.service';
+import { CategoryResponse } from '../../../core/models/api.models';
 
 @Component({
   selector: 'app-add-category',
@@ -16,7 +17,7 @@ import { NoticeService } from '../../../core/services/notice.service';
   imports: [RouterLink, FormsModule, SidebarComponent, KeyValuePipe],
   templateUrl: './add-category.component.html',
 })
-export class AddCategoryComponent {
+export class AddCategoryComponent implements OnInit {
   constructor(
     private router: Router,
     private categoryService: CategoryService,
@@ -25,6 +26,37 @@ export class AddCategoryComponent {
 
   protected readonly perms = inject(PermissionService);
   private readonly notices = inject(NoticeService);
+  private readonly route = inject(ActivatedRoute);
+
+  /** The main category this one sits under; null for a main category. */
+  parentId = signal<number | null>(null);
+  /** Main categories it could sit under. */
+  mainCategories = signal<CategoryResponse[]>([]);
+  /** A category with subcategories of its own can't become one. */
+  hasSubcategories = signal(false);
+  /** "Subcategory" is chosen, whether or not its main category has been picked yet. */
+  isSub = signal(false);
+  /** Save was pressed on a subcategory with no main category chosen. */
+  parentMissing = signal(false);
+
+  setKind(sub: boolean): void {
+    this.isSub.set(sub);
+    this.parentMissing.set(false);
+    if (!sub) this.parentId.set(null);
+  }
+  parentName = computed(() => this.mainCategories().find((c) => c.id === this.parentId())?.name ?? 'its main category');
+
+  ngOnInit(): void {
+    // Opened from "Add subcategory" on a category: start under that one.
+    const from = Number(this.route.snapshot.queryParamMap.get('parentId'));
+    if (from > 0) this.parentId.set(from);
+    // "Add Subcategory" on the Categories page: a subcategory, its main category still to choose.
+    this.isSub.set(from > 0 || this.route.snapshot.queryParamMap.get('kind') === 'sub');
+    this.categoryService.getCategories().subscribe({
+      next: (all) => this.mainCategories.set(all.filter((c) => c.parentId == null)),
+      error: () => {},
+    });
+  }
 
   categoryName = signal('');
   isActive     = signal(true);
@@ -60,6 +92,10 @@ export class AddCategoryComponent {
 
   onSave() {
     if (!this.categoryName().trim()) return;
+    if (this.isSub() && this.parentId() == null) {
+      this.parentMissing.set(true);
+      return;
+    }
 
     this.isLoading.set(true);
     this.errorMessage.set('');
@@ -73,10 +109,12 @@ export class AddCategoryComponent {
       discountExcluded: this.discountExcluded(),
       showStockQuantity: this.showStockQuantity(),
       homeSortOrder: this.homeSortOrder(),
+      parentId: this.parentId(),
     }).subscribe({
       next: () => {
         this.isLoading.set(false);
-        this.notices.success('Category added', this.categoryName().trim());
+        this.notices.success(this.parentId() != null ? 'Subcategory added' : 'Category added',
+          this.parentId() != null ? `${this.categoryName().trim()}, in ${this.parentName()}` : this.categoryName().trim());
         this.router.navigate(['/categories']);
       },
       error: (err: HttpErrorResponse) => {

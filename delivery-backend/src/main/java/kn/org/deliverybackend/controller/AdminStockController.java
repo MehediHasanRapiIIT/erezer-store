@@ -63,6 +63,19 @@ public class AdminStockController {
         return ResponseEntity.ok(inventoryService.updateStock(id, request));
     }
 
+    /** For a product sold in sizes: an exact stock figure for each size. The product's stock becomes their total. */
+    @RequiresPermission(Perm.INVENTORY_EDIT)
+    @PutMapping("/products/{id}/stock/sizes")
+    public ResponseEntity<StockResponseDTO> setSizeStock(
+            @PathVariable Long id,
+            @Valid @RequestBody kn.org.deliverybackend.dto.request.product.SizeStockUpdateRequestDTO request) {
+        StockResponseDTO result = inventoryService.setSizeStock(id, request);
+        kn.org.deliverybackend.access.StaffAccess.describe("Set the stock of "
+                + request.getSizes().size() + (request.getSizes().size() == 1 ? " size" : " sizes")
+                + " of " + result.getProductName());
+        return ResponseEntity.ok(result);
+    }
+
     /** An exact stock figure for each product chosen on the page. */
     @RequiresPermission(Perm.INVENTORY_EDIT)
     @PutMapping("/inventory/bulk")

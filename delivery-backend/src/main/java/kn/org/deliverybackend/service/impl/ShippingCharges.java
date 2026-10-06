@@ -77,9 +77,10 @@ public class ShippingCharges {
         if (seen.containsKey(categoryId)) {
             return seen.get(categoryId);
         }
+        // A subcategory with no charge of its own takes its main category's.
         BigDecimal charge = categoryRepository.findById(categoryId)
                 .filter(c -> !Boolean.TRUE.equals(c.getDeleted()))
-                .map(Category::getShippingCharge)
+                .map(c -> kn.org.deliverybackend.service.CategoryTree.shippingCharge(categoryRepository, c))
                 .orElse(null);
         seen.put(categoryId, charge);
         return charge;

@@ -148,16 +148,19 @@ export class EcommerceStore {
    * so existing components (ProductCard etc.) work without changes.
    */
   toStoreProduct(api: ApiProduct): Product {
+    // Effective price = base price (sale-or-regular) reduced by any automatic
+    // discount. Uses the SAME base rule as the product page so they agree.
+    const price = this.discountsStore.effectivePrice(
+      baseProductPrice(api.price, api.discountPrice), api.id, api.categoryId,
+      this.discountsStore.isExcluded(api));
     return {
       id:          String(api.id),
       slug:        String(api.id),          // use numeric id as slug for routing
       name:        api.name,
       description: api.description,
-      // Effective price = base price (sale-or-regular) reduced by any automatic
-      // discount. Uses the SAME base rule as the product page so they agree.
-      price:       this.discountsStore.effectivePrice(
-                     baseProductPrice(api.price, api.discountPrice), api.id, api.categoryId,
-                     this.discountsStore.isExcluded(api)),
+      price,
+      // The regular price, for the card to strike through, when this one is lower.
+      originalPrice: api.price > price + 0.001 ? api.price : undefined,
       image:       api.imageUrl,
       category:    api.categoryName?.trim() || 'Erezer',
       sizes:       ['One Size'],

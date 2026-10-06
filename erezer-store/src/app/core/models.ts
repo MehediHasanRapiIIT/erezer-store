@@ -4,6 +4,8 @@ export interface Product {
   name: string;
   description: string;
   price: number;
+  /** The price before the sale or discount, when the customer pays less than it. Shown struck through. */
+  originalPrice?: number;
   image: string;
   /** Optional secondary image; cards crossfade to it on hover when present. */
   hoverImage?: string;

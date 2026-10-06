@@ -20,6 +20,12 @@ public class BulkStockUpdateRequestDTO {
         private int quantity;   // always SET operation for bulk
         private String unit;
         private Integer lowStockThreshold;
+        /**
+         * For a product sold in sizes: an exact figure for each size listed.
+         * When given, {@code quantity} is not used.
+         */
+        @Valid
+        private List<SizeStockUpdateRequestDTO.Item> sizes;
     }
 }
 
