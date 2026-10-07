@@ -3,7 +3,7 @@
 
   <div class="flex-1 flex flex-col overflow-hidden">
 
-    <main class="flex-1 overflow-y-auto pb-24">
+    <main class="relative flex-1 overflow-y-auto pb-24">
       <div class="max-w-6xl mx-auto px-6 py-6">
 
         <!-- Breadcrumb -->
@@ -162,8 +162,13 @@
           </div>
 
           @if (canAddPictures()) {
+<!-- "relative" matters: the file input inside is hidden by being placed
+                 absolutely, and without a positioned parent it is placed against the
+                 whole page instead of this box. Deep in a long form that made the page
+                 itself taller than the window, so the window could scroll and leave a
+                 blank band under the form. -->
             <label
-              class="mb-4 flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed px-4 py-7 text-center transition-colors"
+              class="relative mb-4 flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed px-4 py-7 text-center transition-colors"
               [class.border-blue-400]="dragging()" [class.bg-blue-50]="dragging()"
               [class.border-gray-200]="!dragging()" [class.hover:border-blue-300]="!dragging()"
               (dragover)="onDragOver($event)" (dragleave)="dragging.set(false)" (drop)="onDrop($event)">
@@ -227,7 +232,7 @@
                             </div>
                           }
                           @if (row.pictures.length < 10) {
-                            <label class="flex h-14 w-14 cursor-pointer items-center justify-center rounded-md border border-dashed border-gray-300 text-lg text-gray-400 hover:border-blue-300 hover:text-blue-500"
+                            <label class="relative flex h-14 w-14 cursor-pointer items-center justify-center rounded-md border border-dashed border-gray-300 text-lg text-gray-400 hover:border-blue-300 hover:text-blue-500"
                               [attr.aria-label]="'Add pictures to row ' + (i + 1)">
                               +
                               <input type="file" accept="image/*,.heic,.heif,.avif" multiple class="sr-only"

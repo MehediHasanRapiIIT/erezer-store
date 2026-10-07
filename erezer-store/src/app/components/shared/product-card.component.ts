@@ -13,27 +13,30 @@ import { EcommerceStore } from '../../core/store/ecommerce.store';
   host: { class: 'flex flex-col' },
   template: `
     <article class="app-card group flex-1 overflow-hidden transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-black/10 dark:hover:shadow-black/40">
-      <!-- Image: the whole picture, at its own shape, inside a frame of one
-           height so every card in a row lines up. "contain", not "cover": cover
-           filled the frame by cutting the sides or the top off any picture that
-           wasn't the frame's shape. What the picture doesn't fill shows the
-           frame's quiet background. -->
-      <div class="relative overflow-hidden bg-neutral-100 dark:bg-neutral-900">
-        <a [routerLink]="['/product', product().slug]" class="block">
+      <!-- Image: a picture of any shape fills the card.
+
+           The frame is one shape on every card (4:5, upright like a garment
+           photo), so rows line up. The whole picture is shown inside it —
+           "contain", never "cover", which filled the frame by cutting the sides
+           or the top off. Whatever the picture doesn't reach is filled by a soft,
+           blurred copy of the same picture behind it, so a tall or a wide photo
+           never leaves an empty band and nothing of it is lost. -->
+      <div class="relative aspect-[4/5] overflow-hidden bg-neutral-100 dark:bg-neutral-900" data-testid="card-frame">
+        <a [routerLink]="['/product', product().slug]" class="absolute inset-0 block">
+          <img [src]="product().image" alt="" aria-hidden="true" loading="lazy" data-testid="card-backdrop"
+            class="absolute inset-0 h-full w-full scale-125 object-cover opacity-70 blur-xl" />
           <img
             [src]="product().image"
             [alt]="product().name"
             data-testid="card-image"
-            class="h-52 w-full object-contain transition-opacity duration-500 sm:h-80"
+            class="relative h-full w-full object-contain transition-opacity duration-500"
             [class.group-hover:opacity-0]="product().hoverImage"
           />
           @if (product().hoverImage; as hover) {
-            <img
-              [src]="hover"
-              [alt]="product().name"
-              aria-hidden="true"
-              class="absolute inset-0 h-52 w-full bg-neutral-100 object-contain opacity-0 transition-opacity duration-500 group-hover:opacity-100 dark:bg-neutral-900 sm:h-80"
-            />
+            <span class="absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100" aria-hidden="true">
+              <img [src]="hover" alt="" loading="lazy" class="absolute inset-0 h-full w-full scale-125 object-cover opacity-70 blur-xl" />
+              <img [src]="hover" alt="" class="relative h-full w-full object-contain" />
+            </span>
           }
         </a>
 

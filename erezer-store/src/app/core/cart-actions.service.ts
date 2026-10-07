@@ -63,26 +63,46 @@ export class CartActionsService {
     this.onServer(productId, variantId, (userId, id) => this.api.removeCartItem(userId, id));
   }
 
+  /** The sizes a product comes in (and their fits); empty when it has none. */
+  sizesOf(p: ApiProduct): Observable<ApiVariant[]> {
+    return this.api.getProductVariants(p.id).pipe(catchError(() => of([] as ApiVariant[])));
+  }
+
+  /** What one of this size costs, as the product page works it out. */
+  priceFor(p: ApiProduct, variant: ApiVariant | null): number {
+    const base = variant?.priceOverride != null ? ownPriceAfterSale(p, variant.priceOverride) : baseProductPrice(p.price, p.discountPrice);
+    return effectiveUnitPrice(base, p.id, p.categoryId, this.discounts.discountsFor(p.categoryId), isDiscountExcluded(p));
+  }
+
   /**
    * Adds one of a product from a suggestion. A product with a choice of sizes
-   * can't be added blind, so the caller is told to send the customer to it.
+   * can't be added blind: the caller is told to ask for the size, and then adds
+   * it with {@link addSize}.
    */
   quickAdd(p: ApiProduct): Observable<QuickAddResult> {
     if (!p.isAvailable || (p.stockQuantity != null && p.stockQuantity <= 0)) return of('unavailable');
-    return this.api.getProductVariants(p.id).pipe(
-      catchError(() => of([] as ApiVariant[])),
-      switchMap((variants): Observable<QuickAddResult> => {
-        if (variants.length > 1) return of('choose-size');
-        const variant = variants[0] ?? null;
+    return this.sizesOf(p).pipe(
+      switchMap((variants): Observable<QuickAddResult> =>
+        variants.length > 1 ? of('choose-size') : this.addSize(p, variants[0] ?? null)),
+    );
+  }
+
+  /** Adds one of a product in the size given (null for a product with no sizes). */
+  addSize(p: ApiProduct, variant: ApiVariant | null): Observable<QuickAddResult> {
+    if (variant && variant.stockQuantity != null && variant.stockQuantity <= 0) return of('unavailable');
+    return of(variant).pipe(
+      switchMap((): Observable<QuickAddResult> => {
         const base = variant?.priceOverride != null ? ownPriceAfterSale(p, variant.priceOverride) : baseProductPrice(p.price, p.discountPrice);
         const unitPrice = effectiveUnitPrice(base, p.id, p.categoryId, this.discounts.discountsFor(p.categoryId), isDiscountExcluded(p));
-        const size = variant?.size ?? 'One Size';
+        // In a fit, the line says so ("Drop Shoulder / M"), as the product page's does.
+        const plainSize = variant?.size ?? 'One Size';
+        const size = variant?.fit ? `${variant.fitLabel ?? variant.fit} / ${plainSize}` : plainSize;
         this.pixel.addToCart(p.id, p.name, unitPrice, 1);
 
         const userId = this.auth.userId();
         if (!userId) {
           this.store.addToCart(String(p.id), size, 1, {
-            variantId: variant?.id ?? null, unitPrice, name: p.name, image: p.imageUrl,
+            variantId: variant?.id ?? null, unitPrice, name: variant ? `${p.name} — ${size}` : p.name, image: p.imageUrl,
             stock: variant?.stockQuantity ?? p.stockQuantity ?? null,
           });
           return of('added');

@@ -29,9 +29,11 @@ import { baseProductPrice } from '../../core/discount-pricing';
             <a [routerLink]="['/product', p.id]"
               class="group app-card overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/10 dark:hover:shadow-black/40">
               <!-- The whole picture, not a square cut from its middle. -->
-              <div class="aspect-square overflow-hidden bg-neutral-100 dark:bg-neutral-900">
+              <div class="relative aspect-[4/5] overflow-hidden bg-neutral-100 dark:bg-neutral-900">
+                <img [src]="p.imageUrl" alt="" aria-hidden="true" loading="lazy"
+                  class="absolute inset-0 h-full w-full scale-125 object-cover opacity-70 blur-xl" />
                 <img [src]="p.imageUrl" [alt]="p.name" data-testid="recent-image"
-                  class="h-full w-full object-contain" />
+                  class="relative h-full w-full object-contain" />
               </div>
               <div class="p-3">
                 <p class="truncate text-sm font-medium">{{ p.name }}</p>

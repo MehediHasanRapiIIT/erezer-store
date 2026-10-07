@@ -18,8 +18,10 @@ const MAX_TOTAL_BYTES = 240 * 1024 * 1024;
   standalone: true,
   template: `
     <div>
+      <!-- "relative": the hidden file input inside is placed absolutely, and has
+           to be placed against this box, not the whole page (which it would stretch). -->
       <label
-        class="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed px-4 py-6 text-center transition-colors"
+        class="relative flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed px-4 py-6 text-center transition-colors"
         [class.border-blue-400]="dragging()" [class.bg-blue-50]="dragging()"
         [class.border-gray-200]="!dragging()" [class.hover:border-blue-300]="!dragging()"
         [class.opacity-50]="disabled() || files().length >= max" [class.cursor-not-allowed]="disabled() || files().length >= max"

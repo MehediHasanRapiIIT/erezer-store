@@ -3,7 +3,7 @@ import { Component, computed, effect, ElementRef, HostListener, inject, input, o
 import { Router, RouterLink } from '@angular/router';
 import { catchError, of } from 'rxjs';
 import { ApiService } from '../../core/api.service';
-import { ApiProduct } from '../../core/api.models';
+import { ApiProduct, ApiVariant } from '../../core/api.models';
 import { CartActionsService } from '../../core/cart-actions.service';
 import { baseProductPrice, effectiveUnitPrice, isDiscountExcluded } from '../../core/discount-pricing';
 import { EcommerceStore } from '../../core/store/ecommerce.store';
@@ -100,18 +100,46 @@ import { TranslatePipe } from '../../core/i18n/translate.pipe';
               </div>
               <div #suggestionRow class="no-scrollbar flex snap-x gap-3 overflow-x-auto scroll-smooth">
                 @for (p of suggestions(); track p.id) {
-                  <div class="flex w-64 shrink-0 snap-start items-center gap-3 rounded-xl border border-neutral-200 bg-white p-2.5 dark:border-neutral-800 dark:bg-neutral-950">
+                  <div class="flex w-64 shrink-0 snap-start items-start gap-3 rounded-xl border border-neutral-200 bg-white p-2.5 dark:border-neutral-800 dark:bg-neutral-950"
+                    [attr.data-testid]="'suggestion-' + p.id">
                     <a [routerLink]="['/product', p.id]" (click)="close()" class="shrink-0">
                       <img [src]="p.imageUrl" [alt]="p.name" loading="lazy" class="h-14 w-14 rounded-lg object-cover" />
                     </a>
                     <div class="min-w-0 flex-1">
                       <p class="truncate text-xs font-medium">{{ p.name }}</p>
-                      <p class="text-xs text-neutral-500 dark:text-neutral-400 tabular-nums">{{ priceOf(p) | currency:'BDT':'৳' }}</p>
-                      <button type="button" (click)="add(p)" [disabled]="adding() === p.id"
-                        class="mt-1 inline-flex items-center rounded-full bg-black px-2.5 py-0.5 text-[11px] font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-black"
-                        [attr.aria-label]="('cart_panel.add' | t) + ' ' + p.name">
-                        {{ adding() === p.id ? '…' : ('+ ' + ('cart_panel.add' | t)) }}
-                      </button>
+                      <p class="text-xs text-neutral-500 dark:text-neutral-400 tabular-nums">{{ priceShown(p) | currency:'BDT':'৳' }}</p>
+                      @if (picking()?.productId === p.id) {
+                        <!-- The size is chosen here, in the cart: no trip to the product's page. -->
+                        <div class="mt-1.5 space-y-1.5" data-testid="suggestion-picker">
+                          @if (pickFits().length > 0) {
+                            <div class="flex flex-wrap gap-1" role="group" [attr.aria-label]="'cart_panel.choose_fit' | t">
+                              @for (f of pickFits(); track f.fit) {
+                                <button type="button" (click)="pickFit(f.fit)" [attr.aria-pressed]="picking()!.fit === f.fit"
+                                  class="rounded-full border px-2 py-0.5 text-[10px] font-semibold transition"
+                                  [class]="picking()!.fit === f.fit
+                                    ? 'rounded-full border border-transparent bg-neutral-900 px-2 py-0.5 text-[10px] font-semibold text-white transition dark:bg-white dark:text-black'
+                                    : 'rounded-full border border-neutral-300 px-2 py-0.5 text-[10px] font-semibold text-neutral-600 transition hover:border-neutral-900 dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-white'">{{ f.label }}</button>
+                              }
+                            </div>
+                          }
+                          <p class="text-[10px] font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">{{ 'cart_panel.choose_size' | t }}</p>
+                          <div class="flex flex-wrap gap-1">
+                            @for (v of pickSizes(); track v.id) {
+                              <button type="button" (click)="addSize(p, v)" [disabled]="adding() === p.id || soldOut(v)"
+                                [attr.aria-label]="('cart_panel.add' | t) + ' ' + p.name + ' ' + (v.size ?? '')"
+                                class="min-w-7 rounded-md border border-neutral-300 px-1.5 py-0.5 text-[11px] font-semibold transition hover:border-neutral-900 hover:bg-neutral-900 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:line-through disabled:hover:border-neutral-300 disabled:hover:bg-transparent disabled:hover:text-inherit dark:border-neutral-700 dark:hover:border-white dark:hover:bg-white dark:hover:text-black">{{ v.size }}</button>
+                            }
+                            <button type="button" (click)="cancelPick()" [attr.aria-label]="'cart_panel.cancel' | t"
+                              class="rounded-md px-1.5 py-0.5 text-[11px] text-neutral-500 underline underline-offset-2 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white">{{ 'cart_panel.cancel' | t }}</button>
+                          </div>
+                        </div>
+                      } @else {
+                        <button type="button" (click)="add(p)" [disabled]="adding() === p.id"
+                          class="mt-1 inline-flex items-center rounded-full bg-black px-2.5 py-0.5 text-[11px] font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-black"
+                          [attr.aria-label]="('cart_panel.add' | t) + ' ' + p.name">
+                          {{ adding() === p.id ? '…' : ('+ ' + ('cart_panel.add' | t)) }}
+                        </button>
+                      }
                     </div>
                   </div>
                 }
@@ -146,6 +174,29 @@ export class CartPanelComponent {
   protected readonly lines = computed(() => this.store.cartItemsDetailed());
   protected readonly suggestions = signal<ApiProduct[]>([]);
   protected readonly adding = signal<number | null>(null);
+  /**
+   * The suggestion whose size is being chosen: its sizes, and the fit picked
+   * when it comes in fits. Null when none is open.
+   */
+  protected readonly picking = signal<{ productId: number; variants: ApiVariant[]; fit: string | null } | null>(null);
+  /** The fits of the suggestion being chosen, Drop Shoulder first; empty when it has none. */
+  protected readonly pickFits = computed(() => {
+    const order = ['DROP_SHOULDER', 'REGULAR_FIT'];
+    const seen = new Map<string, string>();
+    for (const v of this.picking()?.variants ?? []) {
+      if (v.fit && !seen.has(v.fit)) seen.set(v.fit, v.fitLabel ?? v.fit);
+    }
+    return [...seen].map(([fit, label]) => ({ fit, label })).sort((a, b) => order.indexOf(a.fit) - order.indexOf(b.fit));
+  });
+  /** The sizes on offer: those of the picked fit, S before M before L. */
+  protected readonly pickSizes = computed(() => {
+    const pick = this.picking();
+    if (!pick) return [];
+    const order = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+    const rank = (s: string | null) => { const i = order.indexOf((s ?? '').toUpperCase()); return i < 0 ? order.length : i; };
+    return pick.variants.filter((v) => (pick.fit ? v.fit === pick.fit : true) && !!v.size)
+      .sort((a, b) => rank(a.size) - rank(b.size));
+  });
 
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('closeButton');
   private readonly suggestionRow = viewChild<ElementRef<HTMLDivElement>>('suggestionRow');
@@ -182,17 +233,59 @@ export class CartPanelComponent {
       this.discounts.discountsFor(p.categoryId), isDiscountExcluded(p));
   }
 
+  /**
+   * "+ Add" on a suggestion. A product with no choice to make goes straight in;
+   * one that comes in sizes opens its sizes right there in the card.
+   */
   protected add(p: ApiProduct): void {
     this.adding.set(p.id);
-    this.cart.quickAdd(p).subscribe((result) => {
-      this.adding.set(null);
-      if (result === 'added') {
-        this.suggestions.update((list) => list.filter((x) => x.id !== p.id));
-      } else if (result === 'choose-size') {
-        this.close();
-        void this.router.navigate(['/product', p.id]);
+    this.cart.sizesOf(p).subscribe((variants) => {
+      const sized = variants.filter((v) => !!v.size);
+      if (sized.length > 1) {
+        this.adding.set(null);
+        const fits = ['DROP_SHOULDER', 'REGULAR_FIT'].filter((f) => sized.some((v) => v.fit === f));
+        // Opens on the first fit that has something in stock, Drop Shoulder first.
+        const fit = fits.find((f) => sized.some((v) => v.fit === f && !this.soldOut(v))) ?? fits[0] ?? null;
+        this.picking.set({ productId: p.id, variants: sized, fit });
+        return;
       }
+      this.cart.addSize(p, variants[0] ?? null).subscribe((result) => this.afterAdd(p, result));
     });
+  }
+
+  protected pickFit(fit: string): void {
+    const pick = this.picking();
+    if (pick) this.picking.set({ ...pick, fit });
+  }
+
+  protected cancelPick(): void {
+    this.picking.set(null);
+  }
+
+  protected soldOut(v: ApiVariant): boolean {
+    return v.stockQuantity != null && v.stockQuantity <= 0;
+  }
+
+  /** Adds the suggestion in the size tapped. */
+  protected addSize(p: ApiProduct, variant: ApiVariant): void {
+    this.adding.set(p.id);
+    this.cart.addSize(p, variant).subscribe((result) => this.afterAdd(p, result));
+  }
+
+  private afterAdd(p: ApiProduct, result: string): void {
+    this.adding.set(null);
+    if (result === 'added') {
+      this.picking.set(null);
+      this.suggestions.update((list) => list.filter((x) => x.id !== p.id));
+    }
+  }
+
+  /** The price on a suggestion: its own, or the picked fit's while its sizes are open. */
+  protected priceShown(p: ApiProduct): number {
+    const pick = this.picking();
+    if (pick?.productId !== p.id) return this.priceOf(p);
+    const first = this.pickSizes().find((v) => !this.soldOut(v)) ?? this.pickSizes()[0] ?? null;
+    return this.cart.priceFor(p, first);
   }
 
   protected scrollSuggestions(direction: -1 | 1): void {
