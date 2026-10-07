@@ -102,6 +102,8 @@ export interface ApiProduct {
   description: string;
   price: number;
   discountPrice: number;
+  /** True when the sale was given as an amount in taka, not a percentage. */
+  saleByAmount?: boolean | null;
   imageUrl: string;
   isAvailable: boolean;
   isNewArrival?: boolean | null;
@@ -143,6 +145,10 @@ export interface ApiVariant {
   productId: number;
   name: string | null;
   size: string | null;
+  /** DROP_SHOULDER or REGULAR_FIT; null when the product has no fits. */
+  fit?: string | null;
+  /** "Drop Shoulder", for showing. */
+  fitLabel?: string | null;
   sku: string | null;
   stockQuantity: number | null;
   priceOverride: number | null;
@@ -780,6 +786,8 @@ export interface ApiStoreSettings {
   supportEmail: string | null;
   supportHours: string | null;
   sizeChart: ApiSizeChart | null;
+  /** A size chart for each fit, keyed DROP_SHOULDER and REGULAR_FIT; a fit without rows uses sizeChart. */
+  fitSizeCharts?: Record<string, ApiSizeChart> | null;
   brandStory: ApiBrandStory | null;
   footer: ApiFooter | null;
   marquee: ApiMarquee | null;

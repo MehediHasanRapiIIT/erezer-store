@@ -110,6 +110,12 @@ export interface StoreSettings {
   supportEmail: string | null;
   supportHours: string | null;
   sizeChart: SizeChart | null;
+  /**
+   * A size chart for each fit, keyed DROP_SHOULDER and REGULAR_FIT. A product
+   * page shows the chart of the fit the customer picked; a fit with no rows of
+   * its own, and a product with no fits, show sizeChart.
+   */
+  fitSizeCharts?: Record<string, SizeChart> | null;
   brandStory: BrandStory | null;
   aboutPage?: AboutPage | null;
   footer: Footer | null;

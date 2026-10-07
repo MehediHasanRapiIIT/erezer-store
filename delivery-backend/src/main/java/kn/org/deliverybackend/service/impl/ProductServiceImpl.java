@@ -149,16 +149,21 @@ public class ProductServiceImpl implements ProductService {
         for (var v : variantRepository.findLiveByProductIds(rows.stream().map(ProductResponseDTO::getId).toList())) {
             byProduct.computeIfAbsent(v.getProductId(), k -> new ArrayList<>())
                     .add(new kn.org.deliverybackend.dto.response.product.StockResponseDTO.SizeStock(
-                            v.getId(), v.getSize(), v.getStockQuantity() == null ? 0 : v.getStockQuantity()));
+                            v.getId(), v.getSize(), v.getStockQuantity() == null ? 0 : v.getStockQuantity(),
+                            v.getFit(), kn.org.deliverybackend.enumeration.Fit.labelOf(v.getFit())));
         }
         List<String> order = List.of("XS", "S", "M", "L", "XL", "XXL", "XXXL");
         for (ProductResponseDTO row : rows) {
             var sizes = byProduct.get(row.getId());
             if (sizes == null) continue;
-            sizes.sort(java.util.Comparator.comparingInt(s -> {
-                int i = s.getSize() == null ? -1 : order.indexOf(s.getSize().trim().toUpperCase());
-                return i < 0 ? order.size() : i;
-            }));
+            // Drop Shoulder's sizes, then Regular Fit's.
+            sizes.sort(java.util.Comparator
+                    .comparingInt((kn.org.deliverybackend.dto.response.product.StockResponseDTO.SizeStock s) ->
+                            kn.org.deliverybackend.enumeration.Fit.rank(s.getFit()))
+                    .thenComparingInt(s -> {
+                        int i = s.getSize() == null ? -1 : order.indexOf(s.getSize().trim().toUpperCase());
+                        return i < 0 ? order.size() : i;
+                    }));
             row.setSizeStock(sizes);
         }
     }
@@ -362,6 +367,8 @@ public class ProductServiceImpl implements ProductService {
 
     private void calculateAndSetDiscountPrice(Product product, ProductRequestDTO dto) {
         product.setDiscountPrice(dto.requestedSalePrice());
+        // Remembered so the sale can come off each fit's own price the way it was typed.
+        product.setSaleByAmount(dto.getDiscountAmount() != null && dto.getDiscountAmount().signum() > 0);
     }
 
     @Override

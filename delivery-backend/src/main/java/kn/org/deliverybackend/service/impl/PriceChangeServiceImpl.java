@@ -96,6 +96,8 @@ public class PriceChangeServiceImpl implements PriceChangeService {
         for (Planned p : plan) {
             p.product().setPrice(p.price());
             p.product().setDiscountPrice(p.sale());
+            // A category price change works the sale out as a percentage.
+            p.product().setSaleByAmount(false);
             for (SizePlan s : p.sizes()) {
                 s.variant().setPriceOverride(s.price());
                 sizes.add(s.variant());

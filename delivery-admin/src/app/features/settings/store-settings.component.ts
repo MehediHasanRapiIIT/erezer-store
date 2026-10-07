@@ -38,6 +38,8 @@ const HIGHLIGHT_ICONS = [
 ] as const;
 
 const EMPTY_CHART: SizeChart = { columns: ['Chest', 'Length'], rows: [] };
+/** Which size chart the editor is showing. */
+type ChartTab = 'GENERAL' | 'DROP_SHOULDER' | 'REGULAR_FIT';
 
 const EMPTY_BRAND: BrandStory = {
   eyebrow: 'Our story', heading: '', body: '', ctaLabel: 'Explore the collection',
@@ -257,13 +259,27 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
               <div class="flex items-center justify-between">
                 <div>
                   <h2 class="text-base font-semibold">Size chart</h2>
-                  <p class="text-xs text-gray-500">Each measurement holds both cm and inch.</p>
+                  <p class="text-xs text-gray-500">Each measurement holds both cm and inch. Drop Shoulder and Regular Fit measure differently, so each has its own chart.</p>
+                  <div class="mt-2 inline-flex rounded-lg border border-gray-200 bg-white p-0.5 text-xs font-semibold" role="tablist" aria-label="Which size chart">
+                    @for (tab of chartTabs; track tab.id) {
+                      <button type="button" role="tab" [attr.aria-selected]="chartTab === tab.id" (click)="chartTab = tab.id"
+                        [attr.data-testid]="'chart-tab-' + tab.id"
+                        class="rounded-md px-3 py-1.5 transition-colors"
+                        [class.bg-blue-600]="chartTab === tab.id" [class.text-white]="chartTab === tab.id"
+                        [class.text-gray-600]="chartTab !== tab.id">{{ tab.label }}</button>
+                    }
+                  </div>
+                  <p class="mt-1.5 text-xs text-gray-500" data-testid="chart-hint">{{ chartHint() }}</p>
                   @if (!perms.can('settings.sizechart')) {
                     <p class="text-xs text-gray-400">Needs the “Edit the size chart” permission.</p>
                   }
                 </div>
                 @if (perms.can('settings.sizechart')) {
                 <div class="flex gap-2">
+                  @if (chartTab !== 'GENERAL' && chart.rows.length === 0) {
+                    <button type="button" (click)="copyGeneralChart()" data-testid="chart-copy-general"
+                      class="px-2.5 py-1 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50">Start from the general chart</button>
+                  }
                   <button type="button" (click)="addColumn()"
                     class="px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50">+ Column</button>
                   <button type="button" (click)="addRow()"
@@ -860,7 +876,40 @@ export class StoreSettingsComponent implements OnInit {
     discountsCategoryEnabled: true,
     discountsProductEnabled: true,
   };
-  protected chart: SizeChart = { columns: [...EMPTY_CHART.columns], rows: [] };
+  /**
+   * Three charts: the general one, and one for each fit. The editor below works
+   * on whichever tab is open.
+   */
+  protected readonly chartTabs: { id: ChartTab; label: string }[] = [
+    { id: 'GENERAL', label: 'General' },
+    { id: 'DROP_SHOULDER', label: 'Drop Shoulder' },
+    { id: 'REGULAR_FIT', label: 'Regular Fit' },
+  ];
+  protected chartTab: ChartTab = 'GENERAL';
+  protected charts: Record<ChartTab, SizeChart> = {
+    GENERAL: { columns: [...EMPTY_CHART.columns], rows: [] },
+    DROP_SHOULDER: { columns: [...EMPTY_CHART.columns], rows: [] },
+    REGULAR_FIT: { columns: [...EMPTY_CHART.columns], rows: [] },
+  };
+  protected get chart(): SizeChart {
+    return this.charts[this.chartTab];
+  }
+
+  /** What the open chart is for, and what happens while it is empty. */
+  protected chartHint(): string {
+    if (this.chartTab === 'GENERAL') {
+      return 'Shown on products with no fit, and for a fit whose own chart is still empty.';
+    }
+    const name = this.chartTabs.find((t) => t.id === this.chartTab)!.label;
+    return this.chart.rows.length === 0
+      ? `Shown when a customer picks ${name}. It is empty, so the general chart is shown for now.`
+      : `Shown when a customer picks ${name}.`;
+  }
+
+  /** Fills an empty fit chart with the general one's columns and rows, to edit from there. */
+  protected copyGeneralChart(): void {
+    this.charts[this.chartTab] = structuredClone(this.charts.GENERAL);
+  }
   protected brand: BrandStory = structuredClone(EMPTY_BRAND);
   protected about: AboutPage = structuredClone(EMPTY_ABOUT);
   protected footer: Footer = structuredClone(EMPTY_FOOTER);
@@ -883,7 +932,11 @@ export class StoreSettingsComponent implements OnInit {
   /** Copy a loaded/saved settings payload into the editable working models. */
   private apply(s: StoreSettings): void {
     this.model = s;
-    this.chart = this.normalizeChart(s.sizeChart);
+    this.charts = {
+      GENERAL: this.normalizeChart(s.sizeChart),
+      DROP_SHOULDER: this.normalizeChart(s.fitSizeCharts?.['DROP_SHOULDER'] ?? null),
+      REGULAR_FIT: this.normalizeChart(s.fitSizeCharts?.['REGULAR_FIT'] ?? null),
+    };
     this.brand = this.normalizeBrand(s.brandStory);
     this.about = {
       title: s.aboutPage?.title ?? '',
@@ -1196,7 +1249,10 @@ export class StoreSettingsComponent implements OnInit {
     const homepage = this.perms.can('settings.homepage');
     const payload: StoreSettings = {
       ...this.model,
-      sizeChart: this.perms.can('settings.sizechart') ? this.chart : this.model.sizeChart,
+      sizeChart: this.perms.can('settings.sizechart') ? this.charts.GENERAL : this.model.sizeChart,
+      fitSizeCharts: this.perms.can('settings.sizechart')
+        ? { DROP_SHOULDER: this.charts.DROP_SHOULDER, REGULAR_FIT: this.charts.REGULAR_FIT }
+        : this.model.fitSizeCharts,
       brandStory: homepage ? this.brandToSave() : this.model.brandStory,
       footer: this.perms.can('settings.footer') ? this.footer : this.model.footer,
       marquee: homepage ? this.marquee : this.model.marquee,

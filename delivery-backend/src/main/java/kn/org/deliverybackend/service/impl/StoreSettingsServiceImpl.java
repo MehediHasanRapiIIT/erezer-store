@@ -94,6 +94,15 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
         settings.setSupportEmail(request.getSupportEmail());
         settings.setSupportHours(request.getSupportHours());
         settings.setSizeChartJson(write(request.getSizeChart()));
+        // An older admin panel that doesn't know the fits' charts must not wipe them.
+        if (request.getFitSizeCharts() != null) {
+            java.util.Map<String, SizeChartDTO> charts = new java.util.LinkedHashMap<>();
+            for (kn.org.deliverybackend.enumeration.Fit fit : kn.org.deliverybackend.enumeration.Fit.values()) {
+                SizeChartDTO chart = request.getFitSizeCharts().get(fit.name());
+                if (chart != null) charts.put(fit.name(), chart);
+            }
+            settings.setFitSizeChartsJson(write(charts));
+        }
         settings.setBrandStoryJson(write(BrandStorySocials.tidy(request.getBrandStory())));
         // An older admin panel that doesn't know the About page must not wipe it.
         if (request.getAboutPage() != null) {
@@ -408,6 +417,17 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
         }
     }
 
+    /** The fits' charts; an empty map when none has been saved. */
+    private java.util.Map<String, SizeChartDTO> readFitCharts(String json) {
+        if (json == null || json.isBlank()) return new java.util.LinkedHashMap<>();
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper().readValue(json,
+                    new TypeReference<java.util.LinkedHashMap<String, SizeChartDTO>>() {});
+        } catch (Exception e) {
+            return new java.util.LinkedHashMap<>();
+        }
+    }
+
     private <T> T read(String json, Class<T> type) {
         if (json == null || json.isBlank()) {
             return null;
@@ -440,6 +460,7 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
                 .supportEmail(s.getSupportEmail())
                 .supportHours(s.getSupportHours())
                 .sizeChart(read(s.getSizeChartJson(), SizeChartDTO.class))
+                .fitSizeCharts(readFitCharts(s.getFitSizeChartsJson()))
                 // A story saved with one handle is read as a list of that one.
                 .brandStory(BrandStorySocials.tidy(read(s.getBrandStoryJson(), BrandStoryDTO.class)))
                 .aboutPage(read(s.getAboutPageJson(), AboutPageDTO.class))

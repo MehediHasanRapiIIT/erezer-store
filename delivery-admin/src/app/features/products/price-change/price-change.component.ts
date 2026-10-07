@@ -114,7 +114,7 @@ const SALE_MODES: { value: SaleMode; label: string }[] = [
                       <span class="text-sm text-gray-500">% off</span>
                     </div>
                   }
-                  <p class="mt-2 text-xs text-gray-400">As today, a size with its own price sells at that price, without the sale.</p>
+                  <p class="mt-2 text-xs text-gray-400">The sale also comes off a fit's or a size's own price.</p>
                 </fieldset>
               </div>
 

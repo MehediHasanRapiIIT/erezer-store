@@ -86,7 +86,7 @@ export class EditProductComponent implements OnInit {
   errorMessage = signal('');
   fieldErrors  = signal<Record<string, string>>({});
 
-  readonly descMax = 500;
+  readonly descMax = 2000;
   descLength = computed(() => this.description().length);
 
   ngOnInit() {

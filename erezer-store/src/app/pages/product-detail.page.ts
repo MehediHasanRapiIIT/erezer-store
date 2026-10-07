@@ -21,7 +21,7 @@ import { AuthService } from '../core/auth.service';
 import { ProductCardComponent } from '../components/shared/product-card.component';
 import { RecentlyViewedComponent } from '../components/shared/recently-viewed.component';
 import { RecentlyViewedService } from '../core/recently-viewed.service';
-import { baseProductPrice, effectiveUnitPrice, isDiscountExcluded } from '../core/discount-pricing';
+import { baseProductPrice, effectiveUnitPrice, isDiscountExcluded, ownPriceAfterSale } from '../core/discount-pricing';
 import { PixelService } from '../core/pixel.service';
 import { SeoService } from '../core/seo.service';
 import { RevealDirective } from '../core/reveal.directive';
@@ -71,7 +71,7 @@ import { RevealDirective } from '../core/reveal.directive';
 
               <!-- badges -->
               <div class="absolute left-4 top-4 flex flex-col gap-2">
-                @if (hasAutoDiscount(p) || (p.discountPrice < p.price && !selectedVariant()?.priceOverride)) {
+                @if (hasAutoDiscount(p) || p.discountPrice < p.price) {
                   <span class="rounded-full bg-neutral-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-white dark:bg-white dark:text-black">Sale</span>
                 }
                 @if (effectiveStockStatus() === 'OUT_OF_STOCK') {
@@ -160,8 +160,8 @@ import { RevealDirective } from '../core/reveal.directive';
                   <span class="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300">
                     Save {{ (basePrice(p) - effectivePrice(p)) | currency:'BDT':'৳' }}
                   </span>
-                } @else if (p.discountPrice < p.price && !selectedVariant()?.priceOverride) {
-                  <p class="text-base text-neutral-400 line-through">{{ p.price | currency:'BDT':'৳' }}</p>
+                } @else if (regularPrice(p) > basePrice(p)) {
+                  <p class="text-base text-neutral-400 line-through" data-testid="pdp-regular-price">{{ regularPrice(p) | currency:'BDT':'৳' }}</p>
                 }
               </div>
 
@@ -179,9 +179,36 @@ import { RevealDirective } from '../core/reveal.directive';
                 </p>
               }
 
-              <p class="leading-relaxed text-neutral-600 dark:text-neutral-300">{{ p.description }}</p>
+              <!-- pre-line: a description typed as a list keeps its lines. -->
+              <p class="whitespace-pre-line leading-relaxed text-neutral-600 dark:text-neutral-300" data-testid="pdp-description">{{ p.description }}</p>
 
               <div class="border-t border-neutral-200 dark:border-neutral-800"></div>
+
+              <!-- fit picker: Drop Shoulder or Regular Fit, when the product comes in fits.
+                   Each fit has its own sizes, stock and price, so it is chosen first. -->
+              @if (availableFits().length > 0) {
+                <div class="space-y-3" data-testid="fit-picker">
+                  <p class="text-sm font-medium">
+                    Fit<span class="ml-1 text-neutral-500 dark:text-neutral-400">· {{ fitLabelOf(selectedFit()) }}</span>
+                  </p>
+                  <div class="flex flex-wrap gap-2">
+                    @for (f of availableFits(); track f) {
+                      <button type="button" (click)="selectFit(f)" [attr.aria-pressed]="selectedFit() === f"
+                        [attr.data-testid]="'fit-' + f"
+                        class="rounded-xl border px-5 py-2.5 text-sm font-medium transition"
+                        [class.border-neutral-900]="selectedFit() === f"
+                        [class.bg-neutral-900]="selectedFit() === f"
+                        [class.text-white]="selectedFit() === f"
+                        [class.dark:border-white]="selectedFit() === f"
+                        [class.dark:bg-white]="selectedFit() === f"
+                        [class.dark:text-black]="selectedFit() === f"
+                        [class.border-neutral-200]="selectedFit() !== f"
+                        [class.dark:border-neutral-700]="selectedFit() !== f"
+                        [class.hover:border-neutral-400]="selectedFit() !== f">{{ fitLabelOf(f) }}</button>
+                    }
+                  </div>
+                </div>
+              }
 
               <!-- size picker -->
               @if (availableSizes().length > 0 || customEnabled()) {
@@ -190,7 +217,7 @@ import { RevealDirective } from '../core/reveal.directive';
                     <p class="text-sm font-medium">
                       Size<span class="ml-1 text-neutral-500 dark:text-neutral-400">{{ selectedSize() ? '· ' + selectedSize() : (customSelected() ? '· Custom' : '') }}</span>
                     </p>
-                    @if (settings()?.sizeChart && settings()!.sizeChart!.rows.length > 0) {
+                    @if (sizeChart() && sizeChart()!.rows.length > 0) {
                       <button type="button" (click)="openSizeGuide()" class="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-100">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5h18M3 12h18M3 16.5h18M7.5 4.5v3m4.5-3v6m4.5-6v3"/></svg>
                         Size chart &amp; fit
@@ -355,10 +382,10 @@ import { RevealDirective } from '../core/reveal.directive';
                     </div>
                   }
 
-                  @if (s.sizeChart && s.sizeChart.rows.length > 0) {
+                  @if (sizeChart(); as chart) { @if (chart.rows.length > 0) {
                     <div class="border-b border-neutral-200 dark:border-neutral-800">
                       <button type="button" (click)="toggleSection('sizechart')" class="acc-trigger">
-                        Size chart
+                        <span data-testid="size-chart-title">Size chart@if (sizeChartFit(); as fit) { <span class="font-normal text-neutral-500 dark:text-neutral-400">· {{ fit }}</span> }</span>
                         <svg class="acc-chevron" [class.rotate-180]="openSection() === 'sizechart'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                       </button>
                       @if (openSection() === 'sizechart') {
@@ -376,11 +403,11 @@ import { RevealDirective } from '../core/reveal.directive';
                               <thead>
                                 <tr class="border-b border-neutral-200 text-left text-neutral-500 dark:border-neutral-700">
                                   <th class="py-2 pr-4 font-medium">Size</th>
-                                  @for (col of s.sizeChart.columns; track $index) { <th class="py-2 pr-4 font-medium">{{ col }}</th> }
+                                  @for (col of chart.columns; track $index) { <th class="py-2 pr-4 font-medium">{{ col }}</th> }
                                 </tr>
                               </thead>
                               <tbody>
-                                @for (row of s.sizeChart.rows; track $index) {
+                                @for (row of chart.rows; track $index) {
                                   <tr class="border-b border-neutral-100 dark:border-neutral-800">
                                     <td class="py-2 pr-4 font-semibold">{{ row.size }}</td>
                                     @for (cell of row.cells; track $index) {
@@ -394,7 +421,7 @@ import { RevealDirective } from '../core/reveal.directive';
                         </div>
                       }
                     </div>
-                  }
+                  } }
                 }
               </div>
             </div>
@@ -595,13 +622,13 @@ import { RevealDirective } from '../core/reveal.directive';
       </div>
 
       <!-- ── Size guide & fit modal ─────────────────────────────────────────── -->
-      @if (sizeGuideOpen() && settings()?.sizeChart; as sc) {
+      @if (sizeGuideOpen() && sizeChart(); as sc) {
         <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" (click)="closeSizeGuide()" aria-hidden="true"></div>
 
           <div class="relative z-10 flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-neutral-900">
             <div class="flex items-center justify-between border-b border-neutral-200 px-6 py-4 dark:border-neutral-800">
-              <h3 class="text-lg font-bold tracking-tight">Size Guide &amp; Fit</h3>
+              <h3 class="text-lg font-bold tracking-tight">Size Guide &amp; Fit@if (sizeChartFit(); as fit) { <span class="ml-1 text-sm font-medium text-neutral-500 dark:text-neutral-400" data-testid="size-guide-fit">· {{ fit }}</span> }</h3>
               <button type="button" (click)="closeSizeGuide()" aria-label="Close" class="inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-500 transition hover:bg-neutral-100 dark:hover:bg-neutral-800">
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
               </button>
@@ -613,11 +640,11 @@ import { RevealDirective } from '../core/reveal.directive';
                 <thead>
                   <tr class="bg-neutral-100 text-left dark:bg-neutral-800">
                     <th class="px-4 py-2.5 font-semibold">Size</th>
-                    @for (col of settings()!.sizeChart!.columns; track $index) { <th class="px-4 py-2.5 font-semibold">{{ col }} (in)</th> }
+                    @for (col of sc.columns; track $index) { <th class="px-4 py-2.5 font-semibold">{{ col }} (in)</th> }
                   </tr>
                 </thead>
                 <tbody>
-                  @for (row of settings()!.sizeChart!.rows; track $index) {
+                  @for (row of sc.rows; track $index) {
                     <tr class="border-b border-neutral-100 odd:bg-white even:bg-neutral-50 dark:border-neutral-800 dark:odd:bg-neutral-900 dark:even:bg-neutral-800/40">
                       <td class="px-4 py-2.5 font-semibold">{{ row.size }}</td>
                       @for (cell of row.cells; track $index) { <td class="px-4 py-2.5 text-neutral-600 dark:text-neutral-300">{{ (cell.inch ?? cell.cm) ?? '—' }}</td> }
@@ -751,6 +778,8 @@ export class ProductDetailPage implements OnInit {
   // ── variants ──────────────────────────────────────────────────────────────
   protected readonly variants      = signal<ApiVariant[]>([]);
   protected readonly selectedSize  = signal<string | null>(null);
+  /** The fit picked, for a product that comes in fits; null otherwise. */
+  protected readonly selectedFit   = signal<string | null>(null);
 
   // ── custom (made-to-order) sizing ───────────────────────────────────────────
   protected readonly customSelected = signal(false);
@@ -805,9 +834,62 @@ export class ProductDetailPage implements OnInit {
 
   // ── computed: variant state ────────────────────────────────────────────────
 
+  private static readonly FIT_ORDER = ['DROP_SHOULDER', 'REGULAR_FIT'];
+  private static readonly FIT_LABELS: Record<string, string> = { DROP_SHOULDER: 'Drop Shoulder', REGULAR_FIT: 'Regular Fit' };
+
+  /** The fits this product comes in, Drop Shoulder first; empty when it has none. */
+  protected readonly availableFits = computed(() => {
+    const fits = new Set(this.variants().map((v) => v.fit).filter((f): f is string => !!f));
+    return [...fits].sort((a, b) => ProductDetailPage.FIT_ORDER.indexOf(a) - ProductDetailPage.FIT_ORDER.indexOf(b));
+  });
+
+  /** The sizes on offer right now: those of the picked fit, or all of them when there are no fits. */
+  protected readonly fitVariants = computed(() => {
+    const fit = this.selectedFit();
+    return this.availableFits().length === 0 ? this.variants() : this.variants().filter((v) => v.fit === fit);
+  });
+
+  /**
+   * The size chart to show: the picked fit's own, because Drop Shoulder and
+   * Regular Fit measure differently, or the shop's general chart when that fit
+   * has none (and for a product with no fits).
+   */
+  protected readonly sizeChart = computed(() => {
+    const settings = this.settings();
+    const fit = this.selectedFit();
+    const own = fit ? settings?.fitSizeCharts?.[fit] : null;
+    return own && own.rows?.length > 0 ? own : settings?.sizeChart ?? null;
+  });
+
+  /**
+   * "Drop Shoulder" while the chart on screen is that fit's own, so the customer
+   * can see the measurements are for what they picked; empty while the general
+   * chart is standing in.
+   */
+  protected readonly sizeChartFit = computed(() => {
+    const fit = this.selectedFit();
+    const own = fit ? this.settings()?.fitSizeCharts?.[fit] : null;
+    return fit && own && own.rows?.length > 0 ? this.fitLabelOf(fit) : '';
+  });
+
+  protected fitLabelOf(fit: string | null): string {
+    if (!fit) return '';
+    return this.variants().find((v) => v.fit === fit)?.fitLabel ?? ProductDetailPage.FIT_LABELS[fit] ?? fit;
+  }
+
+  /** Picks a fit, keeping the size if that fit has it in stock, else its first size in stock. */
+  protected selectFit(fit: string): void {
+    if (this.selectedFit() === fit) return;
+    const size = this.selectedSize();
+    this.selectedFit.set(fit);
+    this.customSelected.set(false);
+    if (size && this.isSizeAvailable(size)) return;
+    this.selectedSize.set(this.availableSizes().find((s) => this.isSizeAvailable(s)) ?? null);
+  }
+
   protected readonly availableSizes = computed(() => {
     const set = new Set<string>();
-    for (const v of this.variants()) {
+    for (const v of this.fitVariants()) {
       if (v.size) set.add(v.size);
     }
     // Conventional clothing size order; unknown values append alphabetically.
@@ -825,7 +907,7 @@ export class ProductDetailPage implements OnInit {
   protected readonly selectedVariant = computed<ApiVariant | null>(() => {
     if (this.variants().length === 0) return null;
     const size = this.selectedSize();
-    return this.variants().find((v) => (v.size ?? null) === size) ?? null;
+    return this.fitVariants().find((v) => (v.size ?? null) === size) ?? null;
   });
 
   // ── custom sizing computed ──────────────────────────────────────────────────
@@ -834,7 +916,7 @@ export class ProductDetailPage implements OnInit {
   protected readonly customNoteText   = computed(() => this.product()?.customSizeNote?.trim() || 'Enter Custom Measurements');
   /** Measurement inputs mirror the (global) size-chart columns; fall back to Chest/Length. */
   protected readonly customColumns    = computed(() => {
-    const cols = this.settings()?.sizeChart?.columns;
+    const cols = this.sizeChart()?.columns;
     return cols && cols.length > 0 ? cols : ['Chest', 'Length'];
   });
   protected readonly customValid = computed(() => {
@@ -860,7 +942,7 @@ export class ProductDetailPage implements OnInit {
 
   /** Sizes available from the (global) size chart, in conventional order. */
   protected readonly simSizes = computed<string[]>(() => {
-    const rows = this.settings()?.sizeChart?.rows ?? [];
+    const rows = this.sizeChart()?.rows ?? [];
     const sizes = rows.map((r) => r.size);
     return sizes.length > 0 ? sizes : ['S', 'M', 'L', 'XL', 'XXL', '3XL'];
   });
@@ -904,7 +986,7 @@ export class ProductDetailPage implements OnInit {
 
   /** Chest/Length (inch) of the recommended size from the chart, for the silhouette. */
   protected readonly simMeasurements = computed<{ label: string; value: number | null }[]>(() => {
-    const chart = this.settings()?.sizeChart;
+    const chart = this.sizeChart();
     if (!chart) return [];
     const row = chart.rows.find((r) => r.size === this.recommendedSize());
     if (!row) return [];
@@ -1046,6 +1128,7 @@ export class ProductDetailPage implements OnInit {
     this.selectedImageId.set(null);
     this.variants.set([]);
     this.selectedSize.set(null);
+    this.selectedFit.set(null);
     this.customSelected.set(false);
     this.customValues.set({});
     this.customComments.set('');
@@ -1110,6 +1193,8 @@ export class ProductDetailPage implements OnInit {
       .pipe(catchError(() => of([] as ApiVariant[])))
       .subscribe((vs) => {
         this.variants.set(vs);
+        // A product that comes in fits opens on Drop Shoulder, or on the one fit it has.
+        this.selectedFit.set(this.availableFits()[0] ?? null);
         // Auto-select the first in-stock size for a smoother UX.
         const firstSize = this.availableSizes().find((s) => this.isSizeAvailable(s));
         if (firstSize) this.selectedSize.set(firstSize);
@@ -1122,7 +1207,7 @@ export class ProductDetailPage implements OnInit {
   }
 
   protected isSizeAvailable(size: string): boolean {
-    return this.variants().some((v) =>
+    return this.fitVariants().some((v) =>
       v.size === size &&
       (v.stockQuantity == null || v.stockQuantity > 0)
     );
@@ -1165,8 +1250,14 @@ export class ProductDetailPage implements OnInit {
 
   protected basePrice(p: ApiProduct): number {
     const v = this.selectedVariant();
-    if (v?.priceOverride != null) return v.priceOverride;
+    // A fit's or a size's own price, with the product's sale off it too.
+    if (v?.priceOverride != null) return ownPriceAfterSale(p, v.priceOverride);
     return baseProductPrice(p.price, p.discountPrice);
+  }
+
+  /** The price before the product's sale: the picked fit's or size's own price, else the product's. */
+  protected regularPrice(p: ApiProduct): number {
+    return this.selectedVariant()?.priceOverride ?? p.price;
   }
 
   /** Unit price after automatic product/category/global discounts. */
@@ -1365,7 +1456,10 @@ export class ProductDetailPage implements OnInit {
     const userId = this.auth.userId();
     const variantId = variant?.id ?? null;
     // Variants are size-only — label by the chosen size, never the (legacy) variant name/colour.
-    const variantLabel = this.selectedSize() ?? variant?.size ?? 'One Size';
+    // In a fit, the label says so ("Drop Shoulder / M"), as the server's does: the
+    // same size in the two fits are two lines in the cart.
+    const sizeLabel = this.selectedSize() ?? variant?.size ?? 'One Size';
+    const variantLabel = variant?.fit ? `${this.fitLabelOf(variant.fit)} / ${sizeLabel}` : sizeLabel;
 
     this.pixel.addToCart(p.id, p.name, this.effectivePrice(p), this.quantity());
 

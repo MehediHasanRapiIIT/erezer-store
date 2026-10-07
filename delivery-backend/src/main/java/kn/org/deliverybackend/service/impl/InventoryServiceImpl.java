@@ -368,6 +368,15 @@ public class InventoryServiceImpl implements InventoryService {
             }
         }
 
+        // Fits named for this change, e.g. only Regular Fit. None named means every fit.
+        java.util.Set<String> onlyFits = new java.util.HashSet<>();
+        if (request.getFits() != null) {
+            for (String f : request.getFits()) {
+                kn.org.deliverybackend.enumeration.Fit fit = kn.org.deliverybackend.enumeration.Fit.parse(f);
+                if (fit != null) onlyFits.add(fit.name());
+            }
+        }
+
         int setToZero = 0;
         int inSizes = 0;
         int sizesChanged = 0;
@@ -375,8 +384,10 @@ public class InventoryServiceImpl implements InventoryService {
         for (Product product : products) {
             List<Variant> sizes = variantRepository.findByProductId(product.getId());
             if (!sizes.isEmpty()) {
-                List<Variant> chosen = onlySizes.isEmpty() ? sizes : sizes.stream()
-                        .filter(v -> v.getSize() != null && onlySizes.contains(v.getSize().trim().toUpperCase()))
+                List<Variant> chosen = sizes.stream()
+                        .filter(v -> onlySizes.isEmpty()
+                                || (v.getSize() != null && onlySizes.contains(v.getSize().trim().toUpperCase())))
+                        .filter(v -> onlyFits.isEmpty() || (v.getFit() != null && onlyFits.contains(v.getFit())))
                         .toList();
                 if (chosen.isEmpty()) {
                     leftAlone++;
@@ -388,8 +399,8 @@ public class InventoryServiceImpl implements InventoryService {
                 sizesChanged += chosen.size();
                 continue;
             }
-            if (!onlySizes.isEmpty()) {
-                // Not sold in sizes, and the change is for named sizes only.
+            if (!onlySizes.isEmpty() || !onlyFits.isEmpty()) {
+                // Not sold in sizes, and the change is for named sizes or fits only.
                 leftAlone++;
                 continue;
             }
@@ -420,15 +431,16 @@ public class InventoryServiceImpl implements InventoryService {
         };
         int changed = products.size() - leftAlone;
         if (changed == 0) {
-            throw new InvalidRequestException("None of those products has "
-                    + (onlySizes.size() == 1 ? "that size." : "any of those sizes."));
+            throw new InvalidRequestException(onlyFits.isEmpty()
+                    ? "None of those products has " + (onlySizes.size() == 1 ? "that size." : "any of those sizes.")
+                    : "None of those products comes in that fit and size.");
         }
         String message = what + changed + " product" + (changed == 1 ? "" : "s")
                 + " in " + scopeLabel + "."
                 + (inSizes > 0 ? " For the " + inSizes + " sold in sizes that is per size ("
                     + sizesChanged + " size" + (sizesChanged == 1 ? "" : "s") + " changed)." : "")
                 + (leftAlone > 0 ? " " + leftAlone + " without "
-                    + (onlySizes.size() == 1 ? "that size" : "those sizes")
+                    + (!onlyFits.isEmpty() ? "that fit or size" : onlySizes.size() == 1 ? "that size" : "those sizes")
                     + (leftAlone == 1 ? " was" : " were") + " left as " + (leftAlone == 1 ? "it was." : "they were.") : "")
                 + (setToZero > 0 ? " " + setToZero + " had less than that and " + (setToZero == 1 ? "is" : "are") + " now 0." : "");
 
@@ -515,9 +527,12 @@ public class InventoryServiceImpl implements InventoryService {
     /** The product's sizes with the stock of each, in the order customers see them. */
     private List<StockResponseDTO.SizeStock> sizesOf(Long productId) {
         return variantRepository.findByProductId(productId).stream()
-                .sorted(java.util.Comparator.comparingInt(InventoryServiceImpl::sizeRank))
+                .sorted(java.util.Comparator
+                        .comparingInt((Variant v) -> kn.org.deliverybackend.enumeration.Fit.rank(v.getFit()))
+                        .thenComparingInt(InventoryServiceImpl::sizeRank))
                 .map(v -> new StockResponseDTO.SizeStock(v.getId(), v.getSize(),
-                        v.getStockQuantity() == null ? 0 : v.getStockQuantity()))
+                        v.getStockQuantity() == null ? 0 : v.getStockQuantity(),
+                        v.getFit(), kn.org.deliverybackend.enumeration.Fit.labelOf(v.getFit())))
                 .toList();
     }
 

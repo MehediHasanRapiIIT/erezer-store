@@ -53,6 +53,10 @@ public class StoreSettings extends AbstractBaseEntity<Long> {
     @Column(name = "size_chart_json", columnDefinition = "text")
     private String sizeChartJson;
 
+    /** A size chart for each fit, keyed by fit: {"DROP_SHOULDER": {...}, "REGULAR_FIT": {...}}. */
+    @Column(name = "fit_size_charts_json", columnDefinition = "text")
+    private String fitSizeChartsJson;
+
     /** {@code BrandStoryDTO} serialised as JSON (landing "Our story" band). */
     @Column(name = "brand_story_json", columnDefinition = "text")
     private String brandStoryJson;

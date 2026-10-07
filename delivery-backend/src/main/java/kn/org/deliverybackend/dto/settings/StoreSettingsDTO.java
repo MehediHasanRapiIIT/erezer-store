@@ -22,6 +22,15 @@ public class StoreSettingsDTO {
     private String supportEmail;
     private String supportHours;
     private SizeChartDTO sizeChart;
+
+    /**
+     * A size chart for each fit, keyed DROP_SHOULDER and REGULAR_FIT, because
+     * the two measure differently. A product page shows the chart of the fit
+     * the customer picked; a fit with no chart of its own, and a product with
+     * no fits, show {@link #sizeChart}. Null from an older admin panel leaves
+     * what is stored alone.
+     */
+    private java.util.Map<String, SizeChartDTO> fitSizeCharts;
     private BrandStoryDTO brandStory;
     private AboutPageDTO aboutPage;
     private FooterDTO footer;

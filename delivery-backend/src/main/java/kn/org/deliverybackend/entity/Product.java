@@ -23,6 +23,8 @@ public class Product extends AbstractBaseEntity<Long> {
 
     private String name;
 
+    /** What the product page says about it; may run to several lines. */
+    @Column(length = 2000)
     private String description;
 
     @Column(unique = true)
@@ -37,6 +39,14 @@ public class Product extends AbstractBaseEntity<Long> {
     private BigDecimal price;
 
     private BigDecimal discountPrice;
+
+    /**
+     * True when the sale discount was typed as an amount in taka rather than a
+     * percentage. It decides how the sale comes off a fit's or a size's own
+     * price: the same amount, or the same percentage. Null means a percentage.
+     */
+    @Column(name = "sale_by_amount")
+    private Boolean saleByAmount;
 
     private Long shopId;
 

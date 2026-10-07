@@ -13,6 +13,8 @@ import { NoticeService } from '../../../core/services/notice.service';
 import { ConfirmService } from '../../../core/services/confirm.service';
 import { ShippingService } from '../../../core/services/shipping.service';
 import { ACCESS } from '../../../core/access/admin-pages';
+import { VariantService } from '../../../core/services/variant.service';
+import { FITS, groupByFit } from '../shared/fit-sizes.component';
 
 /**
  * The Products page. Search, the category filter and paging are all done by
@@ -30,6 +32,7 @@ export class ProductsListComponent implements OnInit, OnDestroy {
   private categoryService = inject(CategoryService);
   private readonly shippingService = inject(ShippingService);
   private readonly confirmer = inject(ConfirmService);
+  private readonly variantService = inject(VariantService);
   private router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   protected readonly perms = inject(PermissionService);
@@ -55,6 +58,18 @@ export class ProductsListComponent implements OnInit, OnDestroy {
 
   /** Numbers each request, so an answer that arrives after a newer one is ignored. */
   private latestRequest = 0;
+
+  // ── Fits for many products ─────────────────────────────────────────────────
+  fitMode = signal(false);
+  fitTab = signal<'products' | 'category'>('products');
+  readonly fitOptions = FITS;
+  /** The fits to give: Drop Shoulder, Regular Fit, both, or neither. */
+  fitChoice = signal<Set<string>>(new Set(['DROP_SHOULDER']));
+  fitCategoryId = signal<number | null>(null);
+  fitSaving = signal(false);
+  fitError = signal('');
+  /** A product's sizes under their fit, for the Stock column. */
+  protected readonly fitGroups = groupByFit;
 
   // ── Delivery charge ────────────────────────────────────────────────────────
   // What a product costs to deliver, set here rather than on the product form:
@@ -267,8 +282,79 @@ export class ProductsListComponent implements OnInit, OnDestroy {
     return this.perms.can('shipping.edit');
   }
 
+  canSetFits(): boolean {
+    return this.perms.can('products.variants');
+  }
+
+  toggleFitMode(): void {
+    this.fitMode.update((on) => !on);
+    this.fitError.set('');
+    // One panel at a time: they share the ticks in the list.
+    if (this.fitMode()) this.chargeMode.set(false);
+    this.picks.set(new Set());
+  }
+
+  isFitChosen(fit: string): boolean {
+    return this.fitChoice().has(fit);
+  }
+
+  toggleFitChoice(fit: string): void {
+    const set = new Set(this.fitChoice());
+    if (!set.delete(fit)) set.add(fit);
+    this.fitChoice.set(set);
+  }
+
+  private chosenFits(): string[] {
+    return FITS.map((f) => f.value).filter((f) => this.fitChoice().has(f));
+  }
+
+  /** What the Fits panel will do, in words. */
+  fitPreview(): string {
+    const fits = FITS.filter((f) => this.fitChoice().has(f.value)).map((f) => f.label);
+    const what = fits.length === 0
+      ? 'take the fits off: each product goes back to plain sizes, with the stock of its fits added together'
+      : `come in ${fits.join(' and ')}`;
+    const who = this.fitTab() === 'products'
+      ? `The ${this.pickedCount()} ticked product${this.pickedCount() === 1 ? '' : 's'} will`
+      : `Every product in ${this.categories().find((c) => c.id === this.fitCategoryId())?.name ?? 'the category you choose'} will`;
+    return `${who} ${what}. A fit being added gets every size with no stock; one being removed goes with its stock. Products with no sizes are left alone.`;
+  }
+
+  async applyFits(): Promise<void> {
+    if (this.fitSaving()) return;
+    const fits = this.chosenFits();
+    const byCategory = this.fitTab() === 'category';
+    if (byCategory && !this.fitCategoryId()) { this.fitError.set('Choose a category.'); return; }
+    if (!byCategory && this.pickedCount() === 0) { this.fitError.set('Tick at least one product in the list.'); return; }
+    const labels = FITS.filter((f) => fits.includes(f.value)).map((f) => f.label).join(' and ') || 'no fit';
+    const ok = await this.confirmer.ask({
+      title: `Set the fit to ${labels}?`,
+      message: this.fitPreview() + ' This cannot be undone.',
+      confirmLabel: 'Set fits',
+      danger: true,
+    });
+    if (!ok) return;
+    this.fitSaving.set(true);
+    this.fitError.set('');
+    this.variantService.setFitsForMany(byCategory
+      ? { scope: 'CATEGORY', categoryId: this.fitCategoryId()!, fits }
+      : { scope: 'PRODUCTS', productIds: [...this.picks()], fits }).subscribe({
+      next: (result) => {
+        this.fitSaving.set(false);
+        this.picks.set(new Set());
+        this.notices.success('Fits saved', result.message);
+        this.loadPage(this.currentPage());
+      },
+      error: (err) => {
+        this.fitSaving.set(false);
+        this.fitError.set(parseApiError(err));
+      },
+    });
+  }
+
   toggleChargeMode(): void {
     this.chargeMode.update((on) => !on);
+    if (this.chargeMode()) this.fitMode.set(false);
     if (!this.chargeMode()) {
       this.picks.set(new Set());
       this.chargeError.set('');
@@ -277,7 +363,8 @@ export class ProductsListComponent implements OnInit, OnDestroy {
 
   /** True while the ticking column is on screen. */
   pickingProducts(): boolean {
-    return this.chargeMode() && this.chargeTab() === 'products' && this.canSetCharges();
+    return (this.chargeMode() && this.chargeTab() === 'products' && this.canSetCharges())
+      || (this.fitMode() && this.fitTab() === 'products' && this.canSetFits());
   }
 
   pickedCount(): number {

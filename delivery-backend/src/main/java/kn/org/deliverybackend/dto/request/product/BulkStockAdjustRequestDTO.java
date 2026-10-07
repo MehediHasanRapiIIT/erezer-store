@@ -44,4 +44,17 @@ public class BulkStockAdjustRequestDTO {
      */
     @Size(max = 20, message = "Too many sizes")
     private List<String> sizes;
+
+    /**
+     * For products that come in fits: change only these (DROP_SHOULDER,
+     * REGULAR_FIT). Products without them, and products with no fits, are then
+     * left alone. Empty means every fit.
+     */
+    @Size(max = 2, message = "Too many fits")
+    private List<String> fits;
+
+    public BulkStockAdjustRequestDTO(StockScope scope, List<Long> productIds, Long categoryId,
+                                     StockOperation operation, Integer quantity, List<String> sizes) {
+        this(scope, productIds, categoryId, operation, quantity, sizes, null);
+    }
 }

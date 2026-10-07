@@ -134,6 +134,8 @@ export interface BulkStockAdjustRequest {
    * only those; leave out for every size.
    */
   sizes?: string[];
+  /** For products that come in fits: change only these; leave out for every fit. */
+  fits?: string[];
 }
 
 /** One size of a product and how many of it there are. */
@@ -141,6 +143,9 @@ export interface SizeStock {
   variantId: number;
   size: string;
   stockQuantity: number;
+  /** DROP_SHOULDER or REGULAR_FIT; null when the product has no fits. */
+  fit?: string | null;
+  fitLabel?: string | null;
 }
 
 /** An exact stock figure for each size of one product. */

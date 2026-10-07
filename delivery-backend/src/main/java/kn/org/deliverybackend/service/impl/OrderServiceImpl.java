@@ -655,8 +655,11 @@ public class OrderServiceImpl implements OrderService {
             // Snapshot variant attributes so order history survives later edits/deletes.
             if (variant != null) {
                 // Variants are size-only — snapshot the size as the name too.
-                oi.setVariantName(variant.getSize());
-                oi.setVariantSize(variant.getSize());
+                // In a fit, both say so ("Drop Shoulder / M"), which is then what the
+                // invoice, order tracking and the admin order page print as the size.
+                String chosen = kn.org.deliverybackend.enumeration.Fit.describe(variant.getFit(), variant.getSize());
+                oi.setVariantName(chosen);
+                oi.setVariantSize(chosen);
             }
             // Custom (made-to-order) snapshot: measurements + server-authoritative surcharge.
             if (isCustomLine(item, p)) {

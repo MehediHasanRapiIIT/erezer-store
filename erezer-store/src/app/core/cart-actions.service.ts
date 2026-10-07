@@ -6,7 +6,7 @@ import { AuthService } from './auth.service';
 import { EcommerceStore } from './store/ecommerce.store';
 import { DiscountsStore } from './store/discounts.store';
 import { PixelService } from './pixel.service';
-import { baseProductPrice, effectiveUnitPrice, isDiscountExcluded } from './discount-pricing';
+import { baseProductPrice, effectiveUnitPrice, isDiscountExcluded, ownPriceAfterSale } from './discount-pricing';
 
 /** What happened when a product was added from a suggestion. */
 export type QuickAddResult = 'added' | 'choose-size' | 'unavailable' | 'failed';
@@ -74,7 +74,7 @@ export class CartActionsService {
       switchMap((variants): Observable<QuickAddResult> => {
         if (variants.length > 1) return of('choose-size');
         const variant = variants[0] ?? null;
-        const base = variant?.priceOverride != null ? variant.priceOverride : baseProductPrice(p.price, p.discountPrice);
+        const base = variant?.priceOverride != null ? ownPriceAfterSale(p, variant.priceOverride) : baseProductPrice(p.price, p.discountPrice);
         const unitPrice = effectiveUnitPrice(base, p.id, p.categoryId, this.discounts.discountsFor(p.categoryId), isDiscountExcluded(p));
         const size = variant?.size ?? 'One Size';
         this.pixel.addToCart(p.id, p.name, unitPrice, 1);

@@ -78,6 +78,13 @@ public class ProductResponseDTO {
     private Boolean showStockQuantity;
 
     /**
+     * True when the sale discount was given as an amount in taka, not a
+     * percentage. The shop needs it to take the sale off a fit's own price the
+     * same way the server does.
+     */
+    private Boolean saleByAmount;
+
+    /**
      * The admin Products list only: the stock of each size, so a total such as
      * 3000 can be seen to be five sizes of 600. Left out everywhere else.
      */

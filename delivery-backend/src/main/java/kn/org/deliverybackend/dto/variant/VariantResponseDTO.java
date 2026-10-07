@@ -16,6 +16,10 @@ public class VariantResponseDTO {
     private Long productId;
     private String name;
     private String size;
+    /** DROP_SHOULDER or REGULAR_FIT; null when the product has no fits. */
+    private String fit;
+    /** "Drop Shoulder", for showing. */
+    private String fitLabel;
     private String sku;
     private Integer stockQuantity;
     private BigDecimal priceOverride;

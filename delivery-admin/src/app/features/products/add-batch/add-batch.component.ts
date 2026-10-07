@@ -11,7 +11,9 @@ import { NoticeService } from '../../../core/services/notice.service';
 import {
   DiscountInputComponent, DiscountMode, discountFields, discountProblem,
 } from '../shared/discount-input.component';
-import { SizeGridComponent, SizeRow, emptySizeRows, pickedSizes } from '../shared/size-grid.component';
+import {
+  FitSizes, FitSizesComponent, countFitSizes, emptyFitSizes, fitSizesProblem, fitVariants,
+} from '../shared/fit-sizes.component';
 
 /** The server's limits, checked here first. */
 const MAX_PRODUCTS = 20;
@@ -53,7 +55,7 @@ interface BatchRow {
 @Component({
   selector: 'app-add-batch',
   standalone: true,
-  imports: [RouterLink, FormsModule, SidebarComponent, DiscountInputComponent, SizeGridComponent],
+  imports: [RouterLink, FormsModule, SidebarComponent, DiscountInputComponent, FitSizesComponent],
   templateUrl: './add-batch.component.html',
 })
 export class AddBatchComponent implements OnInit, OnDestroy {
@@ -73,7 +75,8 @@ export class AddBatchComponent implements OnInit, OnDestroy {
   readonly price = signal<number | null>(null);
   readonly discountMode = signal<DiscountMode>('PERCENT');
   readonly discountValue = signal<number | null>(null);
-  readonly sizeRows = signal<SizeRow[]>(emptySizeRows());
+  /** The fits every product comes in, and the sizes and stock of each. */
+  readonly fitSizes = signal<FitSizes>(emptyFitSizes());
   readonly isAvailable = signal(true);
   readonly isNewArrival = signal(false);
   readonly isFeatured = signal(false);
@@ -132,7 +135,7 @@ export class AddBatchComponent implements OnInit, OnDestroy {
     const n = this.rows().length;
     if (n === 0) return '';
     const pics = this.totalPictures();
-    const sizes = this.sizeRows().filter((r) => r.picked).length;
+    const sizes = countFitSizes(this.fitSizes());
     const parts = [`${n} product${n === 1 ? '' : 's'}`];
     if (pics) parts.push(`${pics} picture${pics === 1 ? '' : 's'}`);
     if (sizes) parts.push(`${sizes} size${sizes === 1 ? '' : 's'} each`);
@@ -367,6 +370,8 @@ export class AddBatchComponent implements OnInit, OnDestroy {
     const shared = discountProblem(price, this.discountMode(), this.discountValue());
     if (shared) messages.push(shared);
     if (this.rows().length === 0) messages.push('Add at least one product: drop photos, or press “Add a row”.');
+    const fitIssue = this.canAddSizes() ? fitSizesProblem(this.fitSizes()) : '';
+    if (fitIssue) messages.push(fitIssue);
     if (this.totalBytes() > MAX_TOTAL_BYTES) {
       messages.push(`The pictures add up to ${mb(this.totalBytes())}, and one save can carry ${mb(MAX_TOTAL_BYTES)}. `
         + 'Remove a few rows, save, then add them in a second batch.');
@@ -426,7 +431,7 @@ export class AddBatchComponent implements OnInit, OnDestroy {
       discountExcluded: this.discountExcluded(),
       stockDisplay: this.stockDisplay(),
     };
-    const sizes = this.canAddSizes() ? pickedSizes(this.sizeRows()) : [];
+    const sizes = this.canAddSizes() ? fitVariants(this.fitSizes()) : [];
     const items: BatchItem[] = this.rows().map((r) => ({
       name: r.name.trim(),
       productCode: r.code.trim(),

@@ -69,6 +69,22 @@ export function baseProductPrice(price: number, discountPrice: number | null | u
 }
 
 /**
+ * A fit's or a size's own price after the product's sale, mirroring the
+ * backend's PricingSupport.saleOn: "10% off" takes 10% off it, "100 taka off"
+ * takes 100 off it. No sale, or one that would leave nothing to pay, leaves it
+ * as it is.
+ */
+export function ownPriceAfterSale(
+  product: { price: number; discountPrice?: number | null; saleByAmount?: boolean | null },
+  ownPrice: number,
+): number {
+  const { price, discountPrice: sale } = product;
+  if (!(price > 0) || sale == null || !(sale > 0) || sale >= price) return ownPrice;
+  const after = product.saleByAmount ? ownPrice - (price - sale) : Math.round((ownPrice * sale / price) * 100) / 100;
+  return after > 0 ? after : ownPrice;
+}
+
+/**
  * True when no automatic discount may touch this product, because the admin
  * excluded the product itself or the whole category it sits in. Mirrors the
  * guard at the top of the backend DiscountEngine.

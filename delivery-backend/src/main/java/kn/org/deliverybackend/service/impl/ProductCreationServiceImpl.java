@@ -119,8 +119,9 @@ public class ProductCreationServiceImpl implements ProductCreationService {
             if (size.isEmpty()) {
                 throw new InvalidRequestException("Every size row needs a size.");
             }
-            if (!seen.add(size.toUpperCase())) {
-                throw new InvalidRequestException("Size " + size + " is listed twice.");
+            kn.org.deliverybackend.enumeration.Fit fit = kn.org.deliverybackend.enumeration.Fit.parse(r.getFit());
+            if (!seen.add((fit == null ? "" : fit.name()) + "|" + size.toUpperCase())) {
+                throw new InvalidRequestException((fit == null ? "Size " : fit.label() + " ") + size + " is listed twice.");
             }
         }
     }

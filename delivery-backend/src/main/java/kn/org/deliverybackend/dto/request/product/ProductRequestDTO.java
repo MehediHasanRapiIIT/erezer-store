@@ -26,6 +26,7 @@ public class ProductRequestDTO {
     private String productCode;
 
     @NotBlank(message = "Description is required")
+    @Size(max = 2000, message = "The description can be up to 2000 characters")
     private String description;
 
     @NotNull(message = "Price is required")

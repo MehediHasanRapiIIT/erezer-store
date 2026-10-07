@@ -139,14 +139,15 @@
                 <svg class="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h7"/>
                 </svg>
-                Sizes
+                Fit and sizes
               </h2>
               <p class="mb-3 text-xs text-gray-500">
-                Tick the sizes this product comes in. Customers have to pick one of them. Leave them all unticked for a product with no sizes.
+                What the customer has to choose before buying.
               </p>
               @if (perms.can('products.variants')) {
-                <app-size-grid [(rows)]="sizeRows" [disabled]="isLoading()"
-                  [canSetStock]="perms.can('inventory.edit')" [canSetPrice]="perms.can('products.price')" />
+                <app-fit-sizes [(value)]="fitSizes" [basePrice]="basePrice()" [disabled]="isLoading()"
+                  [canSetStock]="perms.can('inventory.edit')" [canSetPrice]="perms.can('products.price')"
+                  plainHint="Tick the sizes this product comes in. Customers have to pick one of them. Leave them all unticked for a product with no sizes." />
               } @else {
                 <p class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">
                   Adding sizes needs the “Manage sizes and colours” permission. Someone who has it can add them after you save.

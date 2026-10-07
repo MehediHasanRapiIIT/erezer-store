@@ -30,6 +30,20 @@
           # Change codes
         </a>
       }
+      @if (canSetFits()) {
+        <button
+          type="button"
+          (click)="toggleFitMode()"
+          [attr.aria-pressed]="fitMode()"
+          data-testid="fits-button"
+          class="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors"
+          [class.bg-indigo-600]="fitMode()" [class.text-white]="fitMode()" [class.hover:bg-indigo-700]="fitMode()"
+          [class.border]="!fitMode()" [class.border-gray-200]="!fitMode()" [class.bg-white]="!fitMode()"
+          [class.text-gray-700]="!fitMode()" [class.hover:bg-gray-50]="!fitMode()"
+        >
+          👕 {{ fitMode() ? 'Done with fits' : 'Fits' }}
+        </button>
+      }
       @if (canSetCharges()) {
         <button
           type="button"
@@ -106,6 +120,74 @@
             </button>
           </div>
         </div>
+
+        <!-- Fits for many products at once: the ticked ones, or a whole category. -->
+        @if (fitMode() && canSetFits()) {
+          <div class="mx-5 mt-4 rounded-xl border border-indigo-200 bg-indigo-50 p-5" data-testid="fits-panel">
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p class="text-sm font-bold text-indigo-900">Fits</p>
+                <p class="mt-0.5 text-xs text-indigo-700">
+                  Which fits products come in: Drop Shoulder, Regular Fit, both, or neither. One product at a time still works on its edit page.
+                </p>
+              </div>
+              <div class="flex rounded-lg border border-indigo-200 bg-white p-0.5 text-xs font-semibold" role="tablist">
+                <button type="button" role="tab" [attr.aria-selected]="fitTab() === 'products'" (click)="fitTab.set('products')"
+                  class="rounded-md px-3 py-1.5 transition-colors"
+                  [class.bg-indigo-600]="fitTab() === 'products'" [class.text-white]="fitTab() === 'products'"
+                  [class.text-gray-600]="fitTab() !== 'products'">Chosen products</button>
+                <button type="button" role="tab" [attr.aria-selected]="fitTab() === 'category'" (click)="fitTab.set('category')"
+                  class="rounded-md px-3 py-1.5 transition-colors"
+                  [class.bg-indigo-600]="fitTab() === 'category'" [class.text-white]="fitTab() === 'category'"
+                  [class.text-gray-600]="fitTab() !== 'category'">A category</button>
+              </div>
+            </div>
+            @if (fitError()) {
+              <p class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-600">{{ fitError() }}</p>
+            }
+            <div class="flex flex-wrap items-end gap-4">
+              <div class="flex items-center gap-4 pb-2 text-sm font-medium text-gray-800">
+                @for (f of fitOptions; track f.value) {
+                  <label class="flex cursor-pointer items-center gap-2">
+                    <input type="checkbox" [checked]="isFitChosen(f.value)" (change)="toggleFitChoice(f.value)"
+                      [attr.data-testid]="'bulk-fit-' + f.value"
+                      class="h-4 w-4 cursor-pointer rounded border-gray-300 text-indigo-600" />
+                    {{ f.label }}
+                  </label>
+                }
+              </div>
+              @if (fitTab() === 'category') {
+                <div>
+                  <label class="mb-1 block text-xs font-medium text-gray-600" for="fit-category">Category</label>
+                  <select id="fit-category" [ngModel]="fitCategoryId()" (ngModelChange)="fitCategoryId.set($event ? +$event : null)"
+                    class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-300">
+                    <option [ngValue]="null">Choose a category…</option>
+                    @for (c of categories(); track c.id) {
+                      <option [ngValue]="c.id">{{ c.label || c.name }}</option>
+                    }
+                  </select>
+                </div>
+              }
+              <div class="ml-auto flex items-center gap-3">
+                @if (fitTab() === 'products') {
+                  <span class="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700">{{ pickedCount() }} ticked</span>
+                  @if (pickedCount() > 0) {
+                    <button type="button" (click)="clearPicks()" class="text-xs font-medium text-indigo-600 hover:underline">Clear ticks</button>
+                  }
+                }
+                <button type="button" (click)="applyFits()" data-testid="apply-fits"
+                  [disabled]="fitSaving() || (fitTab() === 'products' ? pickedCount() === 0 : !fitCategoryId())"
+                  class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
+                  {{ fitSaving() ? 'Saving…' : fitTab() === 'products' ? 'Apply to ticked products' : 'Apply to category' }}
+                </button>
+              </div>
+            </div>
+            <p class="mt-3 text-xs text-gray-600" data-testid="fits-preview">{{ fitPreview() }}</p>
+            @if (fitTab() === 'products') {
+              <p class="mt-1 text-xs text-gray-500">Tick products in the list below. Your ticks are kept while you move between pages.</p>
+            }
+          </div>
+        }
 
         <!-- Delivery charge: what a product costs to deliver, set here rather than
              on the product form, so a new product starts on its area's price. -->
@@ -301,12 +383,17 @@
                     @if (product.sizeStock?.length) {
                       <div class="mt-1 flex max-w-[11rem] flex-wrap gap-1" [attr.data-testid]="'sizes-' + product.id"
                         title="The number above is the total of these sizes">
-                        @for (s of product.sizeStock; track s.variantId) {
-                          <span class="rounded border px-1.5 py-0.5 text-[11px] font-medium"
-                            [class.border-gray-200]="s.stockQuantity > 0" [class.text-gray-600]="s.stockQuantity > 0"
-                            [class.border-red-200]="s.stockQuantity === 0" [class.text-red-500]="s.stockQuantity === 0">
-                            {{ s.size }} <span class="font-bold">{{ s.stockQuantity }}</span>
-                          </span>
+                        @for (g of fitGroups(product.sizeStock); track g.fit) {
+                          @if (g.label) {
+                            <span class="basis-full pt-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">{{ g.label }}</span>
+                          }
+                          @for (s of g.sizes; track s.variantId) {
+                            <span class="rounded border px-1.5 py-0.5 text-[11px] font-medium"
+                              [class.border-gray-200]="s.stockQuantity > 0" [class.text-gray-600]="s.stockQuantity > 0"
+                              [class.border-red-200]="s.stockQuantity === 0" [class.text-red-500]="s.stockQuantity === 0">
+                              {{ s.size }} <span class="font-bold">{{ s.stockQuantity }}</span>
+                            </span>
+                          }
                         }
                       </div>
                     }

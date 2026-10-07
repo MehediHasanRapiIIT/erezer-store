@@ -13,6 +13,7 @@ import { NoticeService } from '../../core/services/notice.service';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { CategoryService } from '../../core/services/category.service';
 import { SIZE_OPTIONS } from '../products/shared/size-grid.component';
+import { FITS, groupByFit } from '../products/shared/fit-sizes.component';
 
 /**
  * The Inventory page. The list is searched and paged by the server; the
@@ -92,6 +93,11 @@ export class InventoryComponent implements OnInit, OnDestroy {
    */
   readonly sizeOptions = SIZE_OPTIONS;
   bulkSizes = signal<Set<string>>(new Set());
+  /** The fits the change is for. None ticked means every fit. */
+  readonly fitOptions = FITS;
+  bulkFits = signal<Set<string>>(new Set());
+  /** A product's sizes under their fit, for the list and the stock boxes. */
+  protected readonly fitGroups = groupByFit;
 
   /** Whole-shop tab. */
   allOp = signal<'INCREMENT' | 'DECREMENT' | 'SET'>('INCREMENT');
@@ -427,6 +433,20 @@ export class InventoryComponent implements OnInit, OnDestroy {
     return `Set stock to ${qty} for`;
   }
 
+  isBulkFit(fit: string): boolean {
+    return this.bulkFits().has(fit);
+  }
+
+  toggleBulkFit(fit: string): void {
+    const set = new Set(this.bulkFits());
+    if (set.has(fit)) set.delete(fit); else set.add(fit);
+    this.bulkFits.set(set);
+  }
+
+  private pickedBulkFits(): string[] {
+    return FITS.map((f) => f.value).filter((f) => this.bulkFits().has(f));
+  }
+
   isBulkSize(size: string): boolean {
     return this.bulkSizes().has(size);
   }
@@ -445,6 +465,12 @@ export class InventoryComponent implements OnInit, OnDestroy {
   /** How the quantity is applied, in words, for the preview line and the confirmation. */
   sizeWords(op?: 'INCREMENT' | 'DECREMENT' | 'SET', qty = 0): string {
     const sizes = this.pickedBulkSizes();
+    const fits = FITS.filter((f) => this.bulkFits().has(f.value)).map((f) => f.label);
+    if (fits.length > 0) {
+      // A fit is named: only products that come in it are touched.
+      return `Only ${fits.join(' and ')}${sizes.length ? ', size' + (sizes.length === 1 ? ' ' : 's ') + sizes.join(', ') : ', every size'}`
+        + ` — the number is for each size. Other fits and sizes, and products without them, are left as they are.`;
+    }
     if (sizes.length === 0 && op === 'SET') {
       return `For products sold in sizes, each size is set to ${qty}, replacing what it has; `
         + `the product then shows the total of its sizes (5 sizes = ${qty * 5}).`;
@@ -511,7 +537,8 @@ export class InventoryComponent implements OnInit, OnDestroy {
     this.bulkLoading.set(true);
     this.bulkError.set('');
     const sizes = this.pickedBulkSizes();
-    this.stockService.adjustStock(sizes.length ? { ...request, sizes } : request).subscribe({
+    const fits = this.pickedBulkFits();
+    this.stockService.adjustStock({ ...request, ...(sizes.length ? { sizes } : {}), ...(fits.length ? { fits } : {}) }).subscribe({
       next: (result) => {
         this.bulkLoading.set(false);
         this.notices.success('Stock updated', result.message);

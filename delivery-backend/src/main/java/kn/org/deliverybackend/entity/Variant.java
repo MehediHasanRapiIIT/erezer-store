@@ -38,6 +38,13 @@ public class Variant extends AbstractBaseEntity<Long> {
     @Column(length = 16)
     private String size;
 
+    /**
+     * The fit this size belongs to: DROP_SHOULDER or REGULAR_FIT. Null for a
+     * product that has no fits. A product's sizes all have a fit or none do.
+     */
+    @Column(name = "fit", length = 30)
+    private String fit;
+
     /** Per-variant SKU; unique-per-product (enforced by DB partial unique index). */
     @Column(length = 64)
     private String sku;

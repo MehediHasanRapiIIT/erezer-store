@@ -49,5 +49,13 @@ public class StockResponseDTO {
         private Long variantId;
         private String size;
         private int stockQuantity;
+        /** DROP_SHOULDER or REGULAR_FIT; null when the product has no fits. */
+        private String fit;
+        /** "Drop Shoulder", for showing. */
+        private String fitLabel;
+
+        public SizeStock(Long variantId, String size, int stockQuantity) {
+            this(variantId, size, stockQuantity, null, null);
+        }
     }
 }

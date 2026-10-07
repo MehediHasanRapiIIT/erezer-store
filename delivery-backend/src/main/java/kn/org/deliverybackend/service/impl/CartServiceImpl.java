@@ -81,10 +81,8 @@ public class CartServiceImpl implements CartService {
 
     /** Variant price override wins; otherwise the product's discounted/base price. */
     private BigDecimal resolveUnitPrice(Product product, Variant variant) {
-        if (variant != null && variant.getPriceOverride() != null) {
-            return variant.getPriceOverride();
-        }
-        return product.getDiscountPrice() != null ? product.getDiscountPrice() : product.getPrice();
+        // The same rule the checkout and the order use, so the cart never disagrees with them.
+        return PricingSupport.effectiveUnitPrice(product, variant);
     }
 
     /** Product name, suffixed with the variant label (name, or size/colour) when present. */
@@ -94,7 +92,8 @@ public class CartServiceImpl implements CartService {
         }
         // Variants are size-only — label by size, ignoring any legacy colour
         // that may be baked into the stored variant name.
-        String label = variant.getSize();
+        // In a fit, the label says so: "Drop Shoulder / M".
+        String label = kn.org.deliverybackend.enumeration.Fit.describe(variant.getFit(), variant.getSize());
         if (label == null || label.isBlank()) {
             label = variant.getName();
         }

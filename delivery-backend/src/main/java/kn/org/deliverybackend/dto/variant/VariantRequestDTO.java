@@ -16,6 +16,13 @@ public class VariantRequestDTO {
     @Size(max = 16)
     private String size;
 
+    /**
+     * DROP_SHOULDER or REGULAR_FIT, for a product that comes in fits; null
+     * otherwise. When changing a size, null leaves its fit as it is.
+     */
+    @Size(max = 30)
+    private String fit;
+
     @Size(max = 64)
     private String sku;
 

@@ -12,12 +12,14 @@ import {
   DiscountInputComponent, DiscountMode, discountFields, discountProblem,
 } from '../shared/discount-input.component';
 import { PicturePickerComponent } from '../shared/picture-picker.component';
-import { SizeGridComponent, SizeRow, emptySizeRows, pickedSizes } from '../shared/size-grid.component';
+import {
+  FitSizes, FitSizesComponent, countFitSizes, emptyFitSizes, fitSizesProblem, fitVariants,
+} from '../shared/fit-sizes.component';
 
 @Component({
   selector: 'app-add-product',
   standalone: true,
-  imports: [RouterLink, FormsModule, SidebarComponent, DiscountInputComponent, PicturePickerComponent, SizeGridComponent],
+  imports: [RouterLink, FormsModule, SidebarComponent, DiscountInputComponent, PicturePickerComponent, FitSizesComponent],
   templateUrl: './add-product.component.html',
 })
 export class AddProductComponent implements OnInit {
@@ -39,7 +41,8 @@ export class AddProductComponent implements OnInit {
   /** Pictures waiting to go up with the product; the first is the main one. */
   pictures     = signal<File[]>([]);
   /** Sizes to add with the product, ticked in the grid. */
-  sizeRows     = signal<SizeRow[]>(emptySizeRows());
+  /** The fits the product comes in, and the sizes and stock of each. */
+  fitSizes     = signal<FitSizes>(emptyFitSizes());
   categoryId   = signal<number | null>(null);
   shopId       = signal(1);
   isAvailable  = signal(true);
@@ -70,18 +73,18 @@ export class AddProductComponent implements OnInit {
   errorMessage = signal('');
   fieldErrors  = signal<Record<string, string>>({});
 
-  readonly descMax = 500;
+  readonly descMax = 2000;
   descLength = computed(() => this.description().length);
 
   isDirty = computed(() =>
     !!this.productName() || !!this.productCode() || !!this.description() || !!this.basePrice()
-    || this.pictures().length > 0 || this.sizeRows().some((r) => r.picked)
+    || this.pictures().length > 0 || countFitSizes(this.fitSizes()) > 0
   );
 
   /** What the Save button will send, so the footer can say it. */
   readonly saveSummary = computed(() => {
     const pics = this.pictures().length;
-    const sizes = this.sizeRows().filter((r) => r.picked).length;
+    const sizes = countFitSizes(this.fitSizes());
     const parts = [];
     if (pics) parts.push(`${pics} picture${pics === 1 ? '' : 's'}`);
     if (sizes) parts.push(`${sizes} size${sizes === 1 ? '' : 's'}`);
@@ -158,7 +161,12 @@ export class AddProductComponent implements OnInit {
       stockDisplay: this.stockDisplay(),
     };
 
-    const sizes = this.perms.can('products.variants') ? pickedSizes(this.sizeRows()) : [];
+    const fitIssue = this.perms.can('products.variants') ? fitSizesProblem(this.fitSizes()) : '';
+    if (fitIssue) {
+      this.errorMessage.set(fitIssue);
+      return;
+    }
+    const sizes = this.perms.can('products.variants') ? fitVariants(this.fitSizes()) : [];
     const pictures = this.perms.can('products.images') ? this.pictures() : [];
 
     // One request: the server saves the product, its pictures and its sizes
