@@ -124,10 +124,12 @@ import { RevealDirective } from '../core/reveal.directive';
 
           <!-- Info column (sticky on desktop) -->
           <div class="lg:sticky lg:top-24 lg:self-start">
-            <div class="space-y-6">
+            <!-- Tighter on a phone, where every gap is a third of the screen's
+                 width away from the next thing to read. -->
+            <div class="space-y-4 sm:space-y-6">
 
               <!-- title block -->
-              <div class="space-y-3">
+              <div class="space-y-2 sm:space-y-3">
                 @if (p.brand) {
                   <p class="text-xs font-semibold uppercase tracking-[0.28em] text-neutral-500 dark:text-neutral-400">{{ p.brand }}</p>
                 }
@@ -178,9 +180,6 @@ import { RevealDirective } from '../core/reveal.directive';
                   {{ delivery.label }}
                 </p>
               }
-
-              <!-- pre-line: a description typed as a list keeps its lines. -->
-              <p class="whitespace-pre-line leading-relaxed text-neutral-600 dark:text-neutral-300" data-testid="pdp-description">{{ p.description }}</p>
 
               <div class="border-t border-neutral-200 dark:border-neutral-800"></div>
 
@@ -325,6 +324,13 @@ import { RevealDirective } from '../core/reveal.directive';
 
               @if (cartMessage()) {
                 <p class="text-sm" [class.text-emerald-600]="!cartMessageError()" [class.text-red-600]="cartMessageError()">{{ cartMessage() }}</p>
+              }
+
+              <!-- The description comes after the choices and the Add to cart button, so
+                   a long one never pushes the button down the page.
+                   pre-line: a description typed as a list keeps its lines. -->
+              @if (p.description) {
+                <p class="whitespace-pre-line border-t border-neutral-200 pt-5 leading-relaxed text-neutral-600 dark:border-neutral-800 dark:text-neutral-300" data-testid="pdp-description">{{ p.description }}</p>
               }
 
               <!-- trust row -->
