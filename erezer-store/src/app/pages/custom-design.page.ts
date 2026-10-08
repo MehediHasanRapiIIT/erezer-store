@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, computed, inject, signal } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { catchError, of } from 'rxjs';
@@ -16,15 +16,24 @@ import type {
 
 interface ViewTab { id: CustomDesignView; label: string; }
 
+/** The panels a phone opens from its bar of tools, one at a time. */
+type StudioSheet = 'design' | 'text' | 'product' | 'edit' | 'more';
+
 @Component({
   standalone: true,
   imports: [FormsModule],
   providers: [CustomDesignCanvasService],
   template: `
-    <section class="studio-bleed mx-auto max-w-[1600px] px-4 py-6">
-      <header class="mb-3 rounded-2xl bg-amber-100 px-6 py-3 text-center dark:bg-amber-950/40">
-        <h1 class="text-lg font-bold tracking-wide sm:text-xl">DESIGN YOUR OWN CLOTHING IN JUST MINUTES</h1>
-        <p class="app-muted mt-1 text-sm">No minimum order — even a single piece. Design t-shirts, hoodies and more, then submit for a price.</p>
+    <!-- On a phone this page is laid out like a design app: the garment at the
+         top where it can always be seen, a bar of tools at the bottom of the
+         screen, and each tool's controls in a panel that slides up over the lower
+         part of the screen. From 640px up it is the three-column studio. One
+         template serves both, because the canvas can only exist once: the phone
+         layout is the same elements, re-placed by the styles below. -->
+    <section class="studio-bleed mx-auto max-w-[1600px] px-4 py-6 max-sm:-mt-8 max-sm:px-0 max-sm:pb-20 max-sm:pt-2">
+      <header class="mb-3 rounded-2xl bg-amber-100 px-6 py-3 text-center dark:bg-amber-950/40 max-sm:sr-only">
+        <h1 class="text-lg font-bold tracking-wide sm:text-xl max-sm:text-[11px] max-sm:leading-tight">DESIGN YOUR OWN CLOTHING IN JUST MINUTES</h1>
+        <p class="app-muted mt-1 text-sm max-sm:hidden">No minimum order — even a single piece. Design t-shirts, hoodies and more, then submit for a price.</p>
       </header>
 
       @if (loading()) {
@@ -36,11 +45,13 @@ interface ViewTab { id: CustomDesignView; label: string; }
       <!-- The grid (and canvas) must stay VISIBLE in the DOM: fabric initialised on a
            display:none canvas can't measure it and paints nothing. We dim it while
            loading instead of hiding it. -->
-      <div class="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_248px]" [class.opacity-50]="loading()">
+      <!-- minmax(0,1fr) on the single column too: a bare column grows to fit the
+           canvas, which pushed the page wider than a phone's screen. -->
+      <div class="grid grid-cols-[minmax(0,1fr)] gap-4 max-sm:gap-2 lg:grid-cols-[240px_minmax(0,1fr)_248px]" [class.opacity-50]="loading()">
 
           <!-- ── Left: tools ─────────────────────────────────────────────── -->
-          <aside class="space-y-3">
-            <div class="grid grid-cols-2 gap-3">
+          <aside class="space-y-3 max-sm:order-3">
+            <div class="grid grid-cols-2 gap-3 max-sm:hidden">
               <label class="app-card flex cursor-pointer flex-col items-center gap-1 p-4 text-center text-xs font-semibold">
                 <input type="file" accept="image/*" class="hidden" (change)="onFileSelected($event)" [disabled]="uploading()" />
                 <span class="text-lg">🖼️</span>
@@ -53,8 +64,13 @@ interface ViewTab { id: CustomDesignView; label: string; }
             </div>
 
             <!-- Add text row -->
-            <div class="app-card space-y-2 p-3">
+            <div class="app-card studio-sheet space-y-2 p-3" [class.studio-sheet-closed]="sheet() !== 'text'" data-testid="sheet-text">
+              <div class="studio-sheet-head sm:hidden">
+                <span>Add text</span>
+                <button type="button" (click)="closeSheet()" class="studio-sheet-done">Done</button>
+              </div>
               <input #textInput [(ngModel)]="newText" name="newText" placeholder="Type text…" maxlength="120"
+                (keyup.enter)="newText.trim() && addText()"
                 class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
               <div class="flex items-center gap-2">
                 <input type="color" value="#111111" [(ngModel)]="textColor" name="textColor" (change)="applyTextColor()" class="h-8 w-10 cursor-pointer rounded" />
@@ -64,13 +80,17 @@ interface ViewTab { id: CustomDesignView; label: string; }
 
             <!-- Contextual: selected element tools -->
             @if (canvas.active(); as a) {
-              <div class="app-card space-y-3 p-3">
-                <span class="text-xs font-semibold uppercase tracking-wide">
+              <div class="app-card studio-sheet space-y-3 p-3" [class.studio-sheet-closed]="sheet() !== 'edit'" data-testid="sheet-edit">
+                <div class="studio-sheet-head sm:hidden">
+                  <span>Edit {{ a.kind === 'text' ? 'text' : a.kind === 'image' ? 'picture' : 'item' }}</span>
+                  <button type="button" (click)="closeSheet()" class="studio-sheet-done">Done</button>
+                </div>
+                <span class="text-xs font-semibold uppercase tracking-wide max-sm:hidden">
                   {{ a.kind === 'text' ? 'Text' : a.kind === 'image' ? 'Image' : 'Element' }} options
                 </span>
 
                 @if (a.kind === 'text') {
-                  <select [ngModel]="a.fontFamily" (ngModelChange)="canvas.setFontFamily($event)"
+                  <select [ngModel]="a.fontFamily.split(',')[0].trim()" (ngModelChange)="canvas.setFontFamily($event)"
                     class="w-full rounded-lg border border-neutral-300 px-2 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-900"
                     [style.font-family]="a.fontFamily">
                     @for (g of fontGroups; track g.label) {
@@ -156,7 +176,7 @@ interface ViewTab { id: CustomDesignView; label: string; }
                   <button type="button" (click)="removeBg()" [disabled]="removingBg()" class="btn-secondary w-full py-1.5 text-xs">
                     {{ removingBg() ? 'Removing…' : 'Remove background' }}
                   </button>
-                  @if (removeBgError()) { <p class="text-xs text-red-500">{{ removeBgError() }}</p> }
+                  @if (removeBgError()) { <p class="text-xs text-red-500" data-testid="remove-bg-note">{{ removeBgError() }}</p> }
 
                   <!-- Filter presets. Rebuilding the whole fabric filter stack
                        on each change, so these are mutually exclusive. -->
@@ -207,7 +227,14 @@ interface ViewTab { id: CustomDesignView; label: string; }
             }
 
             <!-- Selectors -->
-            <div class="app-card space-y-3 p-3">
+            <!-- studio-last: with no logo library the panel after this one is hidden
+                 in the studio, and this card must end the column as it always did. -->
+            <div class="app-card studio-sheet space-y-3 p-3" [class.studio-sheet-closed]="sheet() !== 'product'"
+              [class.studio-last]="!logos().length" data-testid="sheet-product">
+              <div class="studio-sheet-head sm:hidden">
+                <span>Product</span>
+                <button type="button" (click)="closeSheet()" class="studio-sheet-done">Done</button>
+              </div>
               <label class="block text-xs font-semibold uppercase tracking-wide">
                 Item
                 <select [ngModel]="selectedItemName()" (ngModelChange)="onItemChange($event)" name="item"
@@ -247,11 +274,21 @@ interface ViewTab { id: CustomDesignView; label: string; }
               </label>
             </div>
 
-            <!-- Logo library -->
-            @if (logos().length) {
-              <div class="app-card p-3">
+            <!-- Logo library; on a phone this panel also holds the upload button,
+                 so it is there (as a panel) even when the library is empty. -->
+            <div class="app-card studio-sheet p-3" [class.studio-sheet-closed]="sheet() !== 'design'"
+              [class.sm:hidden]="!logos().length" data-testid="sheet-design">
+              <div class="studio-sheet-head sm:hidden">
+                <span>Add a design</span>
+                <button type="button" (click)="closeSheet()" class="studio-sheet-done">Done</button>
+              </div>
+              <label class="btn-primary mb-3 flex w-full cursor-pointer items-center justify-center gap-2 !rounded-xl py-3 text-sm font-semibold sm:hidden">
+                <input type="file" accept="image/*" class="hidden" (change)="onFileSelected($event)" [disabled]="uploading()" data-testid="phone-upload" />
+                {{ uploading() ? 'Uploading…' : 'Upload a picture from your phone' }}
+              </label>
+              @if (logos().length) {
                 <span class="text-xs font-semibold uppercase tracking-wide">Logo library</span>
-                <div class="mt-2 grid grid-cols-3 gap-2">
+                <div class="mt-2 grid grid-cols-3 gap-2 max-sm:grid-cols-4">
                   @for (logo of logos(); track logo.url) {
                     <button type="button" (click)="addLogo(logo.url)" [title]="logo.name"
                       class="aspect-square overflow-hidden rounded-lg border border-neutral-200 p-1 dark:border-neutral-700">
@@ -259,8 +296,10 @@ interface ViewTab { id: CustomDesignView; label: string; }
                     </button>
                   }
                 </div>
-              </div>
-            }
+              } @else {
+                <p class="app-muted text-center text-xs sm:hidden">PNG or JPG. A picture with a clear background looks best on the garment.</p>
+              }
+            </div>
           </aside>
 
           <!-- ── Center: canvas ───────────────────────────── -->
@@ -268,8 +307,8 @@ interface ViewTab { id: CustomDesignView; label: string; }
                occupying its own row above it - that row cost ~66px of height,
                which on a laptop is the difference between the whole garment
                being visible and having to scroll for it. -->
-          <div class="relative flex justify-center rounded-2xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900">
-            <div class="pointer-events-auto absolute right-6 top-6 z-10 flex items-center gap-1 rounded-full bg-neutral-900/90 px-3 py-2 text-white shadow-lg backdrop-blur">
+          <div class="relative flex justify-center rounded-2xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900 max-sm:order-1 max-sm:flex-col max-sm:items-center max-sm:rounded-xl max-sm:p-1" data-testid="studio-stage">
+            <div class="studio-actions pointer-events-auto absolute right-6 top-6 z-10 flex items-center gap-1 rounded-full bg-neutral-900/90 px-3 py-2 text-white shadow-lg backdrop-blur">
               <button type="button" (click)="canvas.setZoom(canvas.zoom() + 0.1)" title="Zoom in" class="rounded-full p-2 hover:bg-white/10">＋</button>
               <button type="button" (click)="canvas.setZoom(canvas.zoom() - 0.1)" title="Zoom out" class="rounded-full p-2 hover:bg-white/10">－</button>
               <button type="button" (click)="canvas.duplicateActive()" [disabled]="!canvas.hasSelection()" title="Duplicate" class="rounded-full p-2 hover:bg-white/10 disabled:opacity-40">⧉</button>
@@ -290,16 +329,16 @@ interface ViewTab { id: CustomDesignView; label: string; }
           </div>
 
           <!-- ── Right: views + actions ───────────────────────────────────── -->
-          <aside class="space-y-3">
-            <div class="grid grid-cols-2 gap-2">
+          <aside class="space-y-3 max-sm:order-2 max-sm:space-y-2">
+            <div class="grid grid-cols-2 gap-2 max-sm:grid-cols-4 max-sm:gap-1.5" data-testid="studio-views">
               @for (tab of viewTabs; track tab.id) {
                 <button type="button" (click)="selectView(tab.id)"
-                  class="relative rounded-xl border-2 bg-neutral-50 p-1.5 transition hover:border-neutral-400 dark:bg-neutral-900"
+                  class="relative rounded-xl border-2 bg-neutral-50 p-1.5 transition hover:border-neutral-400 dark:bg-neutral-900 max-sm:p-1"
                   [class.border-black]="view() === tab.id"
                   [class.dark:border-white]="view() === tab.id"
                   [class.border-neutral-200]="view() !== tab.id"
                   [class.dark:border-neutral-700]="view() !== tab.id">
-                  <span class="flex h-16 items-center justify-center overflow-hidden">
+                  <span class="flex h-16 items-center justify-center overflow-hidden max-sm:h-9">
                     @if (viewThumb(tab.id); as thumb) {
                       <img [src]="thumb" [alt]="tab.label" class="max-h-full max-w-full object-contain" />
                     } @else {
@@ -308,7 +347,7 @@ interface ViewTab { id: CustomDesignView; label: string; }
                         <br />mockup</span>
                     }
                   </span>
-                  <span class="mt-1 block text-center text-[11px] font-medium lowercase">{{ tab.label }}</span>
+                  <span class="mt-1 block truncate text-center text-[11px] font-medium lowercase max-sm:mt-0.5 max-sm:text-[10px]">{{ tab.label }}</span>
                   @if (!canvas.isViewEmpty(tab.id)) {
                     <span class="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-green-500"
                       title="This view has artwork"></span>
@@ -317,6 +356,11 @@ interface ViewTab { id: CustomDesignView; label: string; }
               }
             </div>
 
+            <div class="studio-sheet space-y-3" [class.studio-sheet-closed]="sheet() !== 'more'" data-testid="sheet-more">
+            <div class="studio-sheet-head sm:hidden">
+                <span>Save and share</span>
+                <button type="button" (click)="closeSheet()" class="studio-sheet-done">Done</button>
+              </div>
             <div class="grid grid-cols-3 gap-2">
               <button type="button" (click)="saveDraft()" [disabled]="savingDraft()" class="app-card p-2 text-center text-[11px] font-semibold">💾<br>{{ draftId() ? 'update' : 'save' }}</button>
               <button type="button" (click)="toggleDrafts()" class="app-card p-2 text-center text-[11px] font-semibold">📁<br>drafts</button>
@@ -347,16 +391,33 @@ interface ViewTab { id: CustomDesignView; label: string; }
                 }
               </div>
             }
+            </div>
 
-            <button type="button" (click)="openSubmit()" class="btn-primary w-full py-3 text-sm font-bold">SUBMIT FOR PRICE</button>
+            <button type="button" (click)="openSubmit()" data-testid="studio-submit" class="btn-primary w-full py-3 text-sm font-bold max-sm:!rounded-xl max-sm:py-2.5">SUBMIT FOR PRICE</button>
           </aside>
       </div>
     </section>
 
+    <!-- ── Phone: the bar of tools, always under the thumb ───────────────────── -->
+    <nav class="studio-toolbar sm:hidden" aria-label="Design tools" data-testid="studio-toolbar">
+      @for (tool of phoneTools; track tool.id) {
+        <button type="button" (click)="toggleSheet(tool.id)"
+          [disabled]="tool.id === 'edit' && !canvas.active()"
+          [attr.aria-pressed]="sheet() === tool.id" [attr.data-testid]="'tool-' + tool.id"
+          class="studio-tool" [class.studio-tool-on]="sheet() === tool.id">
+          <span class="studio-tool-icon" aria-hidden="true">{{ tool.icon }}</span>
+          <span>{{ tool.label }}</span>
+          @if (tool.id === 'edit' && canvas.active() && sheet() !== 'edit') {
+            <span class="studio-tool-dot" aria-hidden="true"></span>
+          }
+        </button>
+      }
+    </nav>
+
     <!-- ── Submit for price modal ───────────────────────────────────────────── -->
     @if (showSubmit()) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" (click)="closeSubmit()">
-        <div class="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl bg-white p-6 dark:bg-neutral-900" (click)="$event.stopPropagation()">
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 max-sm:items-end max-sm:p-0" (click)="closeSubmit()">
+        <div class="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl bg-white p-6 dark:bg-neutral-900 max-sm:max-h-[92dvh] max-sm:rounded-b-none max-sm:p-4" (click)="$event.stopPropagation()">
           @if (submittedRef()) {
             <div class="space-y-4 py-8 text-center">
               <h2 class="text-xl font-bold">Request sent 🎉</h2>
@@ -428,6 +489,84 @@ interface ViewTab { id: CustomDesignView; label: string; }
     }
     :host-context(.dark) .cd-input { background: rgb(23 23 23); border-color: rgb(64 64 64); }
 
+    /* The phone-only pieces take no part in the studio from 640px up. */
+    .studio-sheet-head, .studio-toolbar { display: none; }
+    .studio-last { margin-bottom: 0 !important; }
+
+    /*
+     * ── Phone layout ───────────────────────────────────────────────────────
+     * Tool groups that are cards down the side of the studio become panels
+     * fixed to the bottom of the screen, one open at a time, above the bar of
+     * tools. The garment stays at the top of the page, in view above them.
+     */
+    @media (max-width: 639px) {
+      .studio-toolbar {
+        position: fixed; inset-inline: 0; bottom: 0; z-index: 40;
+        display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+        padding-bottom: env(safe-area-inset-bottom);
+        border-top: 1px solid rgb(229 229 229); background: #fff;
+        box-shadow: 0 -6px 18px rgb(0 0 0 / 0.08);
+      }
+      .studio-tool {
+        position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 1px; height: 56px; font-size: 11px; font-weight: 600; color: rgb(64 64 64);
+      }
+      .studio-tool:disabled { opacity: 0.35; }
+      .studio-tool-icon { font-size: 19px; line-height: 1.1; }
+      .studio-tool-on { color: #000; background: rgb(245 245 245); box-shadow: inset 0 2px 0 #000; }
+      .studio-tool-dot {
+        position: absolute; top: 8px; left: calc(50% + 10px); width: 8px; height: 8px;
+        border-radius: 9999px; background: rgb(16 185 129);
+      }
+
+      .studio-sheet {
+        position: fixed; inset-inline: 0; z-index: 39;
+        bottom: calc(56px + env(safe-area-inset-bottom));
+        max-height: 42dvh; overflow-y: auto; overscroll-behavior: contain;
+        margin: 0 !important; padding: 0 16px 16px;
+        border: 0; border-top: 1px solid rgb(229 229 229); border-radius: 18px 18px 0 0;
+        background: #fff; box-shadow: 0 -10px 28px rgb(0 0 0 / 0.18);
+        animation: studioSheetUp 0.2s ease-out;
+      }
+      .studio-sheet-closed { display: none; }
+      .studio-sheet-head {
+        position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between;
+        margin: 0 -16px 4px; padding: 10px 16px; background: inherit;
+        font-size: 14px; font-weight: 700; border-bottom: 1px solid rgb(240 240 240);
+      }
+      .studio-sheet-done {
+        min-height: 44px !important; padding: 0 16px; border-radius: 9999px;
+        background: #000; color: #fff; font-size: 13px; font-weight: 600;
+      }
+
+      /* Controls a finger can hit: 44px tall, and text that doesn't make the
+         phone zoom in when a box is tapped (it does below 16px). */
+      .studio-sheet button, .studio-sheet select { min-height: 44px; min-width: 44px; }
+      .studio-sheet input:not([type='range']):not([type='color']):not([type='file']),
+      .studio-sheet select { min-height: 44px; font-size: 16px; }
+      .studio-sheet input[type='color'] { height: 44px; width: 52px; }
+      .studio-sheet input[type='range'] { height: 36px; }
+      .studio-sheet .text-xs, .studio-sheet .text-\\[11px\\] { font-size: 13px; line-height: 1.35; }
+
+      /* The strip of actions: a row of its own above the garment (floating, it
+         covered the collar on a screen this narrow), finger-sized. */
+      .studio-actions {
+        position: static; align-self: stretch; margin-bottom: 4px; justify-content: space-between;
+        padding: 2px 6px; gap: 0; border-radius: 10px;
+      }
+      .studio-actions button { min-width: 40px; min-height: 40px; }
+      .studio-actions > span { display: none; }
+
+      :host-context(.dark) .studio-toolbar { background: rgb(10 10 10); border-color: rgb(38 38 38); }
+      :host-context(.dark) .studio-tool { color: rgb(212 212 212); }
+      :host-context(.dark) .studio-tool-on { color: #fff; background: rgb(23 23 23); box-shadow: inset 0 2px 0 #fff; }
+      :host-context(.dark) .studio-sheet { background: rgb(18 18 18); border-color: rgb(38 38 38); }
+      :host-context(.dark) .studio-sheet-head { border-color: rgb(38 38 38); }
+      :host-context(.dark) .studio-sheet-done { background: #fff; color: #000; }
+    }
+    @keyframes studioSheetUp { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .studio-sheet { animation: none; } }
+
     /*
      * The app shell wraps every route in <main class="max-w-7xl">, which caps
      * this page at 1280px and leaves ~340px of dead margin either side on a
@@ -474,6 +613,41 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
     { id: 'leftSleeve', label: 'Left sleeve' },
     { id: 'rightSleeve', label: 'Right sleeve' },
   ];
+
+  /** Phone only: which panel is open above the bar of tools; null for none. */
+  protected readonly sheet = signal<StudioSheet | null>(null);
+  protected readonly phoneTools: { id: StudioSheet; label: string; icon: string }[] = [
+    { id: 'design', label: 'Design', icon: '🖼️' },
+    { id: 'text', label: 'Text', icon: 'T' },
+    { id: 'product', label: 'Product', icon: '👕' },
+    { id: 'edit', label: 'Edit', icon: '✎' },
+    { id: 'more', label: 'Save', icon: '💾' },
+  ];
+
+  constructor() {
+    // The Edit panel is about the selected item: with nothing selected it has
+    // nothing to show, so it closes rather than sit there empty.
+    effect(() => {
+      if (!this.canvas.active() && this.sheet() === 'edit') this.sheet.set(null);
+    });
+  }
+
+  /** The bar of tools: opens a panel, or closes it when it is the one open. */
+  protected toggleSheet(id: StudioSheet): void {
+    const opening = this.sheet() !== id;
+    this.sheet.set(opening ? id : null);
+    // Typing is the whole point of the Text panel: put the cursor in its box.
+    if (opening && id === 'text') setTimeout(() => this.textInputRef?.nativeElement.focus(), 60);
+  }
+
+  protected closeSheet(): void {
+    this.sheet.set(null);
+  }
+
+  /** True on a phone-width screen, where the studio is laid out as an app. */
+  private isPhone(): boolean {
+    return typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches;
+  }
 
   protected readonly loading = signal(true);
   protected readonly error = signal('');
@@ -550,7 +724,10 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
     // pixels 1:1, so the backing store must be sized here rather than stretched
     // with CSS - scaling it in CSS would desynchronise pointer coordinates.
     const host = this.canvasRef.nativeElement.parentElement;
-    const available = Math.floor((host?.clientWidth ?? 0) - 32); // minus wrapper p-4
+    // Minus the wrapper's own padding: p-4 in the studio, less on a phone.
+    const style = host ? getComputedStyle(host) : null;
+    const padding = style ? parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) : 32;
+    const available = Math.floor((host?.clientWidth ?? 0) - padding);
     // Also bound by the viewport height: the stage is square, so sizing purely
     // on width would push the garment below the fold on a short window.
     // Garment mockups are portrait, so the rendered shirt is bounded by the
@@ -559,7 +736,11 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
     // Leave room for the site header, the page banner and the canvas toolbar
     // that sit above the stage, so the whole garment is visible without
     // scrolling on a typical laptop.
-    const byHeight = Math.floor(window.innerHeight - 185);
+    // On a phone the garment shares the screen with the site header,
+    // the strip of actions, the row of sides, the submit button and the bar of
+    // tools: about 322px in all, so the whole editor fits one screen without
+    // scrolling.
+    const byHeight = Math.floor(window.innerHeight - (this.isPhone() ? 322 : 185));
     // Floor low enough that a narrow phone is never forced wider than its own
     // viewport - a 360px floor overflowed at 420px once padding was counted.
     const size = Math.max(240, Math.min(1040, available || 840, byHeight));
@@ -642,6 +823,9 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
   protected addText(): void {
     this.canvas.addText(this.newText);
     this.newText = '';
+    // On a phone, get the panel out of the way so the new text can be seen and moved.
+    this.textInputRef?.nativeElement.blur();
+    this.sheet.set(null);
   }
 
   protected applyTextColor(): void {
@@ -650,6 +834,7 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
 
   protected addLogo(url: string): void {
     void this.canvas.addImage(url);
+    this.sheet.set(null);
   }
 
   protected onFileSelected(event: Event): void {
@@ -665,7 +850,10 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
     ).subscribe((res) => {
       this.uploading.set(false);
       input.value = '';
-      if (res?.url) void this.canvas.addImage(res.url);
+      if (res?.url) {
+        void this.canvas.addImage(res.url);
+        this.sheet.set(null);
+      }
     });
   }
 
@@ -762,9 +950,10 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
   protected removeBg(): void {
     this.removingBg.set(true);
     this.removeBgError.set('');
-    this.canvas.removeBackground().then((ok) => {
+    this.canvas.removeBackground().then((result) => {
       this.removingBg.set(false);
-      if (!ok) this.removeBgError.set('Could not process this image (it may be protected).');
+      if (result === 'none') this.removeBgError.set('This picture has no plain background to remove. It works on a design with one plain colour behind it.');
+      if (result === 'failed') this.removeBgError.set('Could not process this image (it may be protected).');
     });
   }
 

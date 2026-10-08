@@ -691,41 +691,115 @@ export class CustomDesignCanvasService {
   }
 
   /**
-   * Makes near-white pixels of the selected image transparent — a simple
-   * background remover for artwork uploaded on a white/solid-light background.
+   * Removes a plain background of any colour from the selected image.
+   *
+   * The background colour is read from the picture's own edge (the colour most
+   * of the border is made of), then cleared from the edge inwards: only pixels
+   * of that colour that are connected to the outside go, so the same colour
+   * inside the artwork (white lettering, black outlines) is kept. The rim left
+   * between background and artwork is faded so no halo of the old colour shows.
+   *
+   * 'none' means the edge is not one plain colour (a photo, or a picture whose
+   * background is already see-through), so there is nothing this can remove.
    * Replaces the image source with the processed (same-origin) PNG.
    */
-  async removeBackground(threshold = 238): Promise<boolean> {
+  async removeBackground(tolerance = 42): Promise<'done' | 'none' | 'failed'> {
     const obj = this.canvas?.getActiveObject();
-    if (!obj || obj.type !== 'image') return false;
+    if (!obj || obj.type !== 'image') return 'failed';
     const img = obj as FabricImage;
     const el = img.getElement() as CanvasImageSource & { naturalWidth?: number; naturalHeight?: number; width: number; height: number };
     const w = el.naturalWidth || el.width;
     const h = el.naturalHeight || el.height;
+    if (!w || !h) return 'failed';
     const off = document.createElement('canvas');
     off.width = w; off.height = h;
     const ctx = off.getContext('2d');
-    if (!ctx) return false;
+    if (!ctx) return 'failed';
     ctx.drawImage(el, 0, 0, w, h);
     let data: ImageData;
     try {
       data = ctx.getImageData(0, 0, w, h);
     } catch {
       // Tainted (non-CORS) image — can't read pixels.
-      return false;
+      return 'failed';
     }
     const d = data.data;
-    for (let i = 0; i < d.length; i += 4) {
-      if (d[i] > threshold && d[i + 1] > threshold && d[i + 2] > threshold) {
-        d[i + 3] = 0;
-      }
+
+    // The pixels round the edge of the picture.
+    const border: number[] = [];
+    for (let x = 0; x < w; x++) { border.push(x, (h - 1) * w + x); }
+    for (let y = 1; y < h - 1; y++) { border.push(y * w, y * w + w - 1); }
+
+    // The colour most of the edge is made of, in buckets of 16 shades a channel.
+    const buckets = new Map<number, { n: number; r: number; g: number; b: number }>();
+    let solid = 0;
+    for (const px of border) {
+      const i = px * 4;
+      if (d[i + 3] < 128) continue;
+      solid++;
+      const key = (d[i] >> 4) << 8 | (d[i + 1] >> 4) << 4 | (d[i + 2] >> 4);
+      const bucket = buckets.get(key) ?? { n: 0, r: 0, g: 0, b: 0 };
+      bucket.n++; bucket.r += d[i]; bucket.g += d[i + 1]; bucket.b += d[i + 2];
+      buckets.set(key, bucket);
     }
+    if (solid < border.length * 0.2) return 'none';
+    let top = { n: 0, r: 0, g: 0, b: 0 };
+    for (const bucket of buckets.values()) if (bucket.n > top.n) top = bucket;
+    const bgR = top.r / top.n, bgG = top.g / top.n, bgB = top.b / top.n;
+
+    /** How far a pixel's colour is from the background colour. */
+    const distance = (i: number): number => {
+      const dr = d[i] - bgR, dg = d[i + 1] - bgG, db = d[i + 2] - bgB;
+      return Math.sqrt(dr * dr + dg * dg + db * db);
+    };
+    // A plain background: most of the edge is within reach of that one colour.
+    let matching = 0;
+    for (const px of border) if (d[px * 4 + 3] >= 128 && distance(px * 4) <= tolerance) matching++;
+    if (matching < solid * 0.6) return 'none';
+
+    // Flood inwards from the edge through background-coloured pixels.
+    const cleared = new Uint8Array(w * h);
+    const queue = new Uint32Array(w * h);
+    let head = 0, tail = 0;
+    const visit = (px: number): void => {
+      if (cleared[px]) return;
+      const i = px * 4;
+      if (d[i + 3] !== 0 && distance(i) > tolerance) return;
+      cleared[px] = 1;
+      queue[tail++] = px;
+    };
+    for (const px of border) visit(px);
+    while (head < tail) {
+      const px = queue[head++];
+      const x = px % w;
+      if (x > 0) visit(px - 1);
+      if (x < w - 1) visit(px + 1);
+      if (px >= w) visit(px - w);
+      if (px < w * (h - 1)) visit(px + w);
+    }
+
+    // Fade the rim: a kept pixel that touches the cleared area and is still
+    // close to the background colour is a blend of the two, so it goes
+    // part see-through instead of leaving a fringe.
+    const fade: number[] = [];
+    for (let px = 0; px < w * h; px++) {
+      if (cleared[px]) continue;
+      const x = px % w;
+      const touches = (x > 0 && cleared[px - 1]) || (x < w - 1 && cleared[px + 1])
+        || (px >= w && cleared[px - w]) || (px < w * (h - 1) && cleared[px + w]);
+      if (!touches) continue;
+      const dist = distance(px * 4);
+      if (dist < tolerance * 2.5) fade.push(px, Math.max(0, (dist - tolerance) / (tolerance * 1.5)));
+    }
+    for (let px = 0; px < w * h; px++) if (cleared[px]) d[px * 4 + 3] = 0;
+    for (let k = 0; k < fade.length; k += 2) d[fade[k] * 4 + 3] = Math.round(d[fade[k] * 4 + 3] * fade[k + 1]);
+
     ctx.putImageData(data, 0, 0);
     await img.setSrc(off.toDataURL('image/png'));
     this.canvas?.requestRenderAll();
     this.pushHistory();
     this.syncActive();
-    return true;
+    return 'done';
   }
 
   deleteActive(): void {
