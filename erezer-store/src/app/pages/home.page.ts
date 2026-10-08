@@ -21,7 +21,10 @@ import { CountUpDirective } from '../core/count-up.directive';
   imports: [RouterLink, ProductCardComponent, FlashSaleWidgetComponent, BundleWidgetComponent, FormsModule, RecentlyViewedComponent, TranslatePipe, RevealDirective, CountUpDirective, NgTemplateOutlet],
   template: `
     <!-- ── Cinematic hero ──────────────────────────────────────────────────── -->
-    <section class="relative hero-full-bleed full-bleed mb-16 h-[88svh] min-h-[34rem] overflow-hidden bg-black">
+    <!-- On a phone the wide photo is shown whole, across the top, with the
+         words under it instead of over it (styles.css, "Home hero on a phone"). -->
+    <section class="relative hero-full-bleed full-bleed mb-16 h-[88svh] min-h-[34rem] overflow-hidden bg-black" data-testid="hero">
+      <div class="hero-stage absolute inset-0" [style.--hero-ratio]="heroRatio()" data-testid="hero-stage">
       <!-- Slides: crossfade + Ken Burns, with a parallax layer -->
       <!-- The first slide downloads on its own so it appears as early as possible;
            the rest follow once it is on screen, instead of racing it for bandwidth. -->
@@ -30,12 +33,12 @@ import { CountUpDirective } from '../core/count-up.directive';
           <div class="absolute inset-0 transition-opacity duration-[1200ms] ease-out"
             [class.opacity-100]="activeBanner() === i"
             [class.opacity-0]="activeBanner() !== i">
-            <div class="absolute -inset-y-[8%] inset-x-0 will-change-transform"
+            <div class="hero-parallax absolute -inset-y-[8%] inset-x-0 will-change-transform"
               [style.transform]="'translate3d(0,' + parallax() + 'px,0)'">
               <img [src]="banner.image" [alt]="banner.title"
                 [attr.fetchpriority]="i === 0 ? 'high' : null"
                 [attr.loading]="i === 0 ? 'eager' : 'lazy'" decoding="async"
-                (load)="i === 0 ? laterSlidesReady.set(true) : null"
+                (load)="onHeroLoad($event, i)" data-testid="hero-image"
                 (error)="i === 0 ? laterSlidesReady.set(true) : null"
                 class="hero-kenburns h-full w-full object-cover" />
             </div>
@@ -44,11 +47,12 @@ import { CountUpDirective } from '../core/count-up.directive';
       }
 
       <!-- Scrims for legible overlaid text -->
-      <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/35 to-black/10"></div>
-      <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/40 to-transparent"></div>
+      <div class="hero-scrim pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/35 to-black/10"></div>
+      <div class="hero-scrim pointer-events-none absolute inset-0 bg-gradient-to-r from-black/40 to-transparent"></div>
+      </div>
 
       <!-- Text overlay — re-created on slide change so the animations re-run -->
-      <div class="absolute inset-0 flex items-end">
+      <div class="hero-words absolute inset-0 flex items-end" data-testid="hero-words">
         <div class="mx-auto w-full max-w-7xl px-6 pb-20 sm:px-8">
           @for (b of [activeBannerObj()]; track b.id) {
             <p class="hero-fade text-xs font-semibold uppercase tracking-[0.35em] text-white/80" style="animation-delay:.1s">
@@ -592,6 +596,22 @@ export class HomePage implements OnInit, OnDestroy {
    * is when the other slides may start downloading.
    */
   protected readonly laterSlidesReady = signal(false);
+
+  /**
+   * Width over height of the tallest hero photo loaded so far. On a phone the
+   * photo area takes this shape, so every slide is shown whole.
+   */
+  protected readonly heroRatio = signal(16 / 9);
+  private heroRatioSeen = false;
+
+  protected onHeroLoad(event: Event, index: number): void {
+    if (index === 0) this.laterSlidesReady.set(true);
+    const img = event.target as HTMLImageElement;
+    if (!img.naturalWidth || !img.naturalHeight) return;
+    const ratio = img.naturalWidth / img.naturalHeight;
+    this.heroRatio.set(this.heroRatioSeen ? Math.min(this.heroRatio(), ratio) : ratio);
+    this.heroRatioSeen = true;
+  }
 
   /** Current banner object — drives the hero text that re-animates on change. */
   protected readonly activeBannerObj = computed(() => {
