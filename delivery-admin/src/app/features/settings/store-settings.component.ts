@@ -100,9 +100,13 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                 placeholder="Tell us within 3 days of delivery…"
                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"></textarea>
               <label class="block text-xs font-medium text-gray-600">
-                Notify-us window (days)
-                <input type="number" min="0" [(ngModel)]="model.exchangeWindowDays"
+                Days a customer has to request a return
+                <input type="number" min="1" [(ngModel)]="model.exchangeWindowDays" data-testid="return-window-days"
                   class="mt-1 w-32 rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                <span class="mt-1 block text-[11px] font-normal text-gray-400">
+                  Counted from the day of delivery. After that the shop no longer accepts a return request for the order.
+                  Keep the text above saying the same number.
+                </span>
               </label>
               </fieldset>
             </section>

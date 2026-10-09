@@ -1,4 +1,5 @@
 import { Component, inject, input, OnChanges, signal, SimpleChanges } from '@angular/core';
+import { ProductOption, VariantService } from '../../../core/services/variant.service';
 import { FormsModule } from '@angular/forms';
 import { catchError, of } from 'rxjs';
 import {
@@ -92,6 +93,17 @@ import { NoticeService } from '../../../core/services/notice.service';
                     </button>
                   }
                 </div>
+                @if (choices().length > 0) {
+                  <label class="block text-xs font-medium text-gray-500">
+                    Shown for
+                    <select [ngModel]="img.optionValueId ?? ''" (ngModelChange)="setChoice(img, $event)"
+                      [disabled]="!perms.can('products.images')" data-testid="image-choice"
+                      class="mt-1 w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs disabled:bg-gray-50 disabled:text-gray-500">
+                      <option value="">Every choice</option>
+                      @for (c of choices(); track c.id) { <option [value]="c.id">{{ c.label }}</option> }
+                    </select>
+                  </label>
+                }
                 @if (perms.can('products.images')) {
                   <button (click)="remove(img)" class="act-btn act-btn-delete" title="Remove image">
                     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
@@ -108,6 +120,15 @@ import { NoticeService } from '../../../core/services/notice.service';
 })
 export class ImageGalleryEditorComponent implements OnChanges {
   readonly productId = input.required<number>();
+  /** Goes up by one whenever the product's options are saved elsewhere on the page, so the choices are read again. */
+  readonly optionsVersion = input(0);
+  private readonly variantApi = inject(VariantService);
+  /**
+   * The choices a picture can belong to: those of the colour option if the
+   * product has one, otherwise of its first option. A picture shown "for
+   * Black" replaces the product's pictures when the customer picks Black.
+   */
+  readonly choices = signal<{ id: string; label: string }[]>([]);
 
   private readonly api = inject(ProductImageService);
   protected readonly perms = inject(PermissionService);
@@ -121,11 +142,34 @@ export class ImageGalleryEditorComponent implements OnChanges {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['productId']) this.reload();
+    if (changes['productId'] || changes['optionsVersion']) this.loadChoices();
   }
 
   /** The image list is refused unless the person may see products or manage their photos. */
   protected canList(): boolean {
     return this.perms.canAny('products.view', 'products.edit', 'products.images');
+  }
+
+  private loadChoices(): void {
+    const id = this.productId();
+    if (!id) return;
+    this.variantApi.getOptions(id).pipe(catchError(() => of([] as ProductOption[]))).subscribe((options) => {
+      const option = options.find((o) => o.kind === 'COLOUR') ?? options[0];
+      this.choices.set((option?.values ?? []).map((v) => ({ id: v.id as string, label: `${option!.name}: ${v.value}` })));
+      // A choice may have been removed; its pictures suit every choice again.
+      if (this.images().length > 0) this.reload();
+    });
+  }
+
+  protected setChoice(img: ProductImageResponse, valueId: string): void {
+    this.api.updateMetadata(this.productId(), img.id, { optionValueId: valueId })
+      .pipe(catchError((err) => { this.error.set(parseApiError(err)); return of(null); }))
+      .subscribe((saved) => {
+        if (!saved) return;
+        this.images.update((list) => list.map((i) => (i.id === img.id ? { ...i, optionValueId: saved.optionValueId ?? null } : i)));
+        const label = this.choices().find((c) => c.id === valueId)?.label;
+        this.notices.success('Picture updated', label ? `Shown for ${label}` : 'Shown for every choice');
+      });
   }
 
   reload(): void {

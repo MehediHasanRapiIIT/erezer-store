@@ -26,6 +26,7 @@ import {
   ApiReviewPage,
   ApiStockStatus,
   ApiStoreSettings,
+  ApiContentPage,
   ApiSizeChartEntry,
   ApiVariant,
   AuthTokenResponse,
@@ -179,6 +180,15 @@ export class ApiService {
 
   getStoreSettings(): Observable<ApiStoreSettings> {
     return this.http.get<ApiStoreSettings>(`${BASE}/api/store-settings`);
+  }
+
+  /** The shop's own pages that are switched on. */
+  getContentPages(): Observable<ApiContentPage[]> {
+    return this.http.get<ApiContentPage[]>(`${BASE}/api/pages`);
+  }
+
+  getContentPage(slug: string): Observable<ApiContentPage> {
+    return this.http.get<ApiContentPage>(`${BASE}/api/pages/${encodeURIComponent(slug)}`);
   }
 
   /** The shop's size charts; a product says which one it shows by id. */

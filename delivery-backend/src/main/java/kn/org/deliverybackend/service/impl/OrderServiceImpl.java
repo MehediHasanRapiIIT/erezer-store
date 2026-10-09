@@ -657,7 +657,9 @@ public class OrderServiceImpl implements OrderService {
                 // Variants are size-only — snapshot the size as the name too.
                 // In a fit, both say so ("Drop Shoulder / M"), which is then what the
                 // invoice, order tracking and the admin order page print as the size.
-                String chosen = kn.org.deliverybackend.enumeration.Fit.describe(variant.getFit(), variant.getSize());
+                // With options of its own, those come first: "Black / Long / Drop Shoulder / M".
+                String chosen = ProductOptions.variantName(ProductOptions.parse(p.getOptionsJson()),
+                        variant.getOptionKey(), variant.getFit(), variant.getSize());
                 oi.setVariantName(chosen);
                 oi.setVariantSize(chosen);
             }

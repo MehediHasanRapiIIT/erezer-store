@@ -77,6 +77,9 @@ public class ProductResponseDTO {
     /** Whether the product page shows the quantity, with the category already taken into account. */
     private Boolean showStockQuantity;
 
+    /** The options this product comes in beyond size and fit, with their choices. Empty for none. */
+    private java.util.List<kn.org.deliverybackend.dto.variant.ProductOptionDTO> options;
+
     /** The product's own size chart, for the edit form; null when it follows its category or the default. */
     private Long sizeChartId;
     /** Its own chart for Regular Fit; null when Regular Fit shows the same chart. */

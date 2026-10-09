@@ -4,6 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, of } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { BundleCheckoutStore } from '../core/store/bundle-checkout.store';
+import { variantLabel } from '../core/cart-actions.service';
 import { SettingsStore } from '../core/store/settings.store';
 import type { ApiBundleOffer, ApiVariant, BundleProduct } from '../core/api.models';
 
@@ -217,11 +218,11 @@ interface SlotSelection {
             } @else {
               <div class="flex flex-wrap gap-2">
                 @for (v of modalVariants(); track v.id) {
-                  <button type="button" (click)="chooseSize(v.id, v.size || 'Size')" [disabled]="outOfStock(v)"
+                  <button type="button" (click)="chooseSize(v.id, labelOf(v))" [disabled]="outOfStock(v)" data-testid="bundle-variant"
                     class="rounded-lg border px-4 py-2 text-sm font-medium transition disabled:opacity-40"
                     [class.border-neutral-300]="true" [class.dark:border-neutral-700]="true"
                     [class.hover:border-neutral-900]="!outOfStock(v)">
-                    {{ v.size || 'Size' }}
+                    {{ labelOf(v) }}
                     @if (outOfStock(v)) { <span class="ml-1 text-[10px] text-red-500">out</span> }
                   </button>
                 }
@@ -363,6 +364,11 @@ export class BundleDetailPage implements OnInit {
   protected discountPct(b: ApiBundleOffer): number {
     if (!b.compareAtPrice || b.compareAtPrice <= 0) return 0;
     return Math.round(((b.compareAtPrice - b.bundlePrice) / b.compareAtPrice) * 100);
+  }
+
+  /** A variant in full: "Black / Drop Shoulder / M", from whichever of those it has. */
+  protected labelOf(v: ApiVariant): string {
+    return variantLabel(v);
   }
 
   protected outOfStock(v: ApiVariant): boolean {

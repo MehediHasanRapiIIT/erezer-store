@@ -1,4 +1,6 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { OptionsEditorComponent, cleanOptions, optionsProblem } from '../shared/options-editor.component';
+import { ProductOption } from '../../../core/services/variant.service';
 import { SizeChartPickerComponent } from '../../../shared/size-chart-picker/size-chart-picker.component';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -58,7 +60,7 @@ interface BatchRow {
 @Component({
   selector: 'app-add-batch',
   standalone: true,
-  imports: [RouterLink, FormsModule, SidebarComponent, DiscountInputComponent, FitSizesComponent, SizeChartPickerComponent],
+  imports: [RouterLink, FormsModule, SidebarComponent, DiscountInputComponent, FitSizesComponent, SizeChartPickerComponent, OptionsEditorComponent],
   templateUrl: './add-batch.component.html',
 })
 export class AddBatchComponent implements OnInit, OnDestroy {
@@ -88,6 +90,8 @@ export class AddBatchComponent implements OnInit, OnDestroy {
   readonly stockDisplay = signal<StockDisplay>('CATEGORY');
   /** The size chart every product gets unless its row says otherwise; 0 for none of their own. */
   readonly sizeChartId = signal(0);
+  /** The options every product in the batch comes in beyond size and fit. */
+  readonly options = signal<ProductOption[]>([]);
   protected readonly stockDisplayOptions: { value: StockDisplay; label: string }[] = [
     { value: 'CATEGORY', label: 'Same as category' },
     { value: 'QUANTITY', label: 'Show quantity' },
@@ -382,6 +386,8 @@ export class AddBatchComponent implements OnInit, OnDestroy {
     if (this.rows().length === 0) messages.push('Add at least one product: drop photos, or press “Add a row”.');
     const fitIssue = this.canAddSizes() ? fitSizesProblem(this.fitSizes()) : '';
     if (fitIssue) messages.push(fitIssue);
+    const optionIssue = this.canAddSizes() ? optionsProblem(this.options()) : '';
+    if (optionIssue) messages.push(optionIssue);
     if (this.totalBytes() > MAX_TOTAL_BYTES) {
       messages.push(`The pictures add up to ${mb(this.totalBytes())}, and one save can carry ${mb(MAX_TOTAL_BYTES)}. `
         + 'Remove a few rows, save, then add them in a second batch.');
@@ -441,6 +447,7 @@ export class AddBatchComponent implements OnInit, OnDestroy {
       discountExcluded: this.discountExcluded(),
       stockDisplay: this.stockDisplay(),
       sizeChartId: this.sizeChartId(),
+      options: this.canAddSizes() ? cleanOptions(this.options()) : [],
     };
     const sizes = this.canAddSizes() ? fitVariants(this.fitSizes()) : [];
     const items: BatchItem[] = this.rows().map((r) => ({

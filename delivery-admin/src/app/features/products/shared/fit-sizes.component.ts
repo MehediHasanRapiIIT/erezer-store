@@ -16,18 +16,23 @@ export function fitLabel(fit: string | null | undefined): string {
 }
 
 /**
- * Sizes grouped under their fit, Drop Shoulder first, for showing a product's
- * stock. A product with no fits comes back as one group with an empty label.
+ * Sizes grouped for showing a product's stock: under each combination of the
+ * product's own options (Black, then White) and, inside it, under each fit,
+ * Drop Shoulder first. A product with neither comes back as one group with an
+ * empty label. `fit` is what tells the groups apart; it is the fit alone for a
+ * product with no options, as it always was.
  */
-export function groupByFit<T extends { fit?: string | null; fitLabel?: string | null }>(
+export function groupByFit<T extends { fit?: string | null; fitLabel?: string | null; optionLabel?: string | null }>(
   sizes: T[] | null | undefined,
 ): { fit: string; label: string; sizes: T[] }[] {
   const groups: { fit: string; label: string; sizes: T[] }[] = [];
   for (const size of sizes ?? []) {
     const fit = size.fit ?? '';
-    let group = groups.find((g) => g.fit === fit);
+    const key = size.optionLabel ? `${size.optionLabel}|${fit}` : fit;
+    let group = groups.find((g) => g.fit === key);
     if (!group) {
-      group = { fit, label: size.fitLabel ?? fitLabel(fit), sizes: [] };
+      const fitName = size.fitLabel ?? fitLabel(fit);
+      group = { fit: key, label: [size.optionLabel, fitName].filter(Boolean).join(' · '), sizes: [] };
       groups.push(group);
     }
     group.sizes.push(size);

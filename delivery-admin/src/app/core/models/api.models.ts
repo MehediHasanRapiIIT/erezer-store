@@ -50,6 +50,8 @@ export interface ProductRequest {
   /** Keep this product at full price, ignoring every automatic discount. */
   discountExcluded?: boolean;
   stockDisplay?: StockDisplay;
+  /** For a new product: the options it comes in beyond size and fit, with their choices. */
+  options?: { id: string | null; name: string; kind: 'COLOUR' | 'TEXT'; values: { id: string | null; value: string; hex?: string | null }[] }[];
   /** The product's own size chart; 0 for none of its own (it follows its category, then the default). Left out: unchanged. */
   sizeChartId?: number;
   /** A different chart for Regular Fit; 0 for the same chart. Left out: unchanged. */
@@ -155,6 +157,8 @@ export interface SizeStock {
   /** DROP_SHOULDER or REGULAR_FIT; null when the product has no fits. */
   fit?: string | null;
   fitLabel?: string | null;
+  /** "Black / Long": the combination of the product's own options; null when it has none. */
+  optionLabel?: string | null;
 }
 
 /** An exact stock figure for each size of one product. */

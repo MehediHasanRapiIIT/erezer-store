@@ -93,7 +93,9 @@ public class CartServiceImpl implements CartService {
         // Variants are size-only — label by size, ignoring any legacy colour
         // that may be baked into the stored variant name.
         // In a fit, the label says so: "Drop Shoulder / M".
-        String label = kn.org.deliverybackend.enumeration.Fit.describe(variant.getFit(), variant.getSize());
+        // With options of its own, those come first: "Black / Long / Drop Shoulder / M".
+        String label = ProductOptions.variantName(ProductOptions.parse(product.getOptionsJson()),
+                variant.getOptionKey(), variant.getFit(), variant.getSize());
         if (label == null || label.isBlank()) {
             label = variant.getName();
         }

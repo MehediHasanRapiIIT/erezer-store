@@ -105,7 +105,9 @@ public class OrderEmailListener {
             subtotal = subtotal.add(line);
 
             Map<String, Object> row = new HashMap<>();
-            row.put("name", name);
+            // The colour, fit and size that were chosen, so the email says which one was ordered.
+            String chosen = oi.getVariantName() == null ? "" : oi.getVariantName().trim();
+            row.put("name", chosen.isEmpty() ? name : name + " — " + chosen);
             row.put("quantity", oi.getQuantity());
             row.put("lineTotal", Taka.format(line));
             items.add(row);

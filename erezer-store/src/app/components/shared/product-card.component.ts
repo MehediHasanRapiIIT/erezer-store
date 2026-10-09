@@ -1,6 +1,6 @@
 import { CurrencyPipe } from '@angular/common';
 import { Component, inject, input, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Product } from '../../core/models';
 import { EcommerceStore } from '../../core/store/ecommerce.store';
 
@@ -151,9 +151,16 @@ export class ProductCardComponent {
   /** This card's product was just put in the cart: offer the way to the checkout. */
   protected readonly added = signal(false);
 
+  private readonly router = inject(Router);
+
   protected quickAddToCart(): void {
     const selected = this.product();
     if (selected.inStock <= 0) return;
+    // A colour (or another option) has to be chosen: that is done on the product's page.
+    if (selected.hasOptions) {
+      void this.router.navigate(['/product', selected.slug]);
+      return;
+    }
     this.store.addToCart(selected.id, selected.sizes[0], 1);
     this.added.set(true);
   }

@@ -50,7 +50,7 @@ class ProductCreationTest {
     private final VariantService variantService = mock(VariantService.class);
     private final FileStorageService storage = mock(FileStorageService.class);
     private final ProductCreationServiceImpl service =
-            new ProductCreationServiceImpl(productService, imageService, variantService, storage);
+            new ProductCreationServiceImpl(productService, imageService, variantService, storage, mock(ProductOptionsService.class));
 
     /** What storage handed back, in order. */
     private final List<String> storedUrls = new ArrayList<>();

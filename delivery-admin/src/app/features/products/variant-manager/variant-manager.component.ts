@@ -1,7 +1,8 @@
-import { Component, computed, inject, input, OnChanges, signal, SimpleChanges } from '@angular/core';
+import { Component, computed, inject, input, OnChanges, output, signal, SimpleChanges } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { catchError, of } from 'rxjs';
+import { catchError, concat, of, toArray } from 'rxjs';
 import {
+  ProductOption,
   VariantRequest,
   VariantResponse,
   VariantService,
@@ -14,6 +15,7 @@ import {
   SIZE_OPTIONS, SizeGridComponent, SizeRow, emptySizeRows, pickedSizes,
 } from '../shared/size-grid.component';
 import { FITS, Fit, fitLabel } from '../shared/fit-sizes.component';
+import { OptionsEditorComponent, cleanOptions, combinationCount, optionsProblem } from '../shared/options-editor.component';
 
 /** One fit in the "Fit" box: offered or not, its price, and whether the price was touched. */
 interface FitDraft {
@@ -39,13 +41,13 @@ const EMPTY_FORM: VariantForm = {
 @Component({
   selector: 'app-variant-manager',
   standalone: true,
-  imports: [FormsModule, SizeGridComponent],
+  imports: [FormsModule, SizeGridComponent, OptionsEditorComponent],
   template: `
     <section class="bg-white rounded-xl border border-gray-200 p-5">
       <header class="mb-3 flex items-center justify-between">
         <div>
           <h2 class="font-bold text-gray-900">Variants</h2>
-          <p class="text-xs text-gray-500">Size &amp; stock per variant. Customers must pick a size if any exist.</p>
+          <p class="text-xs text-gray-500">What the customer chooses before buying: options such as colour, the fit, and the size. Each variant has its own stock, price and SKU.</p>
         </div>
         @if (perms.can('products.variants')) {
           <div class="flex items-center gap-2">
@@ -71,6 +73,36 @@ const EMPTY_FORM: VariantForm = {
         <p class="mb-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{{ error() }}</p>
       }
 
+      <!-- Options: colour, and anything else the shop defines -->
+      @if (canList() && !loading() && perms.can('products.variants')) {
+        <fieldset class="mb-4 rounded-lg border border-gray-200 p-3" data-testid="options-box">
+          <legend class="px-1 text-sm font-semibold text-gray-800">Options</legend>
+          <p class="mb-2 text-xs text-gray-500">
+            Colour, or anything else this product comes in: Sleeve, Material, Pack… Customers pick one of each. Sizes and fits are set below.
+          </p>
+          <app-options-editor [(options)]="optionsDraft" [disabled]="saving()" />
+          @if (optionsChanged()) {
+            <p class="mt-2 text-xs text-gray-500" data-testid="options-effect">{{ optionsEffect() }}</p>
+          }
+          <div class="mt-3 flex flex-wrap items-center justify-end gap-2">
+            @if (missingCombinations() > 0 && !optionsChanged()) {
+              <button type="button" (click)="restoreMissing()" [disabled]="saving()" data-testid="options-restore"
+                class="mr-auto text-xs font-medium text-blue-600 hover:underline">
+                Put back {{ missingCombinations() }} deleted {{ missingCombinations() === 1 ? 'variant' : 'variants' }}
+              </button>
+            }
+            @if (optionsChanged()) {
+              <button type="button" (click)="resetOptionsDraft()" [disabled]="saving()"
+                class="px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50">Undo</button>
+            }
+            <button type="button" (click)="saveOptions()" [disabled]="saving() || !optionsChanged()" data-testid="save-options"
+              class="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed">
+              {{ saving() ? 'Saving…' : 'Save options' }}
+            </button>
+          </div>
+        </fieldset>
+      }
+
       <!-- Fit: Drop Shoulder, Regular Fit, both or neither -->
       @if (canList() && !loading() && perms.can('products.variants')) {
         <fieldset class="mb-4 rounded-lg border border-gray-200 p-3" data-testid="fit-box">
@@ -85,7 +117,7 @@ const EMPTY_FORM: VariantForm = {
                 [class.border-gray-200]="!fitDraft()[f.value].picked">
                 <label class="flex cursor-pointer items-center gap-2 text-sm font-semibold text-gray-800">
                   <input type="checkbox" [attr.data-testid]="'fit-' + f.value"
-                    [checked]="fitDraft()[f.value].picked" [disabled]="saving() || variants().length === 0"
+                    [checked]="fitDraft()[f.value].picked" [disabled]="saving() || !hasSizes()"
                     (change)="toggleFit(f.value)"
                     class="h-4 w-4 cursor-pointer rounded border-gray-300 text-blue-600" />
                   {{ f.label }}
@@ -109,7 +141,7 @@ const EMPTY_FORM: VariantForm = {
               </div>
             }
           </div>
-          @if (variants().length === 0) {
+          @if (!hasSizes()) {
             <p class="mt-2 text-xs text-gray-500">Add the product's sizes first: a fit's stock is kept size by size.</p>
           } @else {
             <p class="mt-2 text-xs text-gray-400">
@@ -141,11 +173,45 @@ const EMPTY_FORM: VariantForm = {
         </p>
       }
 
+      <!-- The same stock or price for many variants at once -->
+      @if (variants().length > 1 && perms.can('products.variants')) {
+        <div class="mb-3 flex flex-wrap items-end gap-2 rounded-lg bg-gray-50 px-3 py-2" data-testid="fill-all">
+          <p class="mr-1 pb-1.5 text-xs font-semibold text-gray-700">Set for many:</p>
+          @if (fillChoices().length > 0) {
+            <label class="text-[11px] font-medium text-gray-500">
+              Which variants
+              <select [ngModel]="fillFilter()" (ngModelChange)="fillFilter.set($event)" data-testid="fill-filter"
+                class="mt-0.5 block rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700">
+                <option value="">All {{ variants().length }} variants</option>
+                @for (c of fillChoices(); track c.id) { <option [value]="c.id">{{ c.label }}</option> }
+              </select>
+            </label>
+          }
+          <label class="text-[11px] font-medium text-gray-500">
+            Stock
+            <input type="number" min="0" [ngModel]="fillStock()" (ngModelChange)="fillStock.set(numberOrNull($event))" placeholder="leave as is"
+              [disabled]="!perms.can('inventory.edit')" data-testid="fill-stock"
+              class="mt-0.5 block w-28 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs disabled:bg-gray-100" />
+          </label>
+          <label class="text-[11px] font-medium text-gray-500">
+            Own price (৳)
+            <input type="number" min="0" step="any" [ngModel]="fillPrice()" (ngModelChange)="fillPrice.set(numberOrNull($event))" placeholder="leave as is"
+              [disabled]="!perms.can('products.price')" data-testid="fill-price"
+              class="mt-0.5 block w-28 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs disabled:bg-gray-100" />
+          </label>
+          <button type="button" (click)="fillMany()" [disabled]="saving() || (fillStock() == null && fillPrice() == null)" data-testid="fill-apply"
+            class="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-40">
+            Apply to {{ fillTargets().length }}
+          </button>
+        </div>
+      }
+
       <!-- Variant list -->
       @if (variants().length > 0) {
-        <table class="w-full text-sm">
+        <table class="w-full text-sm" data-testid="variants-table">
           <thead>
             <tr class="border-b border-gray-100 bg-gray-50 text-xs uppercase text-gray-400">
+              @if (hasOptions()) { <th class="px-3 py-2 text-left">{{ optionsHeading() }}</th> }
               @if (hasFits()) { <th class="px-3 py-2 text-left">Fit</th> }
               <th class="px-3 py-2 text-left">Size</th>
               <th class="px-3 py-2 text-left">SKU</th>
@@ -156,7 +222,19 @@ const EMPTY_FORM: VariantForm = {
           </thead>
           <tbody class="divide-y divide-gray-50">
             @for (v of sortedVariants(); track v.id) {
-              <tr [class.bg-blue-50]="editingId() === v.id">
+              <tr [class.bg-blue-50]="editingId() === v.id" data-testid="variant-row">
+                @if (hasOptions()) {
+                  <td class="px-3 py-2 font-medium text-gray-800" data-testid="variant-options">
+                    <span class="inline-flex flex-wrap items-center gap-1.5">
+                      @for (o of v.options ?? []; track o.optionId) {
+                        <span class="inline-flex items-center gap-1">
+                          @if (o.hex) { <span class="inline-block h-3 w-3 rounded-full border border-gray-300" [style.background]="o.hex"></span> }
+                          {{ o.value }}
+                        </span>
+                      } @empty { — }
+                    </span>
+                  </td>
+                }
                 @if (hasFits()) { <td class="px-3 py-2 font-medium text-gray-800">{{ v.fitLabel || '—' }}</td> }
                 <td class="px-3 py-2">{{ v.size || '—' }}</td>
                 <td class="px-3 py-2 font-mono text-xs text-gray-600">{{ v.sku || '—' }}</td>
@@ -278,6 +356,8 @@ const EMPTY_FORM: VariantForm = {
 })
 export class VariantManagerComponent implements OnChanges {
   readonly productId = input.required<number>();
+  /** The product's options were saved: anything else on the page that shows them should look again. */
+  readonly optionsSaved = output<void>();
 
   private readonly api = inject(VariantService);
   protected readonly perms = inject(PermissionService);
@@ -293,6 +373,146 @@ export class VariantManagerComponent implements OnChanges {
 
   protected readonly sizeOptions = SIZE_OPTIONS;
   protected readonly fits = FITS;
+
+  // ── options: colour, and anything else the shop defines ───────────────────
+  /** The options as saved. */
+  readonly options = signal<ProductOption[]>([]);
+  /** The "Options" box as it is being edited; saved with "Save options". */
+  readonly optionsDraft = signal<ProductOption[]>([]);
+  readonly hasOptions = computed(() => this.options().length > 0);
+  readonly optionsHeading = computed(() => this.options().map((o) => o.name).join(' / '));
+  readonly optionsChanged = computed(() => JSON.stringify(cleanOptions(this.optionsDraft())) !== JSON.stringify(cleanOptions(this.options())));
+  /** A fit or a size to multiply by: without one a product has nothing to give a fit to. */
+  readonly hasSizes = computed(() => this.variants().some((v) => !!v.size));
+  /** Variants deleted on purpose: how many combinations the product could have and doesn't. */
+  readonly missingCombinations = computed(() => {
+    if (!this.hasOptions()) return 0;
+    const slots = new Set(this.variants().map((v) => `${v.fit ?? ''}~${(v.size ?? '').toUpperCase()}`)).size || 1;
+    return Math.max(0, combinationCount(this.options()) * slots - this.variants().length);
+  });
+
+  /** What saving the edited options will do, in a sentence. */
+  protected optionsEffect(): string {
+    const problem = optionsProblem(this.optionsDraft());
+    if (problem) return problem;
+    const draft = cleanOptions(this.optionsDraft());
+    const combos = combinationCount(draft);
+    const slots = new Set(this.variants().map((v) => `${v.fit ?? ''}~${(v.size ?? '').toUpperCase()}`)).size || 1;
+    if (draft.length === 0) return 'The options are removed. Variants that then differ in nothing are merged, and their stock added together.';
+    const first = this.options().length === 0 && this.variants().length > 0
+      ? ` What the product has now becomes ${draft.map((o) => o.values[0].value).join(' / ')}, keeping its stock; the rest start with none.` : '';
+    return `${combos} ${combos === 1 ? 'combination' : 'combinations'}${slots > 1 ? ` × ${slots} sizes = ${combos * slots} variants` : ''}.${first}`;
+  }
+
+  resetOptionsDraft(): void {
+    this.optionsDraft.set(structuredClone(this.options()));
+  }
+
+  /** Saves the "Options" box, asking first when a choice or an option - and its stock - would go. */
+  async saveOptions(restore = false): Promise<void> {
+    const problem = optionsProblem(this.optionsDraft());
+    if (problem) { this.error.set(problem); return; }
+    const draft = cleanOptions(this.optionsDraft());
+    const keptOptions = new Set(draft.map((o) => o.id));
+    const keptValues = new Set(draft.flatMap((o) => o.values.map((v) => v.id)));
+    const goneOptions = this.options().filter((o) => !keptOptions.has(o.id));
+    const goneValues = this.options().filter((o) => keptOptions.has(o.id)).flatMap((o) => o.values.filter((v) => !keptValues.has(v.id)));
+    if (goneValues.length > 0) {
+      const names = goneValues.map((v) => v.value).join(', ');
+      const affected = this.variants().filter((v) => (v.options ?? []).some((o) => goneValues.some((g) => g.id === o.valueId)));
+      const stock = affected.reduce((sum, v) => sum + (v.stockQuantity ?? 0), 0);
+      const ok = await this.confirmer.ask({
+        title: `Remove ${names}?`,
+        message: `${affected.length} ${affected.length === 1 ? 'variant' : 'variants'} with ${stock} in stock ${affected.length === 1 ? 'is' : 'are'} removed from this product. This cannot be undone.`,
+        confirmLabel: `Remove ${names}`, danger: true,
+      });
+      if (!ok) return;
+    } else if (goneOptions.length > 0) {
+      const names = goneOptions.map((o) => o.name).join(' and ');
+      const ok = await this.confirmer.ask({
+        title: `Remove the option ${names}?`,
+        message: 'Variants that then differ in nothing are merged into one, and their stock is added together.',
+        confirmLabel: `Remove ${names}`, danger: true,
+      });
+      if (!ok) return;
+    }
+    this.saving.set(true);
+    this.error.set('');
+    this.api.setOptions(this.productId(), draft, restore).pipe(catchError((err) => {
+      this.error.set(parseApiError(err));
+      this.saving.set(false);
+      return of(null);
+    })).subscribe((result) => {
+      this.saving.set(false);
+      if (!result) return;
+      this.cancelEdit();
+      this.cancelSeveral();
+      this.options.set(result.options);
+      this.optionsDraft.set(structuredClone(result.options));
+      this.variants.set(result.variants);
+      this.resetFitDraft();
+      this.fillFilter.set('');
+      this.optionsSaved.emit();
+      this.notices.success(restore ? 'Variants put back' : 'Options saved',
+        result.options.length ? `${result.options.map((o) => o.name).join(', ')} · ${result.variants.length} variants` : 'No options');
+    });
+  }
+
+  restoreMissing(): void {
+    void this.saveOptions(true);
+  }
+
+  // ── the same stock or price for many variants ─────────────────────────────
+  /** A choice to narrow "Set for many" to ("Black"), or '' for every variant. */
+  readonly fillFilter = signal('');
+  readonly fillStock = signal<number | null>(null);
+  readonly fillPrice = signal<number | null>(null);
+  /** Every choice and fit the variants can be narrowed by. */
+  readonly fillChoices = computed(() => [
+    ...this.options().flatMap((o) => o.values.map((v) => ({ id: `o:${v.id}`, label: `${o.name}: ${v.value}` }))),
+    ...this.currentFits().map((f) => ({ id: `f:${f}`, label: `Fit: ${fitLabel(f)}` })),
+  ]);
+  readonly fillTargets = computed(() => {
+    const filter = this.fillFilter();
+    if (!filter) return this.variants();
+    return this.variants().filter((v) => filter.startsWith('f:')
+      ? v.fit === filter.slice(2)
+      : (v.options ?? []).some((o) => `o:${o.valueId}` === filter));
+  });
+
+  protected numberOrNull(raw: unknown): number | null {
+    if (raw === '' || raw == null) return null;
+    const n = +(raw as number);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  }
+
+  /** Puts the typed stock and price on each of the chosen variants, one after another. */
+  fillMany(): void {
+    const targets = this.fillTargets();
+    const stock = this.fillStock();
+    const price = this.fillPrice();
+    if (targets.length === 0 || (stock == null && price == null)) return;
+    this.saving.set(true);
+    this.error.set('');
+    const saves = targets.map((v) => this.api.update(this.productId(), v.id, {
+      size: v.size, sku: v.sku,
+      stockQuantity: stock ?? v.stockQuantity ?? 0,
+      priceOverride: price ?? v.priceOverride,
+    }));
+    concat(...saves).pipe(toArray(), catchError((err) => {
+      this.error.set(parseApiError(err));
+      return of(null);
+    })).subscribe((saved) => {
+      this.saving.set(false);
+      // Whatever happened, show what the product has now.
+      this.reload();
+      if (!saved) return;
+      this.fillStock.set(null);
+      this.fillPrice.set(null);
+      this.notices.success(`${saved.length} ${saved.length === 1 ? 'variant' : 'variants'} updated`,
+        [stock != null ? `stock ${stock}` : '', price != null ? `price ৳${price}` : ''].filter(Boolean).join(', '));
+    });
+  }
 
   /** The fits the product comes in right now, Drop Shoulder first; empty when it has none. */
   readonly currentFits = computed(() =>
@@ -401,8 +621,24 @@ export class VariantManagerComponent implements OnChanges {
       const i = FITS.findIndex((f) => f.value === fit);
       return i < 0 ? FITS.length : i;
     };
+    // Each combination of options in turn, in the order the options list them.
+    const combos = this.comboOrder();
+    const comboRank = (key: string | null | undefined) => {
+      const i = combos.indexOf(key ?? '');
+      return i < 0 ? combos.length : i;
+    };
     return [...this.variants()].sort((a, b) =>
-      fitRank(a.fit) - fitRank(b.fit) || rank(a.size) - rank(b.size) || (a.size ?? '').localeCompare(b.size ?? ''));
+      comboRank(a.optionKey) - comboRank(b.optionKey) || fitRank(a.fit) - fitRank(b.fit)
+      || rank(a.size) - rank(b.size) || (a.size ?? '').localeCompare(b.size ?? ''));
+  });
+
+  /** Every combination's key in the order the options list them: all of Black, then all of White. */
+  private readonly comboOrder = computed(() => {
+    let combos: Record<string, string>[] = [{}];
+    for (const o of this.options()) {
+      combos = combos.flatMap((c) => o.values.map((v) => ({ ...c, [o.id as string]: v.id as string })));
+    }
+    return combos.map((c) => Object.keys(c).sort().map((k) => `${k}=${c[k]}`).join('|'));
   });
 
   /** "Add several sizes" is open. */
@@ -437,6 +673,10 @@ export class VariantManagerComponent implements OnChanges {
     const id = this.productId();
     if (!id || !this.canList()) return;
     this.loading.set(true);
+    this.api.getOptions(id).pipe(catchError(() => of([] as ProductOption[]))).subscribe((options) => {
+      this.options.set(options);
+      this.optionsDraft.set(structuredClone(options));
+    });
     this.api.list(id).pipe(catchError(() => of([] as VariantResponse[]))).subscribe((list) => {
       this.variants.set(list);
       this.loading.set(false);
@@ -471,9 +711,12 @@ export class VariantManagerComponent implements OnChanges {
     })).subscribe((made) => {
       this.saving.set(false);
       if (!made) return;
-      this.variants.update((list) => [...list, ...made]);
-      this.notices.success(made.length === 1 ? 'Size added' : `${made.length} sizes added`,
-        made.map((v) => v.size).join(', '));
+      // With options the server adds each size to every combination, and may
+      // turn a colour that had no size into the first one: read the list again.
+      if (this.hasOptions()) this.reload(); else this.variants.update((list) => [...list, ...made]);
+      const sizes = [...new Set(made.map((v) => v.size))];
+      this.notices.success(sizes.length === 1 ? 'Size added' : `${sizes.length} sizes added`,
+        sizes.join(', ') + (this.hasOptions() ? ' — in every combination' : ''));
       this.cancelSeveral();
     });
   }
@@ -520,6 +763,21 @@ export class VariantManagerComponent implements OnChanges {
 
     const productId = this.productId();
     const editId = this.editingId();
+    // A new size of a product with options is added to every combination.
+    if (editId == null && this.hasOptions()) {
+      this.api.createMany(productId, [payload]).pipe(catchError((err) => {
+        this.error.set(parseApiError(err));
+        this.saving.set(false);
+        return of(null);
+      })).subscribe((made) => {
+        this.saving.set(false);
+        if (!made) return;
+        this.reload();
+        this.notices.success('Size added', `${payload.size ?? ''} — in every combination`);
+        this.cancelEdit();
+      });
+      return;
+    }
     const obs$ = editId != null
       ? this.api.update(productId, editId, payload)
       : this.api.create(productId, payload);
@@ -544,7 +802,7 @@ export class VariantManagerComponent implements OnChanges {
   async remove(v: VariantResponse): Promise<void> {
     const label = v.name || v.size || String(v.id);
     const ok = await this.confirmer.ask({
-      title: `Delete size "${label}"?`,
+      title: `Delete "${label}"?`,
       message: 'Its stock is removed with it.',
       confirmLabel: 'Delete',
       danger: true,

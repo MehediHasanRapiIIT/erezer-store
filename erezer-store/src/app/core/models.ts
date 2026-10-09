@@ -12,6 +12,8 @@ export interface Product {
   /** Category name as the admin named it (e.g. "Erezer Pink"). */
   category: string;
   sizes: string[];
+  /** It comes in a colour or another option of its own, which has to be chosen on its page. */
+  hasOptions?: boolean;
   rating: number;
   isFeatured?: boolean;
   inStock: number;

@@ -34,6 +34,34 @@ public class EmailServiceImpl implements EmailService {
     private String fromName;
 
     @Override
+    public boolean sendNow(String toEmail, String subject, String templateName, Map<String, Object> variables, String replyTo) {
+        try {
+            Context ctx = new Context();
+            if (variables != null) {
+                variables.forEach(ctx::setVariable);
+            }
+            String html = templateEngine.process("email/" + templateName, ctx);
+
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
+            helper.setFrom(new InternetAddress(fromAddress, fromName));
+            if (replyTo != null && !replyTo.isBlank()) {
+                helper.setReplyTo(replyTo.trim());
+            }
+            helper.setTo(toEmail);
+            helper.setSubject(subject);
+            helper.setText(html, true);
+
+            mailSender.send(message);
+            log.info("Email sent: to={} template={} subject={}", toEmail, templateName, subject);
+            return true;
+        } catch (Exception ex) {
+            log.error("Failed to send email to {} (template {}): {}", toEmail, templateName, ex.getMessage(), ex);
+            return false;
+        }
+    }
+
+    @Override
     @Async("emailExecutor")
     public void send(String toEmail, String subject, String templateName, Map<String, Object> variables) {
         try {

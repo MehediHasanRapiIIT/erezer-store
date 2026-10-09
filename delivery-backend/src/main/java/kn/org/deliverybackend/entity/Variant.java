@@ -45,6 +45,15 @@ public class Variant extends AbstractBaseEntity<Long> {
     @Column(name = "fit", length = 30)
     private String fit;
 
+    /**
+     * The combination of the product's own options this variant is ("Colour:
+     * Black, Sleeve: Long"), as a key of ids - see ProductOptions. Null on a
+     * product that has no options. A product's variants all have a combination
+     * or none do.
+     */
+    @Column(name = "option_key", length = 500)
+    private String optionKey;
+
     /** Per-variant SKU; unique-per-product (enforced by DB partial unique index). */
     @Column(length = 64)
     private String sku;

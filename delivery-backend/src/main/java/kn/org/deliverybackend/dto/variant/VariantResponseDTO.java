@@ -23,4 +23,10 @@ public class VariantResponseDTO {
     private String sku;
     private Integer stockQuantity;
     private BigDecimal priceOverride;
+    /** The combination of the product's own options, as a key of ids; null when the product has none. */
+    private String optionKey;
+    /** That combination spelt out, in the order the options are shown: Colour: Black, Sleeve: Long. Empty for none. */
+    private java.util.List<VariantOptionDTO> options;
+    /** "Black / Long": the combination in words; null for none. */
+    private String optionLabel;
 }

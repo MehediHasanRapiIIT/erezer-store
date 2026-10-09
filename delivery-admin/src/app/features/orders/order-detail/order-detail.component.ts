@@ -124,7 +124,7 @@ export class OrderDetailComponent implements OnInit {
 
   private applyOrder(o: OrderResponse): void {
     this.order.set(o);
-    this.selectedStatus.set(this.normalizeStatus(o.orderStatus));
+    this.selectedStatus.set(this.defaultSelection());
     this.courierName.set(o.courierName ?? '');
     this.trackingNumber.set(o.trackingNumber ?? '');
   }
@@ -136,13 +136,7 @@ export class OrderDetailComponent implements OnInit {
         this.tracking.set(t);
         if (t) {
           // Default the dropdown to the first legal next state if any.
-          const opt = this.statusOptions().find((s) => s.status === t.currentStatus);
-          const first = opt?.allowedNext.find((s) => this.mayMoveTo(s));
-          if (first) {
-            this.selectedStatus.set(first);
-          } else {
-            this.selectedStatus.set(t.currentStatus);
-          }
+          this.selectedStatus.set(this.defaultSelection());
         }
       });
   }
@@ -153,11 +147,7 @@ export class OrderDetailComponent implements OnInit {
       .subscribe((opts) => {
         this.statusOptions.set(opts);
         // Re-default selectedStatus once options arrive.
-        const opt = opts.find((s) => s.status === this.currentStatus());
-        const first = opt?.allowedNext.find((s) => this.mayMoveTo(s));
-        if (first && this.selectedStatus() === this.currentStatus()) {
-          this.selectedStatus.set(first);
-        }
+        if (this.selectedStatus() === this.currentStatus()) this.selectedStatus.set(this.defaultSelection());
       });
   }
 
@@ -280,6 +270,17 @@ export class OrderDetailComponent implements OnInit {
   // ── status update ──────────────────────────────────────────────────────────
 
   /** Cancelling needs "Cancel orders"; every other move needs "Change order status". */
+  /**
+   * What the "Next status" list starts on: the next step of an order on its way.
+   * A delivered order stays as it is: its only next step is Returned, which is
+   * never offered as the ready-made choice.
+   */
+  private defaultSelection(): OrderStatus {
+    const current = this.currentStatus();
+    if (current === 'DELIVERED') return current;
+    return this.permittedNext()[0] ?? current;
+  }
+
   private mayMoveTo(status: OrderStatus): boolean {
     return this.perms.can(status === 'CANCELLED' ? 'orders.cancel' : 'orders.status');
   }
@@ -376,8 +377,9 @@ export class OrderDetailComponent implements OnInit {
 
   /** "Size M" label from an order line's snapshotted variant (size-only). */
   variantLabel(item: OrderItem): string {
-    if (item.variantSize) return `Size ${item.variantSize}`;
-    return item.variantName ?? '';
+    const chosen = item.variantSize || item.variantName || '';
+    // "Size M" for a plain size; a colour or fit with it ("White / Regular Fit / M") speaks for itself.
+    return /^(\d?X{0,3}[SML]|\d{1,3})$/i.test(chosen.trim()) ? `Size ${chosen}` : chosen;
   }
 
   /** Render the custom-measurements JSON ("{"Chest":38,"Length":40,"comments":"…"}") as readable text. */

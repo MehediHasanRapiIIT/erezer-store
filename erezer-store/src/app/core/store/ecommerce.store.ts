@@ -164,6 +164,7 @@ export class EcommerceStore {
       image:       api.imageUrl,
       category:    api.categoryName?.trim() || 'Erezer',
       sizes:       ['One Size'],
+      hasOptions:  (api.options?.length ?? 0) > 0,
       rating:      4.5,
       isFeatured:  false,
       inStock:     api.isAvailable ? 99 : 0

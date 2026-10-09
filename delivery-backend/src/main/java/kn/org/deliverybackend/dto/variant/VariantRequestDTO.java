@@ -32,6 +32,13 @@ public class VariantRequestDTO {
     @PositiveOrZero
     private BigDecimal priceOverride;
 
+    /**
+     * The combination of the product's own options this variant is: option id
+     * to the id of the chosen value. Needed for a new variant of a product that
+     * has options; ignored when changing one, which keeps its combination.
+     */
+    private java.util.Map<String, String> options;
+
     /** Optional display name override (rare; usually derived from size/color). */
     @Size(max = 120)
     private String name;

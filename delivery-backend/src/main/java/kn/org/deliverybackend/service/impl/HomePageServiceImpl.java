@@ -80,6 +80,8 @@ public class HomePageServiceImpl implements HomePageService {
         }
         java.util.function.Function<Product, ProductResponseDTO> toCard = product -> {
             ProductResponseDTO dto = productMapper.toResponseDTO(product);
+            // So a card knows the product has a colour to choose and sends the shopper to its page.
+            dto.setOptions(ProductOptions.parse(product.getOptionsJson()));
             Category category = product.getCategoryId() == null
                     ? null : categoriesById.get(product.getCategoryId());
             if (category != null) {

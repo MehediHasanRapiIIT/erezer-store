@@ -112,8 +112,40 @@ import { parseApiError } from '../../core/utils/api-error.util';
                     {{ m.message }}
                   </p>
 
+                  <!-- What the shop has already answered, oldest first -->
+                  @for (r of m.replies ?? []; track r.id) {
+                    <div class="ml-6 rounded-lg border border-emerald-100 bg-emerald-50/70 p-4" data-testid="support-reply">
+                      <p class="mb-1 text-xs font-semibold text-emerald-800">
+                        Replied by {{ r.sentByName || 'Staff' }}
+                        <span class="font-normal text-emerald-700">· {{ r.sentAt | date: 'medium' }} · to {{ r.sentTo }}</span>
+                      </p>
+                      <p class="whitespace-pre-wrap text-sm text-gray-800">{{ r.body }}</p>
+                    </div>
+                  }
+
                   @if (error()) {
-                    <p class="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{{ error() }}</p>
+                    <p class="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700" data-testid="support-error">{{ error() }}</p>
+                  }
+
+                  <!-- Reply from here: emailed from the shop's address and kept under the message -->
+                  @if (perms.can('support.update')) {
+                    <div class="rounded-lg border border-gray-200 p-3" data-testid="support-reply-box">
+                      <label class="block text-xs font-semibold text-gray-700" for="support-reply-text">
+                        {{ (m.replies?.length ?? 0) > 0 ? 'Reply again' : 'Reply' }} to {{ m.name }}
+                      </label>
+                      <textarea id="support-reply-text" rows="4" maxlength="4000" [ngModel]="replyText()" (ngModelChange)="replyText.set($event)"
+                        [disabled]="acting()" placeholder="Write your reply here…" data-testid="support-reply-text"
+                        class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-300"></textarea>
+                      <div class="mt-2 flex flex-wrap items-center justify-between gap-2">
+                        <p class="text-[11px] text-gray-400">
+                          Sent by email to {{ m.email }} from the shop's address, with their message quoted underneath. It is saved here and the message is marked resolved.
+                        </p>
+                        <button type="button" (click)="sendReply(m)" [disabled]="acting() || !replyText().trim()" data-testid="support-reply-send"
+                          class="px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50">
+                          {{ acting() ? 'Sending…' : 'Send reply' }}
+                        </button>
+                      </div>
+                    </div>
                   }
 
                   <div class="flex gap-2 border-t border-gray-100 pt-3">
@@ -130,8 +162,9 @@ import { parseApiError } from '../../core/utils/api-error.util';
                       </button>
                     }
                     <a [href]="'mailto:' + m.email + '?subject=' + replyEncoded(m)" target="_blank" rel="noopener"
+                      title="Opens the email program on this computer instead. A reply sent that way is not saved here."
                       class="px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50">
-                      Reply via email
+                      Open in my email app
                     </a>
                     @if (perms.can('support.delete')) {
                     <button (click)="remove(m)" [disabled]="acting()"
@@ -232,12 +265,36 @@ export class SupportComponent implements OnInit, OnDestroy {
   }
 
   protected select(m: ContactMessage): void {
+    // A reply half-written to one customer must not follow to the next.
+    if (this.selected()?.id !== m.id) this.replyText.set('');
     this.selected.set(m);
     this.error.set('');
     // Auto-mark NEW → READ when viewing (only for people allowed to change the status).
     if (m.status === 'NEW' && this.perms.can('support.update')) {
       this.setStatus(m, 'READ');
     }
+  }
+
+  /** The reply being written to the open message. */
+  readonly replyText = signal('');
+
+  /** Emails the reply to the customer and shows it under their message. */
+  protected sendReply(m: ContactMessage): void {
+    const body = this.replyText().trim();
+    if (!body) return;
+    this.acting.set(true);
+    this.error.set('');
+    this.api.reply(m.id, body)
+      .pipe(catchError((err) => { this.error.set(parseApiError(err)); this.acting.set(false); return of(null); }))
+      .subscribe((updated) => {
+        this.acting.set(false);
+        if (!updated) return;
+        this.replyText.set('');
+        this.selected.set(updated);
+        this.messages.update((list) => list.map((x) => x.id === updated.id ? updated : x));
+        this.notices.success('Reply sent', `to ${updated.name} <${updated.email}>`);
+        this.loadPage(this.page(), true);
+      });
   }
 
   protected setStatus(m: ContactMessage, status: ContactStatus): void {

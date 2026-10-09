@@ -349,8 +349,8 @@
         <!-- Phase 3: variants + images managers (only after the product has loaded) -->
         @if (productId()) {
           <div class="max-w-5xl mx-auto mt-6 space-y-5 px-6">
-            <app-variant-manager [productId]="productId()" />
-            <app-image-gallery-editor [productId]="productId()" />
+            <app-variant-manager [productId]="productId()" (optionsSaved)="optionsVersion.set(optionsVersion() + 1)" />
+            <app-image-gallery-editor [productId]="productId()" [optionsVersion]="optionsVersion()" />
           </div>
         }
       </div>

@@ -21,6 +21,12 @@ import kn.org.deliverybackend.repository.OrderItemRepository;
 import kn.org.deliverybackend.repository.OrderRepository;
 import kn.org.deliverybackend.repository.OrderStatusHistoryRepository;
 import kn.org.deliverybackend.repository.ProductRepository;
+import kn.org.deliverybackend.repository.ProductImageRepository;
+import kn.org.deliverybackend.repository.VariantRepository;
+import kn.org.deliverybackend.entity.ProductImage;
+import kn.org.deliverybackend.entity.Variant;
+import java.util.Collection;
+import java.util.Comparator;
 import kn.org.deliverybackend.repository.UserRiderRepository;
 import kn.org.deliverybackend.repository.UsersRepository;
 import kn.org.deliverybackend.service.OrderHistoryService;
@@ -48,6 +54,8 @@ public class OrderHistoryServiceImpl implements OrderHistoryService {
     private final UsersRepository usersRepository;
     private final UserRiderRepository userRiderRepository;
     private final ProductRepository productRepository;
+    private final VariantRepository variantRepository;
+    private final ProductImageRepository productImageRepository;
     private final OrderMapper orderMapper;
     private final OrderItemMapper orderItemMapper;
     private final ApplicationEventPublisher eventPublisher;
@@ -323,11 +331,29 @@ public class OrderHistoryServiceImpl implements OrderHistoryService {
         if (item.getProductId() != null) {
             productRepository.findById(item.getProductId()).ifPresent(product -> {
                 dto.setProductName(product.getName());
-                dto.setImageUrl(product.getImageUrl());
+                String chosen = pictureOfChoice(item);
+                dto.setImageUrl(chosen != null ? chosen : product.getImageUrl());
                 // The code kept with the order; the product's own only for a line saved without one.
                 if (dto.getProductCode() == null) dto.setProductCode(product.getProductCode());
             });
         }
         return dto;
+    }
+
+    /**
+     * The picture that belongs to the colour (or other choice) that was ordered,
+     * or null when the line has no such choice or the choice has no picture of its own.
+     */
+    private String pictureOfChoice(OrderItem item) {
+        if (item.getVariantId() == null) return null;
+        String key = variantRepository.findById(item.getVariantId()).map(Variant::getOptionKey).orElse(null);
+        if (key == null || key.isBlank()) return null;
+        Collection<String> chosen = ProductOptions.choices(key).values();
+        return productImageRepository.findBelongingToAChoice(item.getProductId()).stream()
+                .filter(image -> chosen.contains(image.getOptionValueId()))
+                .min(Comparator.comparing((ProductImage image) -> image.getSortOrder() == null ? Integer.MAX_VALUE : image.getSortOrder())
+                        .thenComparing(ProductImage::getId))
+                .map(ProductImage::getUrl)
+                .orElse(null);
     }
 }

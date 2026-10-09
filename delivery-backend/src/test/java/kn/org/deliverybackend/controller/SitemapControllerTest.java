@@ -32,7 +32,9 @@ class SitemapControllerTest {
 
     private final ProductRepository products = mock(ProductRepository.class);
     private final CategoryRepository categories = mock(CategoryRepository.class);
-    private final SitemapController controller = new SitemapController(products, categories);
+    private final kn.org.deliverybackend.repository.ContentPageRepository pages =
+            mock(kn.org.deliverybackend.repository.ContentPageRepository.class);
+    private final SitemapController controller = new SitemapController(products, categories, pages);
     private final List<Category> allCategories = new ArrayList<>();
     private final List<Product> allProducts = new ArrayList<>();
 

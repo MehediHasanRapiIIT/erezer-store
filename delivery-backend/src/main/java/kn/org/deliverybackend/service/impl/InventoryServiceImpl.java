@@ -526,13 +526,19 @@ public class InventoryServiceImpl implements InventoryService {
 
     /** The product's sizes with the stock of each, in the order customers see them. */
     private List<StockResponseDTO.SizeStock> sizesOf(Long productId) {
+        // Each combination of the product's own options in turn (Black, then
+        // White); within it Drop Shoulder's sizes, then Regular Fit's.
+        var options = ProductOptions.parse(productRepository.findById(productId).map(Product::getOptionsJson).orElse(null));
+        List<String> order = ProductOptions.combinations(options);
         return variantRepository.findByProductId(productId).stream()
                 .sorted(java.util.Comparator
-                        .comparingInt((Variant v) -> kn.org.deliverybackend.enumeration.Fit.rank(v.getFit()))
+                        .comparingInt((Variant v) -> { int i = order.indexOf(v.getOptionKey()); return i < 0 ? order.size() : i; })
+                        .thenComparingInt(v -> kn.org.deliverybackend.enumeration.Fit.rank(v.getFit()))
                         .thenComparingInt(InventoryServiceImpl::sizeRank))
-                .map(v -> new StockResponseDTO.SizeStock(v.getId(), v.getSize(),
+                .map(v -> new StockResponseDTO.SizeStock(v.getId(), v.getSize() == null ? "One size" : v.getSize(),
                         v.getStockQuantity() == null ? 0 : v.getStockQuantity(),
-                        v.getFit(), kn.org.deliverybackend.enumeration.Fit.labelOf(v.getFit())))
+                        v.getFit(), kn.org.deliverybackend.enumeration.Fit.labelOf(v.getFit()),
+                        ProductOptions.label(options, v.getOptionKey())))
                 .toList();
     }
 

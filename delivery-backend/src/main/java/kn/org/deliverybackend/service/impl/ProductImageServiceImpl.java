@@ -97,6 +97,20 @@ public class ProductImageServiceImpl implements ProductImageService {
         if (metadata.getSortOrder() != null) {
             img.setSortOrder(metadata.getSortOrder());
         }
+        if (metadata.getOptionValueId() != null) {
+            String valueId = trim(metadata.getOptionValueId());
+            if (valueId != null) {
+                boolean known = productRepository.findById(productId)
+                        .map(p -> ProductOptions.parse(p.getOptionsJson()).stream()
+                                .anyMatch(o -> o.getValues().stream().anyMatch(v -> valueId.equals(v.getId()))))
+                        .orElse(false);
+                if (!known) {
+                    throw new kn.org.deliverybackend.exception.InvalidRequestException(
+                            "That choice is not one of this product's options any more.");
+                }
+            }
+            img.setOptionValueId(valueId);
+        }
         if (Boolean.TRUE.equals(metadata.getIsPrimary())) {
             imageRepository.clearPrimaryFlag(productId);
             img.setIsPrimary(true);
@@ -173,6 +187,7 @@ public class ProductImageServiceImpl implements ProductImageService {
                 .altText(i.getAltText())
                 .sortOrder(i.getSortOrder())
                 .isPrimary(i.getIsPrimary())
+                .optionValueId(i.getOptionValueId())
                 .build();
     }
 }

@@ -39,6 +39,8 @@ export const ACCESS = {
   bundles:      { any: ['bundles.view'] },
   // Anyone who sees settings can look; changing a chart needs settings.sizechart.
   sizeCharts:   { any: ['settings.view', 'settings.sizechart'] },
+  // The shop's own pages (Our Mission, Our Values): seen with settings, changed with settings.about.
+  pages:        { any: ['settings.view', 'settings.about'] },
   returns:      { any: ['returns.view'] },
   customOrders: { any: ['custom_orders.view'] },
   customDesign: { any: ['design.view'] },
@@ -76,6 +78,7 @@ export const ADMIN_PAGES: AdminPage[] = [
   { label: 'Flash Sales',   icon: 'banners',    route: '/flash-sales',   access: ACCESS.flashSales },
   { label: 'Bundles',       icon: 'banners',    route: '/bundles',       access: ACCESS.bundles },
   { label: 'Size Charts',   icon: 'inventory',  route: '/size-charts',   access: ACCESS.sizeCharts },
+  { label: 'Pages',         icon: 'reviews',    route: '/pages',         access: ACCESS.pages },
   { label: 'Returns',       icon: 'orders',     route: '/returns',       access: ACCESS.returns },
   { label: 'Custom Orders', icon: 'orders',     route: '/custom-orders', access: ACCESS.customOrders },
   { label: 'Custom Design', icon: 'products',   route: '/custom-design', access: ACCESS.customDesign },

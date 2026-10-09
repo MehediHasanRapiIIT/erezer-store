@@ -44,4 +44,11 @@ public class ProductImage extends AbstractBaseEntity<Long> {
 
     @Column(name = "is_primary", nullable = false)
     private Boolean isPrimary;
+
+    /**
+     * The choice (a colour, usually) this picture belongs to, by its id in the
+     * product's options. Null for a picture that suits every choice.
+     */
+    @Column(name = "option_value_id", length = 40)
+    private String optionValueId;
 }

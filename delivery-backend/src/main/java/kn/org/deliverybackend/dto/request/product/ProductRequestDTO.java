@@ -92,4 +92,11 @@ public class ProductRequestDTO {
     private Long sizeChartId;
     /** A different chart for Regular Fit, for a product in two fits. 0 means the same chart. Null leaves it unchanged. */
     private Long regularFitSizeChartId;
+
+    /**
+     * The options a new product comes in beyond size and fit (colour, and
+     * anything else), with their choices. Read when a product is added; an
+     * existing product's options are changed on their own address.
+     */
+    private java.util.List<kn.org.deliverybackend.dto.variant.ProductOptionDTO> options;
 }

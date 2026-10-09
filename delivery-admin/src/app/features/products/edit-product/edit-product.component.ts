@@ -59,6 +59,8 @@ export class EditProductComponent implements OnInit {
   stockDisplay = signal<StockDisplay>('CATEGORY');
   /** The product's own size chart; 0 for none of its own. */
   sizeChartId = signal(0);
+  /** Counts saves of the product's options, so the pictures section reads the choices again. */
+  optionsVersion = signal(0);
   /** A different chart for Regular Fit; 0 for the same chart. */
   regularFitSizeChartId = signal(0);
   protected readonly stockDisplayOptions: { value: StockDisplay; label: string }[] = [

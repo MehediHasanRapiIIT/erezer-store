@@ -147,11 +147,20 @@ public class ProductServiceImpl implements ProductService {
     private void addSizeStock(List<ProductResponseDTO> rows) {
         if (rows.isEmpty()) return;
         Map<Long, List<kn.org.deliverybackend.dto.response.product.StockResponseDTO.SizeStock>> byProduct = new java.util.HashMap<>();
+        Map<Long, List<kn.org.deliverybackend.dto.variant.ProductOptionDTO>> optionsOf = new java.util.HashMap<>();
+        for (ProductResponseDTO row : rows) optionsOf.put(row.getId(), row.getOptions() == null ? List.of() : row.getOptions());
+        // Which place each variant's combination has in its product's list: all of Black, then all of White.
+        Map<Long, Integer> combinationRank = new java.util.HashMap<>();
         for (var v : variantRepository.findLiveByProductIds(rows.stream().map(ProductResponseDTO::getId).toList())) {
+            var options = optionsOf.getOrDefault(v.getProductId(), List.of());
+            int rank = ProductOptions.combinations(options).indexOf(v.getOptionKey());
+            combinationRank.put(v.getId(), rank < 0 ? Integer.MAX_VALUE : rank);
             byProduct.computeIfAbsent(v.getProductId(), k -> new ArrayList<>())
                     .add(new kn.org.deliverybackend.dto.response.product.StockResponseDTO.SizeStock(
-                            v.getId(), v.getSize(), v.getStockQuantity() == null ? 0 : v.getStockQuantity(),
-                            v.getFit(), kn.org.deliverybackend.enumeration.Fit.labelOf(v.getFit())));
+                            v.getId(), v.getSize() == null ? "One size" : v.getSize(),
+                            v.getStockQuantity() == null ? 0 : v.getStockQuantity(),
+                            v.getFit(), kn.org.deliverybackend.enumeration.Fit.labelOf(v.getFit()),
+                            ProductOptions.label(options, v.getOptionKey())));
         }
         List<String> order = List.of("XS", "S", "M", "L", "XL", "XXL", "XXXL");
         for (ProductResponseDTO row : rows) {
@@ -160,7 +169,8 @@ public class ProductServiceImpl implements ProductService {
             // Drop Shoulder's sizes, then Regular Fit's.
             sizes.sort(java.util.Comparator
                     .comparingInt((kn.org.deliverybackend.dto.response.product.StockResponseDTO.SizeStock s) ->
-                            kn.org.deliverybackend.enumeration.Fit.rank(s.getFit()))
+                            combinationRank.getOrDefault(s.getVariantId(), Integer.MAX_VALUE))
+                    .thenComparingInt(s -> kn.org.deliverybackend.enumeration.Fit.rank(s.getFit()))
                     .thenComparingInt(s -> {
                         int i = s.getSize() == null ? -1 : order.indexOf(s.getSize().trim().toUpperCase());
                         return i < 0 ? order.size() : i;
@@ -362,6 +372,7 @@ public class ProductServiceImpl implements ProductService {
         // storefront card knows the product is at full price without having to
         // fetch the category separately.
         dto.setCategoryDiscountExcluded(false);
+        dto.setOptions(ProductOptions.parse(product.getOptionsJson()));
         dto.setSizeChartId(product.getSizeChartId());
         dto.setRegularFitSizeChartId(product.getRegularFitSizeChartId());
         dto.setEffectiveSizeChartId(sizeCharts.effectiveFor(product));

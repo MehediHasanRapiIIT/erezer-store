@@ -138,6 +138,8 @@ export interface ApiProduct {
   totalReviews?: number;
   stockQuantity?: number;
 
+  /** The options this product comes in beyond size and fit - colour, and anything else. Empty for none. */
+  options?: ApiProductOption[];
   /** The size chart this product's page shows (its own, its category's, or the default), by id in the size chart library. */
   effectiveSizeChartId?: number | null;
   /** The chart shown for Regular Fit; the same id when the product names no other. */
@@ -163,6 +165,31 @@ export interface ApiVariant {
   sku: string | null;
   stockQuantity: number | null;
   priceOverride: number | null;
+  /** The combination of the product's own options this variant is, as a key of ids; null when it has none. */
+  optionKey?: string | null;
+  /** That combination spelt out: Colour: Black, Sleeve: Long. */
+  options?: ApiVariantOption[];
+  /** "Black / Long"; null when the product has no options. */
+  optionLabel?: string | null;
+}
+
+/** One choice a variant is made of. */
+export interface ApiVariantOption {
+  optionId: string;
+  option: string;
+  valueId: string;
+  value: string;
+  /** The swatch of a colour; null otherwise. */
+  hex?: string | null;
+}
+
+/** One option of a product ("Colour") with its choices, as the product page offers them. */
+export interface ApiProductOption {
+  id: string;
+  name: string;
+  /** COLOUR shows a swatch for each choice. */
+  kind: 'COLOUR' | 'TEXT';
+  values: { id: string; value: string; hex?: string | null }[];
 }
 
 export interface ApiProductImage {
@@ -172,6 +199,8 @@ export interface ApiProductImage {
   altText: string | null;
   sortOrder: number;
   isPrimary: boolean;
+  /** The choice (a colour, usually) this picture belongs to; null for a picture that suits all of them. */
+  optionValueId?: string | null;
 }
 
 export interface ApiStockStatus {
@@ -711,6 +740,25 @@ export interface ApiSizeChartRow {
 export interface ApiSizeChart {
   columns: string[];
   rows: ApiSizeChartRow[];
+}
+
+/** One of the shop's own pages ("Our Mission", "Our Values"), read at /pages/<slug>. */
+export interface ApiContentPage {
+  id: number;
+  slug: string;
+  title: string;
+  /** A small line above the title. */
+  eyebrow: string | null;
+  /** The opening; paragraphs are separated by an empty line. */
+  intro: string | null;
+  heroImageUrl: string | null;
+  sections: { heading: string | null; body: string | null; imageUrl: string | null }[];
+  /** The line the page ends on. */
+  closing: string | null;
+  ctaLabel: string | null;
+  ctaLink: string | null;
+  showInFooter: boolean;
+  isActive: boolean;
 }
 
 /** One chart of the shop's size chart library. */

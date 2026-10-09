@@ -55,9 +55,24 @@ public class ReturnServiceImpl implements ReturnService {
     private final OrderHistoryService     orderHistoryService;
     private final FileStorageService      fileStorageService;
     private final ApplicationEventPublisher eventPublisher;
+    private final kn.org.deliverybackend.repository.StoreSettingsRepository storeSettingsRepository;
 
+    /** How long a return can be asked for when the shop has not set its own number of days in Settings. */
     @Value("${app.returns.window-days:14}")
-    private long returnWindowDays;
+    private long defaultReturnWindowDays;
+
+    /**
+     * How many days after delivery a return can be asked for: the number the
+     * shop set in Settings ("days to request a return"), so the limit that is
+     * enforced is the one its return policy tells customers.
+     */
+    private long returnWindowDays() {
+        return storeSettingsRepository.findById(kn.org.deliverybackend.entity.StoreSettings.SINGLETON_ID)
+                .map(kn.org.deliverybackend.entity.StoreSettings::getExchangeWindowDays)
+                .filter(days -> days != null && days > 0)
+                .map(Integer::longValue)
+                .orElse(defaultReturnWindowDays);
+    }
 
     @Value("${app.returns.bucket:return-photos}")
     private String returnPhotosBucket;
@@ -251,10 +266,12 @@ public class ReturnServiceImpl implements ReturnService {
                         java.time.ZoneId.systemDefault());
             }
         }
+        long windowDays = returnWindowDays();
         if (delivered != null
-                && delivered.plusDays(returnWindowDays).isBefore(LocalDateTime.now())) {
+                && delivered.plusDays(windowDays).isBefore(LocalDateTime.now())) {
             throw new InvalidStockOperationException(
-                    "Return window of " + returnWindowDays + " days has closed.");
+                    "Returns are accepted within " + windowDays + (windowDays == 1 ? " day" : " days")
+                            + " of delivery, and that time has passed for this order.");
         }
     }
 

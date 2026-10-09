@@ -50,6 +50,7 @@ public class ProductCreationServiceImpl implements ProductCreationService {
     private final ProductImageService imageService;
     private final VariantService variantService;
     private final FileStorageService fileStorageService;
+    private final ProductOptionsService productOptionsService;
 
     @Override
     @Transactional
@@ -93,6 +94,11 @@ public class ProductCreationServiceImpl implements ProductCreationService {
             String url = fileStorageService.uploadFile(photos.get(i));
             stored.add(url);
             imageService.attach(id, url, null, i, i == 0);
+        }
+        // Options first, then sizes: each size is then added in every
+        // combination, with the stock typed for it.
+        if (product.getOptions() != null && !product.getOptions().isEmpty()) {
+            productOptionsService.set(id, product.getOptions(), false);
         }
         if (!rows.isEmpty()) {
             variantService.createAll(id, rows);

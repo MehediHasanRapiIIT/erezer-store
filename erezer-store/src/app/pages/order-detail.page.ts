@@ -1,4 +1,5 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
+import { SettingsStore } from '../core/store/settings.store';
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -145,7 +146,7 @@ const TIMELINE_STEPS: { status: OrderStatus; label: string }[] = [
           <article class="app-card p-5">
             <h2 class="mb-2 text-lg font-semibold">Need to return something?</h2>
             <p class="mb-3 text-sm text-neutral-600 dark:text-neutral-300">
-              You can request a return within 14 days of delivery.
+              You can request a return within {{ returnDays() }} {{ returnDays() === 1 ? 'day' : 'days' }} of delivery.
             </p>
             <a [routerLink]="['/orders', apiOrder()!.id, 'return']" class="btn-secondary text-sm">
               Request a return
@@ -262,6 +263,7 @@ export class OrderDetailPage implements OnInit, OnDestroy {
   protected readonly store = inject(EcommerceStore);
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
+  private readonly settingsStore = inject(SettingsStore);
 
   protected readonly steps = TIMELINE_STEPS;
 
@@ -288,7 +290,13 @@ export class OrderDetailPage implements OnInit, OnDestroy {
   // ── Phase 5: returns ───────────────────────────────────────────────────────
   protected readonly existingReturn = signal<ReturnRequestResponse | null>(null);
 
-  /** True when the order is DELIVERED, no existing return, and within 14 days. */
+  /** The days after delivery a return can be asked for, as the shop set them (14 until it has). */
+  protected readonly returnDays = computed(() => {
+    const days = this.settingsStore.settings()?.exchangeWindowDays;
+    return days && days > 0 ? days : 14;
+  });
+
+  /** True when the order is DELIVERED and has no return yet. The server checks the days. */
   protected readonly canRequestReturn = computed(() => {
     if (this.existingReturn()) return false;
     if (this.currentStatus() !== 'DELIVERED') return false;

@@ -67,6 +67,10 @@ public class AdminProductController {
         if (!photos.isEmpty()) {
             StaffAccess.require(Perm.PRODUCTS_IMAGES);
         }
+        // Options decide which variants a product has, like its sizes do.
+        if (product.getOptions() != null && !product.getOptions().isEmpty()) {
+            StaffAccess.require(Perm.PRODUCTS_VARIANTS);
+        }
         checkSizes(rows);
 
         ProductResponseDTO created = productCreationService.createWithEverything(product, rows, photos);
@@ -127,6 +131,9 @@ public class AdminProductController {
         }
         if (pictures.stream().anyMatch(list -> !list.isEmpty())) {
             StaffAccess.require(Perm.PRODUCTS_IMAGES);
+        }
+        if (shared.getOptions() != null && !shared.getOptions().isEmpty()) {
+            StaffAccess.require(Perm.PRODUCTS_VARIANTS);
         }
         checkSizes(sizes);
 

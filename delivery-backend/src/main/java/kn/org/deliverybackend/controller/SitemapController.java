@@ -57,6 +57,7 @@ public class SitemapController {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final kn.org.deliverybackend.repository.ContentPageRepository contentPageRepository;
 
     @Value("${app.frontend.store-url}")
     private String storeUrl;
@@ -76,6 +77,11 @@ public class SitemapController {
         xml.append("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
         for (String[] page : PAGES) {
             url(xml, base + page[0], null, page[1], page[2]);
+        }
+        // The shop's own pages: Our Mission, Our Values, and any other it has written.
+        for (var page : contentPageRepository.findLive()) {
+            if (!Boolean.TRUE.equals(page.getIsActive())) continue;
+            url(xml, base + "/pages/" + page.getSlug(), page.getUpdatedAt(), "monthly", "0.5");
         }
         for (Category c : categories) {
             if (!shown(c, byId) || c.getSlug() == null || c.getSlug().isBlank()) continue;

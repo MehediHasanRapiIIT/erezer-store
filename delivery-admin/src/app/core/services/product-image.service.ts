@@ -10,12 +10,16 @@ export interface ProductImageResponse {
   altText: string | null;
   sortOrder: number;
   isPrimary: boolean;
+  /** The choice (a colour, usually) the picture belongs to, by its id in the product's options; null for all. */
+  optionValueId?: string | null;
 }
 
 export interface ProductImageMetadata {
   altText?: string | null;
   sortOrder?: number;
   isPrimary?: boolean;
+  /** The choice the picture belongs to; '' for all of them. Left out: unchanged. */
+  optionValueId?: string;
 }
 
 @Injectable({ providedIn: 'root' })

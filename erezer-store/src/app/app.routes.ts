@@ -129,6 +129,12 @@ export const routes: Routes = [
     data: { seo: { title: 'All Collections', description: 'Browse every Erezer collection: t-shirts, hoodies and more.' } },
     loadComponent: () => import('./pages/categories.page').then((m) => m.CategoriesPage)
   },
+  // The shop's own pages: /pages/our-mission, /pages/our-values. The page sets
+  // its own title and description once it has loaded.
+  {
+    path: 'pages/:slug',
+    loadComponent: () => import('./pages/content.page').then((m) => m.ContentPage)
+  },
   // Catch-all collection page, e.g. /erezer-pink.
   //
   // Registered LAST so every real route above wins: a category slugged "shop"

@@ -1,4 +1,6 @@
 import { Component, signal, computed, OnInit, inject } from '@angular/core';
+import { OptionsEditorComponent, cleanOptions, optionsProblem } from '../shared/options-editor.component';
+import { ProductOption } from '../../../core/services/variant.service';
 import { SizeChartPickerComponent } from '../../../shared/size-chart-picker/size-chart-picker.component';
 import { RouterLink, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -20,7 +22,7 @@ import {
 @Component({
   selector: 'app-add-product',
   standalone: true,
-  imports: [RouterLink, FormsModule, SidebarComponent, DiscountInputComponent, PicturePickerComponent, FitSizesComponent, SizeChartPickerComponent],
+  imports: [RouterLink, FormsModule, SidebarComponent, DiscountInputComponent, PicturePickerComponent, FitSizesComponent, SizeChartPickerComponent, OptionsEditorComponent],
   templateUrl: './add-product.component.html',
 })
 export class AddProductComponent implements OnInit {
@@ -55,6 +57,8 @@ export class AddProductComponent implements OnInit {
   stockDisplay = signal<StockDisplay>('CATEGORY');
   /** The product's own size chart; 0 for none of its own. */
   sizeChartId = signal(0);
+  /** The options the new product comes in beyond size and fit. */
+  options = signal<ProductOption[]>([]);
   /** A different chart for Regular Fit; 0 for the same chart. */
   regularFitSizeChartId = signal(0);
   protected readonly stockDisplayOptions: { value: StockDisplay; label: string }[] = [
@@ -166,11 +170,17 @@ export class AddProductComponent implements OnInit {
       stockDisplay: this.stockDisplay(),
       sizeChartId: this.sizeChartId(),
       regularFitSizeChartId: this.regularFitSizeChartId(),
+      options: this.perms.can('products.variants') ? cleanOptions(this.options()) : [],
     };
 
     const fitIssue = this.perms.can('products.variants') ? fitSizesProblem(this.fitSizes()) : '';
     if (fitIssue) {
       this.errorMessage.set(fitIssue);
+      return;
+    }
+    const optionIssue = this.perms.can('products.variants') ? optionsProblem(this.options()) : '';
+    if (optionIssue) {
+      this.errorMessage.set(optionIssue);
       return;
     }
     const sizes = this.perms.can('products.variants') ? fitVariants(this.fitSizes()) : [];

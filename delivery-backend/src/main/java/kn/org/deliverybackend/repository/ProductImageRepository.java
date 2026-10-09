@@ -25,4 +25,9 @@ public interface ProductImageRepository extends JpaRepository<ProductImage, Long
     @Query("UPDATE ProductImage i SET i.isPrimary = false " +
             "WHERE i.productId = :productId AND i.isPrimary = true")
     void clearPrimaryFlag(@Param("productId") Long productId);
+
+    /** Pictures of a product that belong to one particular choice of its options. */
+    @Query("SELECT i FROM ProductImage i WHERE i.productId = :productId AND i.optionValueId IS NOT NULL " +
+            "AND i.deleted = false")
+    List<ProductImage> findBelongingToAChoice(@Param("productId") Long productId);
 }

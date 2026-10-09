@@ -9,6 +9,7 @@ import {
   ApiActiveDiscount,
   ApiProduct,
   ApiProductImage,
+  ApiProductOption,
   ApiRatingSummary,
   ApiReview,
   ApiStockStatus,
@@ -183,6 +184,51 @@ import { RevealDirective } from '../core/reveal.directive';
               }
 
               <div class="border-t border-neutral-200 dark:border-neutral-800"></div>
+
+              <!-- The product's own options: colour as swatches, anything else as buttons.
+                   One of each is always chosen; a choice with nothing in stock is greyed. -->
+              @for (option of productOptions(); track option.id) {
+                <div class="space-y-3" data-testid="option-picker" [attr.data-option]="option.name">
+                  <p class="text-sm font-medium">
+                    {{ option.name }}<span class="ml-1 text-neutral-500 dark:text-neutral-400">· {{ choiceName(option) }}</span>
+                  </p>
+                  <div class="flex flex-wrap gap-2">
+                    @for (value of option.values; track value.id) {
+                      @if (option.kind === 'COLOUR') {
+                        <button type="button" (click)="selectChoice(option.id, value.id)" [title]="value.value"
+                          [attr.aria-label]="value.value" [attr.aria-pressed]="selectedChoices()[option.id] === value.id"
+                          data-testid="option-value"
+                          class="relative h-10 w-10 rounded-full border-2 p-0.5 transition"
+                          [class.border-neutral-900]="selectedChoices()[option.id] === value.id"
+                          [class.dark:border-white]="selectedChoices()[option.id] === value.id"
+                          [class.border-transparent]="selectedChoices()[option.id] !== value.id"
+                          [class.opacity-40]="!isChoiceAvailable(option.id, value.id)">
+                          <span class="block h-full w-full rounded-full border border-neutral-300 dark:border-neutral-600" [style.background]="value.hex || '#e5e5e5'"></span>
+                          @if (!isChoiceAvailable(option.id, value.id)) {
+                            <span class="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden="true">
+                              <span class="block h-px w-8 rotate-45 bg-neutral-500"></span>
+                            </span>
+                          }
+                        </button>
+                      } @else {
+                        <button type="button" (click)="selectChoice(option.id, value.id)"
+                          [attr.aria-pressed]="selectedChoices()[option.id] === value.id" data-testid="option-value"
+                          class="min-h-11 rounded-xl border px-4 py-2 text-sm font-medium transition"
+                          [class.border-neutral-900]="selectedChoices()[option.id] === value.id"
+                          [class.bg-neutral-900]="selectedChoices()[option.id] === value.id"
+                          [class.text-white]="selectedChoices()[option.id] === value.id"
+                          [class.dark:border-white]="selectedChoices()[option.id] === value.id"
+                          [class.dark:bg-white]="selectedChoices()[option.id] === value.id"
+                          [class.dark:text-black]="selectedChoices()[option.id] === value.id"
+                          [class.border-neutral-200]="selectedChoices()[option.id] !== value.id"
+                          [class.dark:border-neutral-700]="selectedChoices()[option.id] !== value.id"
+                          [class.opacity-40]="!isChoiceAvailable(option.id, value.id)"
+                          [class.line-through]="!isChoiceAvailable(option.id, value.id)">{{ value.value }}</button>
+                      }
+                    }
+                  </div>
+                </div>
+              }
 
               <!-- fit picker: Drop Shoulder or Regular Fit, when the product comes in fits.
                    Each fit has its own sizes, stock and price, so it is chosen first. -->
@@ -779,7 +825,21 @@ export class ProductDetailPage implements OnInit {
   protected readonly cartMessageError = signal(false);
 
   // ── images ────────────────────────────────────────────────────────────────
-  protected readonly images          = signal<ApiProductImage[]>([]);
+  /** Every picture of the product. */
+  private readonly allImages         = signal<ApiProductImage[]>([]);
+  /**
+   * The pictures on show: those of the chosen colour first, when it has any,
+   * then the ones that suit every choice. Another colour's pictures are never
+   * shown for this one: with none of its own and no general ones, the page
+   * falls back to the product's main picture.
+   */
+  protected readonly images          = computed<ApiProductImage[]>(() => {
+    const all = this.allImages();
+    const chosen = new Set(Object.values(this.selectedChoices()));
+    const own = all.filter((i) => i.optionValueId && chosen.has(i.optionValueId));
+    const general = all.filter((i) => !i.optionValueId);
+    return [...own, ...general];
+  });
   protected readonly selectedImageId = signal<number | null>(null);
 
   // ── variants ──────────────────────────────────────────────────────────────
@@ -845,15 +905,56 @@ export class ProductDetailPage implements OnInit {
   private static readonly FIT_LABELS: Record<string, string> = { DROP_SHOULDER: 'Drop Shoulder', REGULAR_FIT: 'Regular Fit' };
 
   /** The fits this product comes in, Drop Shoulder first; empty when it has none. */
+  // ── the product's own options: colour, and anything else ──────────────────
+  protected readonly productOptions = computed<ApiProductOption[]>(() => this.product()?.options ?? []);
+  /** The choice made for each option: option id to value id. One of each, once the variants have loaded. */
+  protected readonly selectedChoices = signal<Record<string, string>>({});
+  /** The variants of the chosen combination: every variant, for a product with no options. */
+  protected readonly optionVariants = computed(() => {
+    const options = this.productOptions();
+    if (options.length === 0) return this.variants();
+    const chosen = this.selectedChoices();
+    return this.variants().filter((v) => options.every((o) =>
+      (v.options ?? []).some((c) => c.optionId === o.id && c.valueId === chosen[o.id])));
+  });
+
+  protected choiceName(option: ApiProductOption): string {
+    return option.values.find((v) => v.id === this.selectedChoices()[option.id])?.value ?? '';
+  }
+
+  /** True when this choice, with the other options as they are chosen now, has something in stock. */
+  protected isChoiceAvailable(optionId: string, valueId: string): boolean {
+    const chosen = { ...this.selectedChoices(), [optionId]: valueId };
+    return this.variants().some((v) =>
+      (v.stockQuantity == null || v.stockQuantity > 0)
+      && this.productOptions().every((o) => (v.options ?? []).some((c) => c.optionId === o.id && c.valueId === chosen[o.id])));
+  }
+
+  /** Picks a choice, keeping the fit and size where the new combination has them in stock. */
+  protected selectChoice(optionId: string, valueId: string): void {
+    if (this.selectedChoices()[optionId] === valueId) return;
+    const fit = this.selectedFit();
+    const size = this.selectedSize();
+    this.selectedChoices.update((c) => ({ ...c, [optionId]: valueId }));
+    this.customSelected.set(false);
+    if (!fit || !this.availableFits().includes(fit)) this.selectedFit.set(this.availableFits()[0] ?? null);
+    if (!(size && this.isSizeAvailable(size))) {
+      this.selectedSize.set(this.availableSizes().find((s) => this.isSizeAvailable(s)) ?? null);
+    }
+    // The chosen colour's pictures, from the first.
+    const first = this.images()[0];
+    if (first) this.selectedImageId.set(first.id);
+  }
+
   protected readonly availableFits = computed(() => {
-    const fits = new Set(this.variants().map((v) => v.fit).filter((f): f is string => !!f));
+    const fits = new Set(this.optionVariants().map((v) => v.fit).filter((f): f is string => !!f));
     return [...fits].sort((a, b) => ProductDetailPage.FIT_ORDER.indexOf(a) - ProductDetailPage.FIT_ORDER.indexOf(b));
   });
 
   /** The sizes on offer right now: those of the picked fit, or all of them when there are no fits. */
   protected readonly fitVariants = computed(() => {
     const fit = this.selectedFit();
-    return this.availableFits().length === 0 ? this.variants() : this.variants().filter((v) => v.fit === fit);
+    return this.availableFits().length === 0 ? this.optionVariants() : this.optionVariants().filter((v) => v.fit === fit);
   });
 
   /** The shop's size chart library; a product names the chart it shows by id. */
@@ -1158,11 +1259,12 @@ export class ProductDetailPage implements OnInit {
     // Clear the previous product so its data can't bleed through on reuse.
     this.loading.set(true);
     this.product.set(null);
-    this.images.set([]);
+    this.allImages.set([]);
     this.selectedImageId.set(null);
     this.variants.set([]);
     this.selectedSize.set(null);
     this.selectedFit.set(null);
+    this.selectedChoices.set({});
     this.customSelected.set(false);
     this.customValues.set({});
     this.customComments.set('');
@@ -1201,8 +1303,9 @@ export class ProductDetailPage implements OnInit {
     this.api.getProductImages(productId)
       .pipe(catchError(() => of([] as ApiProductImage[])))
       .subscribe((imgs) => {
-        this.images.set(imgs);
-        const primary = imgs.find((i) => i.isPrimary) ?? imgs[0];
+        this.allImages.set(imgs);
+        const shown = this.images();
+        const primary = shown.find((i) => i.isPrimary) ?? shown[0];
         if (primary) {
           this.selectedImageId.set(primary.id);
         }
@@ -1227,6 +1330,13 @@ export class ProductDetailPage implements OnInit {
       .pipe(catchError(() => of([] as ApiVariant[])))
       .subscribe((vs) => {
         this.variants.set(vs);
+        // A product with options opens on the first combination that is in
+        // stock (the first of all, when nothing is).
+        const opening = vs.find((v) => (v.options ?? []).length > 0 && (v.stockQuantity == null || v.stockQuantity > 0))
+          ?? vs.find((v) => (v.options ?? []).length > 0);
+        this.selectedChoices.set(Object.fromEntries((opening?.options ?? []).map((c) => [c.optionId, c.valueId])));
+        const firstImage = this.images()[0];
+        if (firstImage && opening) this.selectedImageId.set(firstImage.id);
         // A product that comes in fits opens on Drop Shoulder, or on the one fit it has.
         this.selectedFit.set(this.availableFits()[0] ?? null);
         // Auto-select the first in-stock size for a smoother UX.
@@ -1493,8 +1603,12 @@ export class ProductDetailPage implements OnInit {
     // Variants are size-only — label by the chosen size, never the (legacy) variant name/colour.
     // In a fit, the label says so ("Drop Shoulder / M"), as the server's does: the
     // same size in the two fits are two lines in the cart.
-    const sizeLabel = this.selectedSize() ?? variant?.size ?? 'One Size';
-    const variantLabel = variant?.fit ? `${this.fitLabelOf(variant.fit)} / ${sizeLabel}` : sizeLabel;
+    // With options of its own, those come first ("Black / Long / Drop Shoulder / M"),
+    // and a product sold by colour alone is labelled by the colour.
+    const chosenSize = this.selectedSize() ?? variant?.size ?? null;
+    const sizeLabel = chosenSize ?? (variant?.optionLabel ? '' : 'One Size');
+    const fitAndSize = variant?.fit ? [this.fitLabelOf(variant.fit), sizeLabel].filter(Boolean).join(' / ') : sizeLabel;
+    const variantLabel = [variant?.optionLabel, fitAndSize].filter(Boolean).join(' / ');
 
     this.pixel.addToCart(p.id, p.name, this.effectivePrice(p), this.quantity());
 
@@ -1504,7 +1618,8 @@ export class ProductDetailPage implements OnInit {
         variantId,
         unitPrice,
         name: variant ? `${p.name} — ${variantLabel}` : p.name,
-        image: p.imageUrl,
+        // The picture of the colour chosen, when it has one.
+        image: (variant?.optionLabel ? this.images()[0]?.url : null) ?? p.imageUrl,
       });
       this.showCartMessage('Added to cart');
       return;

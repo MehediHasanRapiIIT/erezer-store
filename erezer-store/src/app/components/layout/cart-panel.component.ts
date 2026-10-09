@@ -126,8 +126,8 @@ import { TranslatePipe } from '../../core/i18n/translate.pipe';
                           <div class="flex flex-wrap gap-1">
                             @for (v of pickSizes(); track v.id) {
                               <button type="button" (click)="addSize(p, v)" [disabled]="adding() === p.id || soldOut(v)"
-                                [attr.aria-label]="('cart_panel.add' | t) + ' ' + p.name + ' ' + (v.size ?? '')"
-                                class="min-w-7 rounded-md border border-neutral-300 px-1.5 py-0.5 text-[11px] font-semibold transition hover:border-neutral-900 hover:bg-neutral-900 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:line-through disabled:hover:border-neutral-300 disabled:hover:bg-transparent disabled:hover:text-inherit dark:border-neutral-700 dark:hover:border-white dark:hover:bg-white dark:hover:text-black">{{ v.size }}</button>
+                                [attr.aria-label]="('cart_panel.add' | t) + ' ' + p.name + ' ' + (v.size ?? v.optionLabel ?? '')"
+                                class="min-w-7 rounded-md border border-neutral-300 px-1.5 py-0.5 text-[11px] font-semibold transition hover:border-neutral-900 hover:bg-neutral-900 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:line-through disabled:hover:border-neutral-300 disabled:hover:bg-transparent disabled:hover:text-inherit dark:border-neutral-700 dark:hover:border-white dark:hover:bg-white dark:hover:text-black">{{ v.size || v.optionLabel }}</button>
                             }
                             <button type="button" (click)="cancelPick()" [attr.aria-label]="'cart_panel.cancel' | t"
                               class="rounded-md px-1.5 py-0.5 text-[11px] text-neutral-500 underline underline-offset-2 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white">{{ 'cart_panel.cancel' | t }}</button>
@@ -181,12 +181,14 @@ export class CartPanelComponent {
   protected readonly picking = signal<{ productId: number; variants: ApiVariant[]; fit: string | null } | null>(null);
   /** The fits of the suggestion being chosen, Drop Shoulder first; empty when it has none. */
   protected readonly pickFits = computed(() => {
-    const order = ['DROP_SHOULDER', 'REGULAR_FIT'];
+    // One button for each combination of the product's own options and fit, in
+    // the order the product lists them: "Black · Drop Shoulder", "Black · Regular Fit", "White · …".
     const seen = new Map<string, string>();
     for (const v of this.picking()?.variants ?? []) {
-      if (v.fit && !seen.has(v.fit)) seen.set(v.fit, v.fitLabel ?? v.fit);
+      const key = this.groupOf(v);
+      if (key && !seen.has(key)) seen.set(key, [v.optionLabel, v.fit ? v.fitLabel ?? v.fit : ''].filter(Boolean).join(' · '));
     }
-    return [...seen].map(([fit, label]) => ({ fit, label })).sort((a, b) => order.indexOf(a.fit) - order.indexOf(b.fit));
+    return [...seen].map(([fit, label]) => ({ fit, label }));
   });
   /** The sizes on offer: those of the picked fit, S before M before L. */
   protected readonly pickSizes = computed(() => {
@@ -194,7 +196,7 @@ export class CartPanelComponent {
     if (!pick) return [];
     const order = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
     const rank = (s: string | null) => { const i = order.indexOf((s ?? '').toUpperCase()); return i < 0 ? order.length : i; };
-    return pick.variants.filter((v) => (pick.fit ? v.fit === pick.fit : true) && !!v.size)
+    return pick.variants.filter((v) => (pick.fit ? this.groupOf(v) === pick.fit : true))
       .sort((a, b) => rank(a.size) - rank(b.size));
   });
 
@@ -240,17 +242,23 @@ export class CartPanelComponent {
   protected add(p: ApiProduct): void {
     this.adding.set(p.id);
     this.cart.sizesOf(p).subscribe((variants) => {
-      const sized = variants.filter((v) => !!v.size);
+      // Anything there is a choice in: a size, or a colour sold without sizes.
+      const sized = variants.filter((v) => !!v.size || !!v.optionLabel);
       if (sized.length > 1) {
         this.adding.set(null);
-        const fits = ['DROP_SHOULDER', 'REGULAR_FIT'].filter((f) => sized.some((v) => v.fit === f));
-        // Opens on the first fit that has something in stock, Drop Shoulder first.
-        const fit = fits.find((f) => sized.some((v) => v.fit === f && !this.soldOut(v))) ?? fits[0] ?? null;
+        const groups = [...new Set(sized.map((v) => this.groupOf(v)).filter(Boolean))];
+        // Opens on the first group that has something in stock.
+        const fit = groups.find((g) => sized.some((v) => this.groupOf(v) === g && !this.soldOut(v))) ?? groups[0] ?? null;
         this.picking.set({ productId: p.id, variants: sized, fit });
         return;
       }
       this.cart.addSize(p, variants[0] ?? null).subscribe((result) => this.afterAdd(p, result));
     });
+  }
+
+  /** What a variant is grouped under in the picker: its combination of options and its fit; '' for neither. */
+  private groupOf(v: ApiVariant): string {
+    return v.optionKey || v.fit ? `${v.optionKey ?? ''}|${v.fit ?? ''}` : '';
   }
 
   protected pickFit(fit: string): void {

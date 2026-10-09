@@ -21,4 +21,7 @@ public class ContactMessageDTO {
     private String status;
     private UUID orderId;
     private LocalDateTime createdAt;
+    /** The replies the shop has sent from the admin panel, oldest first. */
+    @lombok.Builder.Default
+    private java.util.List<ContactReplyDTO> replies = new java.util.ArrayList<>();
 }

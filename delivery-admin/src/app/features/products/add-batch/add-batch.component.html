@@ -137,6 +137,19 @@
             </div>
           </div>
 
+          <!-- Options: colour, and anything else these products come in -->
+          <div class="mt-5 border-t border-gray-100 pt-4" data-testid="new-options">
+            <h2 class="text-sm font-bold text-gray-800 mb-1">Options <span class="font-normal text-gray-400">(optional)</span></h2>
+            <p class="mb-3 text-xs text-gray-500">
+              Colour, or anything else every product below comes in. Each product gets every combination, and every size in each, with the stock you type for it.
+            </p>
+            @if (canAddSizes()) {
+              <app-options-editor [(options)]="options" [disabled]="saving()" />
+            } @else {
+              <p class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">Options need the “Manage sizes and colours” permission.</p>
+            }
+          </div>
+
           <div class="mt-5 border-t border-gray-100 pt-4">
             @if (canAddSizes()) {
               <app-fit-sizes [(value)]="fitSizes" [basePrice]="price()" [disabled]="saving()"

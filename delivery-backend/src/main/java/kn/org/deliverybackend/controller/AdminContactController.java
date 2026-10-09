@@ -21,6 +21,7 @@ import java.util.UUID;
 public class AdminContactController {
 
     private final ContactMessageService contactService;
+    private final kn.org.deliverybackend.service.impl.ContactReplyService replyService;
 
     @RequiresPermission(Perm.SUPPORT_VIEW)
     @GetMapping
@@ -29,13 +30,15 @@ public class AdminContactController {
             @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(contactService.list(status, q, page, size));
+        Page<ContactMessageDTO> found = contactService.list(status, q, page, size);
+        replyService.attachReplies(found.getContent());
+        return ResponseEntity.ok(found);
     }
 
     @RequiresPermission(Perm.SUPPORT_VIEW)
     @GetMapping("/{id}")
     public ResponseEntity<ContactMessageDTO> get(@PathVariable UUID id) {
-        return ResponseEntity.ok(contactService.get(id));
+        return ResponseEntity.ok(withReplies(contactService.get(id)));
     }
 
     @RequiresPermission(Perm.SUPPORT_UPDATE)
@@ -43,7 +46,30 @@ public class AdminContactController {
     public ResponseEntity<ContactMessageDTO> updateStatus(
             @PathVariable UUID id,
             @Valid @RequestBody ContactStatusUpdateDTO update) {
-        return ResponseEntity.ok(contactService.updateStatus(id, update));
+        return ResponseEntity.ok(withReplies(contactService.updateStatus(id, update)));
+    }
+
+    /**
+     * Answers a message: the reply is emailed to the customer from the shop's
+     * address and kept under the message, which becomes RESOLVED. Returns the
+     * message as it now stands.
+     */
+    @RequiresPermission(Perm.SUPPORT_UPDATE)
+    @PostMapping("/{id}/reply")
+    public ResponseEntity<ContactMessageDTO> reply(
+            @PathVariable UUID id,
+            @Valid @RequestBody kn.org.deliverybackend.dto.contact.ContactReplyDTO reply) {
+        var staff = kn.org.deliverybackend.access.StaffAccess.current();
+        String name = staff.map(s -> s.name() != null && !s.name().isBlank() ? s.name() : s.username()).orElse(null);
+        replyService.reply(id, reply.getBody(), staff.map(kn.org.deliverybackend.access.StaffView::id).orElse(null), name);
+        ContactMessageDTO message = withReplies(contactService.get(id));
+        kn.org.deliverybackend.access.StaffAccess.describe("Replied to the support message from " + message.getName());
+        return ResponseEntity.ok(message);
+    }
+
+    private ContactMessageDTO withReplies(ContactMessageDTO message) {
+        replyService.attachReplies(java.util.List.of(message));
+        return message;
     }
 
     @RequiresPermission(Perm.SUPPORT_DELETE)

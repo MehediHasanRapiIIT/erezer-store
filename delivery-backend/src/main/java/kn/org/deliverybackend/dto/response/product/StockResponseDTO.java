@@ -53,9 +53,15 @@ public class StockResponseDTO {
         private String fit;
         /** "Drop Shoulder", for showing. */
         private String fitLabel;
+        /** "Black / Long": the combination of the product's own options; null when it has none. */
+        private String optionLabel;
 
         public SizeStock(Long variantId, String size, int stockQuantity) {
-            this(variantId, size, stockQuantity, null, null);
+            this(variantId, size, stockQuantity, null, null, null);
+        }
+
+        public SizeStock(Long variantId, String size, int stockQuantity, String fit, String fitLabel) {
+            this(variantId, size, stockQuantity, fit, fitLabel, null);
         }
     }
 }

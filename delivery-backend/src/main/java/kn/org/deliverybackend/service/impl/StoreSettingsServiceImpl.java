@@ -362,11 +362,11 @@ public class StoreSettingsServiceImpl implements StoreSettingsService {
                 .columns(List.of(
                         FooterColumnDTO.builder().title("Company").links(List.of(
                                 FooterLinkDTO.builder().label("About").url("/about").build(),
-                                FooterLinkDTO.builder().label("Journal").url("/journal").build(),
-                                FooterLinkDTO.builder().label("Careers").url("/careers").build()
+                                FooterLinkDTO.builder().label("Our Mission").url("/pages/our-mission").build(),
+                                FooterLinkDTO.builder().label("Our Values").url("/pages/our-values").build()
                         )).build(),
                         FooterColumnDTO.builder().title("Support").links(List.of(
-                                FooterLinkDTO.builder().label("Shipping & Returns").url("/shipping").build(),
+                                FooterLinkDTO.builder().label("Shipping & Returns").url("/pages/shipping-returns").build(),
                                 FooterLinkDTO.builder().label("Help Center").url("/contact").build(),
                                 FooterLinkDTO.builder().label("care@erezer.com").url("mailto:care@erezer.com").build()
                         )).build()))

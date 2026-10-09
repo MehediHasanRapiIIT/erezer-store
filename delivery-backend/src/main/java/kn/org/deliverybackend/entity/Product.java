@@ -132,6 +132,14 @@ public class Product extends AbstractBaseEntity<Long> {
     private Long sizeChartId;
 
     /**
+     * The options this product comes in beyond size and fit - colour, and
+     * anything else the shop defines - with their choices, as JSON (see
+     * ProductOptions). Null for a product with none.
+     */
+    @Column(name = "options_json", columnDefinition = "text")
+    private String optionsJson;
+
+    /**
      * For a product that comes in two fits: a different chart for Regular Fit.
      * Null: Regular Fit shows the same chart as the rest of the product.
      */

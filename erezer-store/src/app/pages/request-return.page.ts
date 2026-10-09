@@ -1,4 +1,5 @@
 import { CommonModule } from '@angular/common';
+import { SettingsStore } from '../core/store/settings.store';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -157,7 +158,12 @@ export class RequestReturnPage implements OnInit {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
 
-  protected readonly windowDays = 14;
+  private readonly settingsStore = inject(SettingsStore);
+  /** The days after delivery a return can be asked for, as the shop set them (14 until it has). */
+  protected get windowDays(): number {
+    const days = this.settingsStore.settings()?.exchangeWindowDays;
+    return days && days > 0 ? days : 14;
+  }
   protected readonly reasons = REASONS;
   protected readonly conditions = CONDITIONS;
 

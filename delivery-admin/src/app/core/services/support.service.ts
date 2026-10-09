@@ -14,6 +14,19 @@ export interface ContactMessage {
   status: ContactStatus;
   orderId: string | null;
   createdAt: string;
+  /** The replies the shop has sent from here, oldest first. */
+  replies?: ContactReply[];
+}
+
+/** One reply sent to the customer from the admin panel. */
+export interface ContactReply {
+  id: number;
+  body: string;
+  /** Who sent it. */
+  sentByName: string | null;
+  sentAt: string | null;
+  /** The address it went to. */
+  sentTo: string;
 }
 
 export interface PageResponse<T> {
@@ -41,6 +54,15 @@ export class SupportService {
   updateStatus(id: string, status: ContactStatus): Observable<ContactMessage> {
     return this.http.patch<ContactMessage>(
       `${this.base}/admin/support/messages/${id}`, { status });
+  }
+
+  /**
+   * Emails this reply to the customer from the shop's own address and keeps it
+   * under the message, which becomes RESOLVED. Refused, and nothing kept, when
+   * the email could not be sent.
+   */
+  reply(id: string, body: string): Observable<ContactMessage> {
+    return this.http.post<ContactMessage>(`${this.base}/admin/support/messages/${id}/reply`, { body });
   }
 
   delete(id: string): Observable<void> {

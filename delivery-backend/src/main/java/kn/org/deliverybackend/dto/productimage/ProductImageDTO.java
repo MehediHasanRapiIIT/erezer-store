@@ -16,4 +16,6 @@ public class ProductImageDTO {
     private String altText;
     private Integer sortOrder;
     private Boolean isPrimary;
+    /** The choice (a colour, usually) this picture belongs to, by its id in the product's options; null for all. */
+    private String optionValueId;
 }

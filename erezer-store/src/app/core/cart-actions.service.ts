@@ -8,6 +8,18 @@ import { DiscountsStore } from './store/discounts.store';
 import { PixelService } from './pixel.service';
 import { baseProductPrice, effectiveUnitPrice, isDiscountExcluded, ownPriceAfterSale } from './discount-pricing';
 
+/**
+ * What a variant is called on a cart line: its combination of the product's own
+ * options, its fit and its size, from whichever of those it has - "Black / Long
+ * / Drop Shoulder / M". "One Size" for a product with nothing to choose.
+ */
+export function variantLabel(variant: ApiVariant | null | undefined): string {
+  if (!variant) return 'One Size';
+  const size = variant.size ?? (variant.optionLabel ? '' : 'One Size');
+  const fit = variant.fit ? variant.fitLabel ?? variant.fit : '';
+  return [variant.optionLabel, fit, size].filter(Boolean).join(' / ');
+}
+
 /** What happened when a product was added from a suggestion. */
 export type QuickAddResult = 'added' | 'choose-size' | 'unavailable' | 'failed';
 
@@ -94,9 +106,8 @@ export class CartActionsService {
       switchMap((): Observable<QuickAddResult> => {
         const base = variant?.priceOverride != null ? ownPriceAfterSale(p, variant.priceOverride) : baseProductPrice(p.price, p.discountPrice);
         const unitPrice = effectiveUnitPrice(base, p.id, p.categoryId, this.discounts.discountsFor(p.categoryId), isDiscountExcluded(p));
-        // In a fit, the line says so ("Drop Shoulder / M"), as the product page's does.
-        const plainSize = variant?.size ?? 'One Size';
-        const size = variant?.fit ? `${variant.fitLabel ?? variant.fit} / ${plainSize}` : plainSize;
+        // The whole choice, as the product page words it: "Black / Long / Drop Shoulder / M".
+        const size = variantLabel(variant);
         this.pixel.addToCart(p.id, p.name, unitPrice, 1);
 
         const userId = this.auth.userId();
