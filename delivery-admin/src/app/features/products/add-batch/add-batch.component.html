@@ -129,6 +129,11 @@
                   </label>
                 }
               </div>
+              <div class="border-t border-gray-100 pt-4" data-testid="batch-size-chart">
+                <app-size-chart-picker [(value)]="sizeChartId" label="Size chart for all of them" fieldId="batch-size-chart" testId="batch-size-chart-select"
+                  [disabled]="saving()" help="Every product below gets this chart. A row can have a different one in its “Size chart” box."
+                  noneLabel="Same as their category (or the default chart)" />
+              </div>
             </div>
           </div>
 
@@ -185,6 +190,7 @@
                 photos per product — the first of each is the main picture
               </span>
               <span class="text-xs text-gray-400">Photos are taken in name order, as the camera numbered them, and stored exactly as they are.</span>
+              <span class="picture-hint text-xs text-gray-500 mt-1" data-testid="picture-hint"><span class="font-semibold text-gray-700">Best size:</span> 1200 × 1500 px, upright. Any shape works and the whole picture is always shown, but upright pictures fill the product card best.</span>
             </label>
           }
 
@@ -205,6 +211,7 @@
                   <th class="py-2">Name</th>
                   <th class="py-2 w-36">Code</th>
                   <th class="py-2 w-32">Own price</th>
+                  <th class="py-2 w-44">Size chart</th>
                   <th class="py-2 w-8"></th>
                 </tr>
               </thead>
@@ -272,6 +279,10 @@
                           class="w-full py-2 pl-6 pr-2 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-300" />
                       </div>
                     </td>
+                      <td class="py-2 pr-2 align-top">
+                        <app-size-chart-picker [value]="row.sizeChartId ?? sizeChartId()" (valueChange)="setRowChart(i, $event)" [compact]="true" [disabled]="saving()"
+                          [label]="'Size chart of row ' + (i + 1)" [fieldId]="'row-chart-' + i" testId="row-size-chart" noneLabel="No chart of its own" />
+                      </td>
                     <td class="py-3 text-right">
                       <button type="button" (click)="removeRow(i)" [disabled]="saving()"
                         [attr.aria-label]="'Remove row ' + (i + 1)"

@@ -18,11 +18,12 @@ export class CategoryService {
   }
 
   /**
-   * Every category, for a picker: each main category followed by its
-   * subcategories, which are labelled "Hoodies › Zip Hoodies".
+   * Every category, for a picker. The server sends them as a tree read top to
+   * bottom - each category followed at once by everything under it - and a
+   * subcategory is labelled with the whole way down: "Men › T-Shirts › Drop Shoulder".
    */
   getCategories(): Observable<CategoryResponse[]> {
-    return this.http.get<CategoryResponse[]>(`${this.baseUrl}/api/categories`).pipe(map(asTree));
+    return this.http.get<CategoryResponse[]>(`${this.baseUrl}/api/categories`).pipe(map((all) => all.map(labelled)));
   }
 
   getCategory(id: number): Observable<CategoryResponse> {
@@ -44,24 +45,13 @@ export class CategoryService {
 
 /**
  * How a category reads in a list. A main category is its name. A subcategory is
- * set in from the left with an arrow and names its main category, so it reads
- * right both in the open list (under its main category) and once chosen.
+ * set in from the left, further for each level down, with an arrow and the
+ * whole way down to it, so it reads right both in the open list (under its
+ * parent) and once chosen.
  */
 function labelled(c: CategoryResponse): CategoryResponse {
-  const indent = '\u00A0\u00A0\u00A0\u00A0';
-  return { ...c, label: c.parentId != null && c.parentName ? `${indent}↳ ${c.parentName} › ${c.name}` : c.name };
-}
-
-/** Main categories by name, each followed by its subcategories by name. */
-function asTree(all: CategoryResponse[]): CategoryResponse[] {
-  const byName = (a: CategoryResponse, b: CategoryResponse) => a.name.localeCompare(b.name);
-  const ids = new Set(all.map((c) => c.id));
-  // A subcategory whose parent isn't in the list is shown on its own rather than lost.
-  const mains = all.filter((c) => c.parentId == null || !ids.has(c.parentId)).sort(byName);
-  const tree: CategoryResponse[] = [];
-  for (const main of mains) {
-    tree.push(main);
-    tree.push(...all.filter((c) => c.parentId === main.id && c.id !== main.id).sort(byName));
-  }
-  return tree.map(labelled);
+  const depth = c.depth ?? (c.parentId != null ? 1 : 0);
+  if (depth === 0) return { ...c, label: c.name };
+  const path = c.path || (c.parentName ? `${c.parentName} › ${c.name}` : c.name);
+  return { ...c, label: `${'\u00A0\u00A0\u00A0\u00A0'.repeat(depth)}↳ ${path}` };
 }

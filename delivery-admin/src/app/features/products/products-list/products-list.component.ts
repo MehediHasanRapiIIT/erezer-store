@@ -1,9 +1,10 @@
 import { Component, signal, computed, inject, OnInit, OnDestroy } from '@angular/core';
+import { SizeChartPickerComponent } from '../../../shared/size-chart-picker/size-chart-picker.component';
 import { RouterLink, Router, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 import { SidebarComponent } from '../../../shared/sidebar/sidebar.component';
-import { ProductService } from '../../../core/services/product.service';
+import { BulkProductAction, ProductService } from '../../../core/services/product.service';
 import { CategoryService } from '../../../core/services/category.service';
 import { CategoryResponse, ProductResponse } from '../../../core/models/api.models';
 import { parseApiError } from '../../../core/utils/api-error.util';
@@ -23,7 +24,7 @@ import { FITS, groupByFit } from '../shared/fit-sizes.component';
 @Component({
   selector: 'app-products-list',
   standalone: true,
-  imports: [RouterLink, FormsModule, SidebarComponent],
+  imports: [RouterLink, FormsModule, SidebarComponent, SizeChartPickerComponent],
   templateUrl: './products-list.component.html',
 })
 export class ProductsListComponent implements OnInit, OnDestroy {
@@ -361,10 +362,132 @@ export class ProductsListComponent implements OnInit, OnDestroy {
     }
   }
 
-  /** True while the ticking column is on screen. */
+  /**
+   * True while the ticking column is on screen: always for staff who may do
+   * something to many products at once, otherwise only inside the fits and
+   * delivery-charge tools.
+   */
   pickingProducts(): boolean {
-    return (this.chargeMode() && this.chargeTab() === 'products' && this.canSetCharges())
+    return this.canBulk()
+      || (this.chargeMode() && this.chargeTab() === 'products' && this.canSetCharges())
       || (this.fitMode() && this.fitTab() === 'products' && this.canSetFits());
+  }
+
+  // ── One action for the ticked products ─────────────────────────────────────
+
+  /** Most products one action takes; the server refuses more. */
+  readonly bulkLimit = 500;
+  /** The switches in the "More actions" list, each with the permission it needs on one product. */
+  readonly bulkSwitches: { action: BulkProductAction; label: string; perm: string; ask: string }[] = [
+    { action: 'SHOW', label: 'Show in the shop', perm: 'products.edit', ask: 'put on sale in the shop' },
+    { action: 'HIDE', label: 'Hide from the shop', perm: 'products.edit', ask: 'hidden from the shop' },
+    { action: 'FEATURE', label: 'Feature on the home page', perm: 'products.feature', ask: 'featured on the home page' },
+    { action: 'UNFEATURE', label: 'Stop featuring', perm: 'products.feature', ask: 'taken out of the featured products' },
+    { action: 'NEW_ARRIVAL_ON', label: 'Mark as new arrival', perm: 'products.feature', ask: 'marked as new arrivals' },
+    { action: 'NEW_ARRIVAL_OFF', label: 'Remove from new arrivals', perm: 'products.feature', ask: 'taken out of the new arrivals' },
+    { action: 'NEVER_DISCOUNT_ON', label: 'Never discount', perm: 'discounts.switches', ask: 'kept out of automatic discounts' },
+    { action: 'NEVER_DISCOUNT_OFF', label: 'Allow discounts again', perm: 'discounts.switches', ask: 'allowed in automatic discounts again' },
+    { action: 'STOCK_SHOW_QUANTITY', label: 'Show stock quantity', perm: 'products.edit', ask: 'set to show how many are left' },
+    { action: 'STOCK_SHOW_LABELS', label: 'Show stock labels only', perm: 'products.edit', ask: 'set to show "In stock" labels instead of the quantity' },
+  ];
+  /** The category chosen in the bar to move the ticked products to. */
+  bulkCategoryId = signal<number | null>(null);
+  /** The switch chosen in "More actions". */
+  bulkSwitch = signal<BulkProductAction | null>(null);
+  bulkSaving = signal(false);
+  /** The size chart chosen in the bar for the ticked products; 0 for none of their own. */
+  bulkChartId = signal(0);
+
+  canBulk(): boolean {
+    return this.canBulkEdit() || this.canBulkDelete() || this.allowedSwitches().length > 0;
+  }
+  canBulkEdit(): boolean { return this.perms.can('products.edit'); }
+  canBulkDelete(): boolean { return this.perms.can('products.delete'); }
+  /** The switches this person may flip. */
+  allowedSwitches() {
+    return this.bulkSwitches.filter((s) => this.perms.can(s.perm));
+  }
+
+  /** The bar of actions shows once something is ticked, and steps aside for the fits and delivery tools, which use the same ticks. */
+  showBulkBar(): boolean {
+    return this.canBulk() && this.pickedCount() > 0 && !this.fitMode() && !this.chargeMode();
+  }
+
+  private tickedWords(): string {
+    const n = this.pickedCount();
+    return `${n} product${n === 1 ? '' : 's'}`;
+  }
+
+  async bulkMove(): Promise<void> {
+    const categoryId = this.bulkCategoryId();
+    if (categoryId == null) return;
+    const category = this.categories().find((c) => c.id === categoryId);
+    const name = category?.label || category?.name || 'that category';
+    const ok = await this.confirmer.ask({
+      title: `Move ${this.tickedWords()} to ${name}?`,
+      message: 'Their product codes stay as they are. Everything else about them stays the same too.',
+      confirmLabel: 'Yes, move them',
+    });
+    if (ok) this.runBulk('MOVE_CATEGORY', categoryId);
+  }
+
+  async bulkApplySwitch(): Promise<void> {
+    const chosen = this.bulkSwitches.find((s) => s.action === this.bulkSwitch());
+    if (!chosen) return;
+    const n = this.pickedCount();
+    const ok = await this.confirmer.ask({
+      title: `${chosen.label}: ${this.tickedWords()}?`,
+      message: `The ${n === 1 ? 'ticked product' : n + ' ticked products'} will be ${chosen.ask}.`,
+      confirmLabel: 'Yes, do it',
+    });
+    if (ok) this.runBulk(chosen.action);
+  }
+
+  async bulkSetChart(): Promise<void> {
+    const none = this.bulkChartId() === 0;
+    const ok = await this.confirmer.ask({
+      title: none ? `Take the size chart off ${this.tickedWords()}?` : `Give ${this.tickedWords()} this size chart?`,
+      message: none
+        ? 'They will show the chart of their category, or the default chart.'
+        : 'Their product pages will show the chosen chart, whatever their category says.',
+      confirmLabel: 'Yes, do it',
+    });
+    if (ok) this.runBulk('SET_SIZE_CHART', undefined, this.bulkChartId());
+  }
+
+  async bulkDelete(): Promise<void> {
+    const ok = await this.confirmer.ask({
+      title: `Delete ${this.tickedWords()}?`,
+      message: 'They are removed from the shop and from this list for good. This cannot be undone.',
+      confirmLabel: `Yes, delete ${this.tickedWords()}`,
+      danger: true,
+    });
+    if (ok) this.runBulk('DELETE');
+  }
+
+  private runBulk(action: BulkProductAction, categoryId?: number, sizeChartId?: number): void {
+    if (this.pickedCount() > this.bulkLimit) {
+      this.errorMessage.set(`Up to ${this.bulkLimit} products at a time. Untick some and try again.`);
+      return;
+    }
+    this.bulkSaving.set(true);
+    this.errorMessage.set('');
+    this.productService.bulk(action, [...this.picks()], categoryId, sizeChartId).subscribe({
+      next: (result) => {
+        this.bulkSaving.set(false);
+        this.notices.success(result.message);
+        this.clearPicks();
+        this.bulkSwitch.set(null);
+        this.bulkCategoryId.set(null);
+        this.bulkChartId.set(0);
+        this.loadPage(this.currentPage());
+      },
+      error: (err) => {
+        this.bulkSaving.set(false);
+        // Nothing was changed: the server does all of it or none of it.
+        this.errorMessage.set(parseApiError(err));
+      },
+    });
   }
 
   pickedCount(): number {

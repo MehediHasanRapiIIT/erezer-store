@@ -35,12 +35,23 @@ import { CountUpDirective } from '../core/count-up.directive';
             [class.opacity-0]="activeBanner() !== i">
             <div class="hero-parallax absolute -inset-y-[8%] inset-x-0 will-change-transform"
               [style.transform]="'translate3d(0,' + parallax() + 'px,0)'">
-              <img [src]="banner.image" [alt]="banner.title"
-                [attr.fetchpriority]="i === 0 ? 'high' : null"
-                [attr.loading]="i === 0 ? 'eager' : 'lazy'" decoding="async"
-                (load)="onHeroLoad($event, i)" data-testid="hero-image"
-                (error)="i === 0 ? laterSlidesReady.set(true) : null"
-                class="hero-kenburns h-full w-full object-cover" />
+              @if (banner.image) {
+                <!-- A phone gets the banner's own upright picture when the shop
+                     added one, filling the screen; otherwise the wide picture,
+                     whole, across the top. The browser picks, and only downloads
+                     the one it shows. -->
+                <picture class="block h-full w-full">
+                  @if (banner.mobileImage) {
+                    <source media="(max-width: 639px)" [attr.srcset]="banner.mobileImage" />
+                  }
+                  <img [src]="banner.image" [alt]="banner.title"
+                    [attr.fetchpriority]="i === 0 ? 'high' : null"
+                    [attr.loading]="i === 0 ? 'eager' : 'lazy'" decoding="async"
+                    (load)="onHeroLoad($event, i, banner.id)" data-testid="hero-image"
+                    (error)="i === 0 ? laterSlidesReady.set(true) : null"
+                    class="hero-kenburns h-full w-full object-cover" [class.hero-phone-picture]="!!banner.mobileImage" />
+                </picture>
+              }
             </div>
           </div>
         }
@@ -54,7 +65,7 @@ import { CountUpDirective } from '../core/count-up.directive';
       <!-- Text overlay — re-created on slide change so the animations re-run -->
       <div class="hero-words absolute inset-0 flex items-end" data-testid="hero-words">
         <div class="mx-auto w-full max-w-7xl px-6 pb-20 sm:px-8">
-          @for (b of [activeBannerObj()]; track b.id) {
+          @for (b of activeBannerList(); track b.id) {
             <p class="hero-fade text-xs font-semibold uppercase tracking-[0.35em] text-white/80" style="animation-delay:.1s">
               {{ b.label }}
             </p>
@@ -87,16 +98,16 @@ import { CountUpDirective } from '../core/count-up.directive';
         </div>
       </div>
 
-      <!-- Dots -->
-      <div class="absolute bottom-6 left-1/2 flex -translate-x-1/2 gap-2">
-        @for (banner of displayBanners(); track banner.id; let i = $index) {
+      <!-- Dots: one per banner, and none when there is only one to show -->
+      <div class="absolute bottom-6 left-1/2 flex -translate-x-1/2 gap-2" data-testid="hero-dots">
+        @for (banner of (displayBanners().length > 1 ? displayBanners() : []); track banner.id; let i = $index) {
           <button type="button"
             class="h-2 rounded-full transition-all duration-300"
             [class.w-8]="activeBanner() === i"
             [class.bg-white]="activeBanner() === i"
             [class.w-2]="activeBanner() !== i"
             [class.bg-white/50]="activeBanner() !== i"
-            (click)="activeBanner.set(i)"
+            (click)="showBanner(i)"
             [attr.aria-label]="'Go to banner ' + (i + 1)"></button>
         }
       </div>
@@ -270,8 +281,14 @@ import { CountUpDirective } from '../core/count-up.directive';
                   <a [routerLink]="tile.slug ? ['/', tile.slug] : ['/shop']"
                     [queryParams]="tile.slug ? {} : (tile.id ? { category: tile.id } : {})"
                     class="group relative block aspect-[4/5] overflow-hidden lg:aspect-auto lg:h-[36rem] xl:h-[42rem]" [appReveal]="i">
-                    <img [src]="tile.image" [alt]="tile.name"
-                      class="h-full w-full object-cover transition-transform duration-[900ms] ease-out group-hover:scale-110" />
+                    <!-- A category with no picture of its own gets a plain tile,
+                         not somebody else's photo. -->
+                    @if (tile.image) {
+                      <img [src]="tile.image" [alt]="tile.name" data-testid="category-tile-image"
+                        class="h-full w-full object-cover transition-transform duration-[900ms] ease-out group-hover:scale-110" />
+                    } @else {
+                      <div class="h-full w-full bg-gradient-to-br from-neutral-600 to-neutral-900 ring-1 ring-inset ring-white/10" data-testid="category-tile-plain"></div>
+                    }
                     <div class="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent"></div>
                     <div class="absolute inset-x-0 bottom-0 p-3 sm:p-6">
                       <p class="text-[9px] font-medium uppercase tracking-[0.18em] text-white/70 sm:text-[11px] sm:tracking-[0.22em]">Collection</p>
@@ -584,7 +601,7 @@ export class HomePage implements OnInit, OnDestroy {
 
 
   protected readonly activeBanner = signal(0);
-  protected readonly loading = signal(false);
+  protected readonly loading = signal(true);
   protected readonly parallax = signal(0);
   protected readonly scrolled = signal(false);
   private sliderTimer: ReturnType<typeof setInterval> | null = null;
@@ -597,26 +614,36 @@ export class HomePage implements OnInit, OnDestroy {
    */
   protected readonly laterSlidesReady = signal(false);
 
-  /**
-   * Width over height of the tallest hero photo loaded so far. On a phone the
-   * photo area takes this shape, so every slide is shown whole.
-   */
-  protected readonly heroRatio = signal(16 / 9);
-  private heroRatioSeen = false;
+  /** Width over height of each hero photo that has loaded, by banner. */
+  private readonly heroRatios = signal<Record<string, number>>({});
 
-  protected onHeroLoad(event: Event, index: number): void {
+  /**
+   * The shape of the photo on show. On a phone the photo area takes this
+   * shape, so the banner is exactly as tall as its picture - no band above or
+   * below it - and follows the picture when the slide changes.
+   */
+  protected readonly heroRatio = computed(() => {
+    const ratios = this.heroRatios();
+    const active = this.activeBannerObj();
+    return (active && ratios[active.id]) || Object.values(ratios)[0] || 16 / 9;
+  });
+
+  protected onHeroLoad(event: Event, index: number, bannerId: string): void {
     if (index === 0) this.laterSlidesReady.set(true);
     const img = event.target as HTMLImageElement;
     if (!img.naturalWidth || !img.naturalHeight) return;
-    const ratio = img.naturalWidth / img.naturalHeight;
-    this.heroRatio.set(this.heroRatioSeen ? Math.min(this.heroRatio(), ratio) : ratio);
-    this.heroRatioSeen = true;
+    this.heroRatios.update((r) => ({ ...r, [bannerId]: img.naturalWidth / img.naturalHeight }));
   }
 
   /** Current banner object — drives the hero text that re-animates on change. */
   protected readonly activeBannerObj = computed(() => {
     const banners = this.displayBanners();
-    return banners[this.activeBanner()] ?? banners[0];
+    return banners[this.activeBanner()] ?? banners[0] ?? null;
+  });
+  /** The banner on show as a list of one, or of none while the page is loading. */
+  protected readonly activeBannerList = computed(() => {
+    const b = this.activeBannerObj();
+    return b ? [b] : [];
   });
 
   protected splitWords(text: string): string[] {
@@ -673,16 +700,6 @@ export class HomePage implements OnInit, OnDestroy {
     homeSections?: ApiHomeSection[];
   } | null>(null);
   protected readonly categories = signal<ApiCategory[]>([]);
-
-  /** Curated editorial imagery for the category tiles (categories carry no image). */
-  private readonly collectionImages = [
-    'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=900&q=80',
-    'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80',
-    'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=900&q=80',
-    'https://images.unsplash.com/photo-1492707892479-7bc8d5a4ee93?auto=format&fit=crop&w=900&q=80',
-    'https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?auto=format&fit=crop&w=900&q=80',
-    'https://images.unsplash.com/photo-1485968579580-b6d095142e6e?auto=format&fit=crop&w=900&q=80',
-  ];
 
   /** Fallback trust-strip phrases (used until admin-managed settings load). */
   private readonly fallbackMarquee = [
@@ -894,25 +911,15 @@ export class HomePage implements OnInit, OnDestroy {
 
   protected readonly marqueeLoop = [0, 1];
 
-  // Same shape as a real tile (slug included) so the template binding holds
-  // whichever branch collectionTiles() returns.
-  private readonly staticCollections = [
-    { id: null as number | null, slug: null as string | null, name: 'New In',     image: this.collectionImages[0] },
-    { id: null as number | null, slug: null as string | null, name: 'Tops',       image: this.collectionImages[1] },
-    { id: null as number | null, slug: null as string | null, name: 'Essentials', image: this.collectionImages[2] },
-  ];
-
-  /** Up to 6 category tiles (real categories when available, else a curated fallback). */
+  /** Up to 6 category tiles; the band hides itself when the shop has no category yet. */
   protected readonly collectionTiles = computed(() => {
     // Six on the landing page; the rest are reachable via "Browse all".
-    const cats = this.categories().filter((c) => c.isActive).slice(0, 6);
-    if (cats.length === 0) return this.staticCollections;
-    return cats.map((c, i) => ({
+    return this.categories().filter((c) => c.isActive).slice(0, 6).map((c) => ({
       id: c.id as number | null,
       name: c.name,
       slug: c.slug ?? null,
-      // Prefer the admin-uploaded category image; fall back to curated editorial art.
-      image: c.imageUrl?.trim() ? c.imageUrl : this.collectionImages[i % this.collectionImages.length],
+      // The picture uploaded for the category in the admin panel, or none.
+      image: c.imageUrl?.trim() ? c.imageUrl : null,
     }));
   });
 
@@ -945,24 +952,39 @@ export class HomePage implements OnInit, OnDestroy {
     return this.bannersFor(slot)[0] ?? null;
   }
 
-  // Hero: admin-managed HERO banners, falling back to the curated static set so
-  // the top of the page is never blank on a fresh install.
+  // Hero: the HERO banners from the admin panel, and only those.
+  //
+  // There used to be three built-in stock photos shown whenever the shop's own
+  // banners were not there. "Not there" included the moment before they had
+  // loaded, so every visit opened on a stock photo and three dots, then
+  // switched to the shop's real banners - the shop with two banners showed
+  // three. Now the hero stays dark until the banners arrive, and a shop with
+  // no hero banner at all gets its name in words, with no picture.
   protected readonly displayBanners = computed(() => {
     const hero = this.bannersFor('HERO');
     if (hero.length > 0) {
       return hero.map((b) => ({
-        id: b.id,
+        id: String(b.id),
         label: b.promotionTitle,
         title: b.promotionTitle,
         description: b.promotionDetails,
-        image: b.imageUrl,
+        image: b.imageUrl as string | null,
+        mobileImage: b.mobileImageUrl || null,
         ctaLabel: b.ctaLabel,
         ctaLink: b.ctaLink,
       }));
     }
-    return this.staticBanners.map((b, i) => ({
-      id: String(i), ...b, ctaLabel: null as string | null, ctaLink: null as string | null,
-    }));
+    if (this.loading()) return [];
+    return [{
+      id: 'none',
+      label: 'Erezer',
+      title: 'Clothing & custom t-shirts.',
+      description: 'Shop the collection, or design your own.',
+      image: null as string | null,
+      mobileImage: null as string | null,
+      ctaLabel: null as string | null,
+      ctaLink: null as string | null,
+    }];
   });
 
   // ── Editorial bands ────────────────────────────────────────────────────────
@@ -1002,32 +1024,9 @@ export class HomePage implements OnInit, OnDestroy {
     { icon: 'shield', prefix: '',   target: 256, decimals: 0, suffix: '-bit SSL', label: 'Secure checkout', description: 'Protected payments, end to end.' },
   ] as const;
 
-  private readonly staticBanners = [
-    {
-      label: 'New season',
-      title: 'Minimal clothing, made to last.',
-      description: 'EREZER blends timeless silhouettes with premium materials for the modern wardrobe.',
-      image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=900&q=80',
-    },
-    {
-      label: 'Urban essentials',
-      title: 'Built for everyday movement.',
-      description: 'Elevated basics designed for comfort, confidence, and all-day versatility.',
-      image: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80',
-    },
-    {
-      label: 'Signature edit',
-      title: 'Refined layers, clean silhouettes.',
-      description: 'Discover curated pieces that transition seamlessly from workday to weekend.',
-      image: 'https://images.unsplash.com/photo-1469334031218-e382a71b716b?auto=format&fit=crop&w=900&q=80',
-    }
-  ] as const;
-
   ngOnInit(): void {
     this.loadHomeData();
-    this.sliderTimer = setInterval(() => {
-      this.activeBanner.update((v) => (v + 1) % Math.max(1, this.displayBanners().length));
-    }, 6000);
+    this.startSlider();
     if (isPlatformBrowser(this.platformId)) {
       window.addEventListener('scroll', this.onScroll, { passive: true });
     }
@@ -1052,6 +1051,20 @@ export class HomePage implements OnInit, OnDestroy {
       window.removeEventListener('scroll', this.onScroll);
     }
     this.stopGallerySwap();
+  }
+
+  /** Moves to the next banner every six seconds. */
+  private startSlider(): void {
+    if (this.sliderTimer) clearInterval(this.sliderTimer);
+    this.sliderTimer = setInterval(() => {
+      this.activeBanner.update((v) => (v + 1) % Math.max(1, this.displayBanners().length));
+    }, 6000);
+  }
+
+  /** A dot was pressed: show that banner, and give it its full six seconds. */
+  protected showBanner(index: number): void {
+    this.activeBanner.set(index);
+    this.startSlider();
   }
 
   private loadHomeData(): void {

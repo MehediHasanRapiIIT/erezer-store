@@ -84,4 +84,12 @@ public class ProductRequestDTO {
 
     /** Stock on the product page: CATEGORY (follow it), QUANTITY or LABEL. Null leaves it unchanged. */
     private kn.org.deliverybackend.enumeration.StockDisplay stockDisplay;
+
+    /**
+     * The product's own size chart, from the library. 0 means none of its own
+     * (it follows its category, then the default). Null leaves it unchanged.
+     */
+    private Long sizeChartId;
+    /** A different chart for Regular Fit, for a product in two fits. 0 means the same chart. Null leaves it unchanged. */
+    private Long regularFitSizeChartId;
 }

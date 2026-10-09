@@ -23,11 +23,15 @@ import type { ApiBundleOffer } from '../../core/api.models';
             <div>
               <p class="text-xs font-semibold uppercase tracking-[0.3em] text-white/60">{{ b.label || 'Bundle deal' }}</p>
               <h2 class="mt-2 text-3xl font-semibold uppercase tracking-tight sm:text-4xl">{{ b.name }}</h2>
-              <p class="mt-1 text-sm text-white/60">Buy {{ b.buyCount }} Get {{ b.getCount }} — pick {{ b.slots }} items.</p>
+              <p class="mt-1 text-sm text-white/60">{{ b.headline || ('Buy ' + b.buyCount + ' Get ' + b.getCount) }} — {{ b.offerType === 'QUANTITY_DISCOUNT' ? 'pick ' + b.slots + ' or more' : 'pick ' + b.slots + ' items' }}.</p>
             </div>
             <div class="text-right">
               @if (b.compareAtPrice) { <p class="text-sm text-white/40 line-through">{{ b.compareAtPrice | currency:'BDT':'৳' }}</p> }
-              <p class="text-2xl font-bold">{{ b.bundlePrice | currency:'BDT':'৳' }}</p>
+              @if (b.offerType === 'QUANTITY_DISCOUNT') {
+                <p class="text-2xl font-bold">Up to {{ topPercent(b) }}% off</p>
+              } @else {
+                <p class="text-2xl font-bold">{{ b.bundlePrice | currency:'BDT':'৳' }}</p>
+              }
               @if (b.savings && b.savings > 0) {
                 <span class="mt-1 inline-block rounded-md bg-emerald-600 px-2 py-0.5 text-xs font-bold">Save {{ b.savings | currency:'BDT':'৳' }}</span>
               }
@@ -87,5 +91,10 @@ export class BundleWidgetComponent implements OnInit {
 
   ngOnInit(): void {
     this.api.getFeaturedBundle().pipe(catchError(() => of(null))).subscribe((b) => this.bundle.set(b));
+  }
+
+  /** The biggest percentage a quantity discount gives. */
+  protected topPercent(b: ApiBundleOffer): number {
+    return Math.max(0, ...(b.tiers ?? []).map((t) => t.percentOff));
   }
 }

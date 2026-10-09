@@ -1,4 +1,5 @@
 import { Component, signal, computed, OnInit, inject } from '@angular/core';
+import { SizeChartPickerComponent } from '../../../shared/size-chart-picker/size-chart-picker.component';
 import { RouterLink, Router, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { SidebarComponent } from '../../../shared/sidebar/sidebar.component';
@@ -24,6 +25,7 @@ import { NoticeService } from '../../../core/services/notice.service';
     VariantManagerComponent,
     ImageGalleryEditorComponent,
     DiscountInputComponent,
+    SizeChartPickerComponent,
   ],
   templateUrl: './edit-product.component.html',
 })
@@ -55,6 +57,10 @@ export class EditProductComponent implements OnInit {
   discountExcluded = signal(false);
   /** Stock on the product page: follow the category (default), the quantity, or labels. */
   stockDisplay = signal<StockDisplay>('CATEGORY');
+  /** The product's own size chart; 0 for none of its own. */
+  sizeChartId = signal(0);
+  /** A different chart for Regular Fit; 0 for the same chart. */
+  regularFitSizeChartId = signal(0);
   protected readonly stockDisplayOptions: { value: StockDisplay; label: string }[] = [
     { value: 'CATEGORY', label: 'Same as category' },
     { value: 'QUANTITY', label: 'Show quantity' },
@@ -110,6 +116,8 @@ export class EditProductComponent implements OnInit {
         this.isFeatured.set(!!p.isFeatured);
         this.discountExcluded.set(!!p.discountExcluded);
         this.stockDisplay.set(p.stockDisplay ?? 'CATEGORY');
+        this.sizeChartId.set(p.sizeChartId ?? 0);
+        this.regularFitSizeChartId.set(p.regularFitSizeChartId ?? 0);
         this.unit.set(p.unit ?? '');
         this.lowStockThreshold.set(p.lowStockThreshold ?? null);
         this.brand.set(p.brand ?? '');
@@ -172,6 +180,8 @@ export class EditProductComponent implements OnInit {
       isFeatured: this.isFeatured(),
       discountExcluded: this.discountExcluded(),
       stockDisplay: this.stockDisplay(),
+      sizeChartId: this.sizeChartId(),
+      regularFitSizeChartId: this.regularFitSizeChartId(),
       unit: this.unit().trim() || undefined,
       lowStockThreshold: this.lowStockThreshold() ?? undefined,
       brand: this.brand().trim() || undefined,

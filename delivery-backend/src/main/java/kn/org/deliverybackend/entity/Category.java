@@ -65,8 +65,8 @@ public class Category extends AbstractBaseEntity<Long> {
     private BigDecimal shippingCharge;
 
     /**
-     * The main category this one sits under, making it a subcategory. Null for
-     * a main category. Two levels only: a subcategory has no subcategories.
+     * The category directly above this one, making it a subcategory. Null for
+     * a main category. Subcategories go to any depth (see CategoryTree).
      */
     @Column(name = "parent_id")
     private Long parentId;
@@ -74,4 +74,11 @@ public class Category extends AbstractBaseEntity<Long> {
     /** Product pages in this category show the stock quantity instead of labels. Null means off. */
     @Column(name = "show_stock_quantity")
     private Boolean showStockQuantity;
+
+    /**
+     * The size chart for every product in this category and under it, unless a
+     * product or a category further down names its own. Null: none of its own.
+     */
+    @Column(name = "size_chart_id")
+    private Long sizeChartId;
 }

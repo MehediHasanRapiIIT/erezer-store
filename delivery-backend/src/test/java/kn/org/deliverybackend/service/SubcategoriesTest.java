@@ -40,12 +40,13 @@ import static org.mockito.Mockito.when;
  */
 class SubcategoriesTest {
 
-    private static final long HOODIES = 1, ZIP = 2, PULLOVER = 3, CAPS = 4;
+    private static final long HOODIES = 1, ZIP = 2, PULLOVER = 3, CAPS = 4, HALF_ZIP = 5, KIDS_HALF_ZIP = 6;
 
     private final CategoryRepository categories = mock(CategoryRepository.class);
     private final ProductRepository products = mock(ProductRepository.class);
     private final CategoryMapper mapper = mock(CategoryMapper.class);
-    private final CategoryServiceImpl service = new CategoryServiceImpl(categories, mapper, products);
+    private final CategoryServiceImpl service = new CategoryServiceImpl(categories, mapper, products,
+            mock(kn.org.deliverybackend.service.impl.SizeChartLibraryService.class));
     private final Map<Long, Category> byId = new HashMap<>();
 
     @BeforeEach
@@ -161,7 +162,7 @@ class SubcategoriesTest {
         assertEquals("Caps", CategoryTree.path(categories, byId.get(CAPS)));
     }
 
-    // ── two levels only ───────────────────────────────────────────────────────
+    // ── any depth ─────────────────────────────────────────────────────────────
 
     @Test
     void aSubcategoryCanBeAddedUnderAMainCategory() {
@@ -170,16 +171,83 @@ class SubcategoriesTest {
     }
 
     @Test
-    void aSubcategoryCannotHaveSubcategories() {
+    void aSubcategoryCanHaveSubcategoriesOfItsOwnToAnyDepth() {
+        CategoryResponseDTO half = service.createCategory(request("Half Zip", ZIP));
+        assertEquals(ZIP, half.getParentId());
+
+        category(HALF_ZIP, "Half Zip", ZIP);
+        category(KIDS_HALF_ZIP, "Kids Half Zip", HALF_ZIP);
+        assertEquals(Set.of(HOODIES, ZIP, PULLOVER, HALF_ZIP, KIDS_HALF_ZIP), CategoryTree.family(categories, HOODIES));
+        assertEquals(Set.of(ZIP, HALF_ZIP, KIDS_HALF_ZIP), CategoryTree.family(categories, ZIP));
+        assertEquals(Set.of(KIDS_HALF_ZIP), CategoryTree.family(categories, KIDS_HALF_ZIP));
+
+        CategoryResponseDTO deepest = service.getCategoryById(KIDS_HALF_ZIP);
+        assertEquals(3, deepest.getDepth());
+        assertEquals("Hoodies › Zip Hoodies › Half Zip › Kids Half Zip", deepest.getPath());
+        assertEquals("Half Zip", deepest.getParentName());
+        assertEquals(0, service.getCategoryById(HOODIES).getDepth());
+        assertEquals(4, service.getCategoryById(HOODIES).getSubcategoryCount(), "everything under it, at every level");
+        assertEquals(10, service.getCategoryById(HOODIES).getProductCount());
+    }
+
+    @Test
+    void aDeepSubcategoryTakesEachSettingFromTheNearestCategoryAboveThatSetsIt() {
+        category(HALF_ZIP, "Half Zip", ZIP);
+        category(KIDS_HALF_ZIP, "Kids Half Zip", HALF_ZIP);
+        Category deepest = byId.get(KIDS_HALF_ZIP);
+
+        byId.get(HOODIES).setShippingCharge(new BigDecimal("120"));
+        assertEquals(new BigDecimal("120"), CategoryTree.shippingCharge(categories, deepest), "from the main category, three levels up");
+        byId.get(ZIP).setShippingCharge(new BigDecimal("80"));
+        assertEquals(new BigDecimal("80"), CategoryTree.shippingCharge(categories, deepest), "the nearer one wins");
+        assertEquals(new BigDecimal("120"), CategoryTree.shippingCharge(categories, byId.get(PULLOVER)), "another branch is not affected");
+
+        assertFalse(CategoryTree.discountExcluded(categories, deepest));
+        byId.get(HOODIES).setDiscountExcluded(true);
+        assertTrue(CategoryTree.discountExcluded(categories, deepest));
+
+        byId.get(ZIP).setShowStockQuantity(true);
+        assertEquals(true, CategoryTree.showStockQuantity(categories, deepest));
+        assertFalse(Boolean.TRUE.equals(CategoryTree.showStockQuantity(categories, byId.get(PULLOVER))));
+    }
+
+    @Test
+    void aCategoryMovesUnderAnotherWithEverythingUnderIt() {
+        CategoryResponseDTO moved = service.updateCategory(HOODIES, request("Hoodies", CAPS));
+        assertEquals(CAPS, moved.getParentId());
+        assertEquals(Set.of(CAPS, HOODIES, ZIP, PULLOVER), CategoryTree.family(categories, CAPS));
+        assertEquals("Caps › Hoodies › Zip Hoodies", CategoryTree.path(categories, byId.get(ZIP)));
+    }
+
+    @Test
+    void aCategoryCannotBePutUnderSomethingInsideItself() {
+        category(HALF_ZIP, "Half Zip", ZIP);
         InvalidRequestException e = assertThrows(InvalidRequestException.class,
-                () -> service.createCategory(request("Half Zip", ZIP)));
-        assertTrue(e.getMessage().contains("subcategory itself"), e.getMessage());
+                () -> service.updateCategory(HOODIES, request("Hoodies", HALF_ZIP)));
+        assertTrue(e.getMessage().contains("inside this category"), e.getMessage());
+        assertNull(byId.get(HOODIES).getParentId());
         verify(categories, never()).save(any());
     }
 
     @Test
-    void aCategoryWithSubcategoriesCannotBecomeOne() {
-        assertThrows(InvalidRequestException.class, () -> service.updateCategory(HOODIES, request("Hoodies", CAPS)));
+    void aLoopInTheDataNeverHangsAnything() {
+        byId.get(HOODIES).setParentId(ZIP);   // as only bad data could be
+        when(categories.findAll()).thenReturn(new ArrayList<>(byId.values()));
+        assertEquals(Set.of(HOODIES, ZIP, PULLOVER), CategoryTree.family(categories, HOODIES));
+        assertEquals(1, CategoryTree.depth(categories, byId.get(ZIP)));
+        assertFalse(CategoryTree.discountExcluded(categories, byId.get(ZIP)));
+        assertEquals(4, service.getAllCategories().size(), "and every category is still listed");
+    }
+
+    @Test
+    void listsComeInTreeOrder() {
+        category(HALF_ZIP, "Half Zip", ZIP);
+        category(KIDS_HALF_ZIP, "Kids Half Zip", HALF_ZIP);
+        when(categories.findAll()).thenReturn(new ArrayList<>(byId.values()));
+        assertEquals(List.of("Caps", "Hoodies", "Pullover Hoodies", "Zip Hoodies", "Half Zip", "Kids Half Zip"),
+                service.getAllCategories().stream().map(CategoryResponseDTO::getName).toList());
+        assertEquals(List.of(0, 0, 1, 1, 2, 3),
+                service.getAllCategories().stream().map(CategoryResponseDTO::getDepth).toList());
     }
 
     @Test

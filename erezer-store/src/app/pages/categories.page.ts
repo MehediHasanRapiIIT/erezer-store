@@ -49,8 +49,13 @@ const PAGE_SIZE = 9;
             [queryParams]="cat.slug ? {} : { category: cat.id }"
             class="group relative block aspect-[4/5] overflow-hidden lg:aspect-auto lg:h-[34rem] xl:h-[38rem]"
             [appReveal]="i % 9">
-            <img [src]="imageFor(cat, i)" [alt]="cat.name"
-              class="h-full w-full object-cover transition-transform duration-[900ms] ease-out group-hover:scale-105" />
+            <!-- A category with no picture of its own gets a plain tile. -->
+            @if (cat.imageUrl?.trim(); as image) {
+              <img [src]="image" [alt]="cat.name" data-testid="category-tile-image"
+                class="h-full w-full object-cover transition-transform duration-[900ms] ease-out group-hover:scale-105" />
+            } @else {
+              <span class="block h-full w-full bg-gradient-to-br from-neutral-600 to-neutral-900 ring-1 ring-inset ring-white/10" data-testid="category-tile-plain"></span>
+            }
             <span class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent"></span>
             <span class="absolute inset-x-0 bottom-0 p-3 sm:p-6">
               <span class="block text-[9px] font-medium uppercase tracking-[0.18em] text-white/70 sm:text-[11px] sm:tracking-[0.22em]">Collection</span>
@@ -90,23 +95,10 @@ export class CategoriesPage {
   protected readonly remaining = computed(() => Math.max(0, this.total() - this.shown()));
   protected readonly hasMore = computed(() => this.remaining() > 0);
 
-  /**
-   * Curated stand-ins for categories with no uploaded image, so the grid never
-   * shows an empty tile. Indexed so neighbouring tiles do not repeat.
-   */
-  private readonly fallbackImages = [
-    'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=900&q=80',
-    'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80',
-    'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=900&q=80',
-    'https://images.unsplash.com/photo-1492707892479-7bc8d5a4ee93?auto=format&fit=crop&w=900&q=80',
-    'https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?auto=format&fit=crop&w=900&q=80',
-    'https://images.unsplash.com/photo-1485968579580-b6d095142e6e?auto=format&fit=crop&w=900&q=80',
-  ];
-
   constructor() {
     this.seo.update({
-      title: 'Collections',
-      description: 'Browse every EREZER collection.',
+      title: 'All Collections',
+      description: 'Browse every Erezer collection: t-shirts, hoodies and more.',
     });
 
     this.api.getCategories().pipe(catchError(() => of([] as ApiCategory[]))).subscribe((cats) => {
@@ -114,12 +106,6 @@ export class CategoriesPage {
       this.categories.set(cats.filter((c) => c.isActive !== false && c.parentId == null));
       this.loading.set(false);
     });
-  }
-
-  protected imageFor(cat: ApiCategory, index: number): string {
-    return cat.imageUrl?.trim()
-      ? cat.imageUrl
-      : this.fallbackImages[index % this.fallbackImages.length];
   }
 
   protected showMore(): void {

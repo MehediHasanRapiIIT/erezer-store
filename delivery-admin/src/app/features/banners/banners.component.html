@@ -120,7 +120,7 @@
                   The picture
                   @if (!isEditMode) { <span class="text-red-500">*</span> }
                 </h3>
-                <p class="text-xs text-gray-500 mb-3">{{ meta(slot()).imageHint }}</p>
+                <p class="picture-hint text-xs text-gray-500 mb-3" data-testid="picture-hint">{{ meta(slot()).imageHint }}</p>
 
                 @if (!imagePreview()) {
                   <label
@@ -149,6 +149,40 @@
                     <div class="flex-1 text-sm text-gray-700">New photo chosen. Check the preview on the right.</div>
                     <button type="button" (click)="removeImage()" class="text-sm text-red-600 hover:underline">Remove</button>
                   </div>
+                }
+
+                <!-- A second, upright picture for phones. A wide picture can only fill a
+                     tall phone screen by losing its sides. -->
+                @if (slot() === 'HERO') {
+                <div class="mt-4 rounded-xl border border-gray-200 p-3" data-testid="mobile-picture">
+                  <p class="text-sm font-semibold text-gray-800">Picture for phones <span class="font-normal text-gray-400">(optional)</span></p>
+                  <p class="mt-0.5 text-xs text-gray-500">
+                    Phones show this picture instead of the wide one above, filling the screen.
+                    <strong class="font-semibold text-gray-700">Best size: 1080 × 1600 px, upright</strong> (taller than it is wide).
+                    Keep the bottom third fairly plain so the words stay readable.
+                    Leave empty and phones show the wide picture, small, across the top.
+                  </p>
+                  <div class="mt-3 flex items-center gap-3">
+                    @if (mobileShown()) {
+                      <img [src]="mobileShown()" alt="Picture for phones" data-testid="mobile-picture-preview"
+                        class="h-24 w-16 rounded-md border border-gray-200 bg-gray-100 object-cover"/>
+                    } @else {
+                      <div class="flex h-24 w-16 items-center justify-center rounded-md border border-dashed border-gray-300 text-center text-[10px] text-gray-400">No phone picture</div>
+                    }
+                    <div class="flex flex-col items-start gap-1.5">
+                      <label class="relative cursor-pointer rounded-lg border border-blue-200 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50">
+                        {{ mobileShown() ? 'Replace' : 'Choose a picture' }}
+                        <input type="file" class="hidden" accept="image/*" data-testid="mobile-picture-input" (change)="onMobileSelect($event)"/>
+                      </label>
+                      @if (mobileShown()) {
+                        <button type="button" (click)="clearMobile()" data-testid="mobile-picture-remove" class="text-sm text-red-600 hover:underline">Remove</button>
+                      }
+                      @if (removeMobile() && existingMobileUrl()) {
+                        <p class="text-xs text-amber-600">The phone picture will be removed when you save.</p>
+                      }
+                    </div>
+                  </div>
+                </div>
                 }
               </section>
 

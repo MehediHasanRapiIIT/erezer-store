@@ -1,4 +1,5 @@
 import { Component, signal, computed, OnInit, inject } from '@angular/core';
+import { SizeChartPickerComponent } from '../../../shared/size-chart-picker/size-chart-picker.component';
 import { RouterLink, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { SidebarComponent } from '../../../shared/sidebar/sidebar.component';
@@ -19,7 +20,7 @@ import {
 @Component({
   selector: 'app-add-product',
   standalone: true,
-  imports: [RouterLink, FormsModule, SidebarComponent, DiscountInputComponent, PicturePickerComponent, FitSizesComponent],
+  imports: [RouterLink, FormsModule, SidebarComponent, DiscountInputComponent, PicturePickerComponent, FitSizesComponent, SizeChartPickerComponent],
   templateUrl: './add-product.component.html',
 })
 export class AddProductComponent implements OnInit {
@@ -52,6 +53,10 @@ export class AddProductComponent implements OnInit {
   discountExcluded = signal(false);
   /** Stock on the product page: follow the category (default), the quantity, or labels. */
   stockDisplay = signal<StockDisplay>('CATEGORY');
+  /** The product's own size chart; 0 for none of its own. */
+  sizeChartId = signal(0);
+  /** A different chart for Regular Fit; 0 for the same chart. */
+  regularFitSizeChartId = signal(0);
   protected readonly stockDisplayOptions: { value: StockDisplay; label: string }[] = [
     { value: 'CATEGORY', label: 'Same as category' },
     { value: 'QUANTITY', label: 'Show quantity' },
@@ -159,6 +164,8 @@ export class AddProductComponent implements OnInit {
       isFeatured: this.isFeatured(),
       discountExcluded: this.discountExcluded(),
       stockDisplay: this.stockDisplay(),
+      sizeChartId: this.sizeChartId(),
+      regularFitSizeChartId: this.regularFitSizeChartId(),
     };
 
     const fitIssue = this.perms.can('products.variants') ? fitSizesProblem(this.fitSizes()) : '';

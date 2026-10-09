@@ -37,6 +37,8 @@ export const ACCESS = {
   shipping:     { any: ['shipping.view'] },
   flashSales:   { any: ['flash_sales.view'] },
   bundles:      { any: ['bundles.view'] },
+  // Anyone who sees settings can look; changing a chart needs settings.sizechart.
+  sizeCharts:   { any: ['settings.view', 'settings.sizechart'] },
   returns:      { any: ['returns.view'] },
   customOrders: { any: ['custom_orders.view'] },
   customDesign: { any: ['design.view'] },
@@ -73,6 +75,7 @@ export const ADMIN_PAGES: AdminPage[] = [
   { label: 'Shipping',      icon: 'delivery',   route: '/shipping',      access: ACCESS.shipping },
   { label: 'Flash Sales',   icon: 'banners',    route: '/flash-sales',   access: ACCESS.flashSales },
   { label: 'Bundles',       icon: 'banners',    route: '/bundles',       access: ACCESS.bundles },
+  { label: 'Size Charts',   icon: 'inventory',  route: '/size-charts',   access: ACCESS.sizeCharts },
   { label: 'Returns',       icon: 'orders',     route: '/returns',       access: ACCESS.returns },
   { label: 'Custom Orders', icon: 'orders',     route: '/custom-orders', access: ACCESS.customOrders },
   { label: 'Custom Design', icon: 'products',   route: '/custom-design', access: ACCESS.customDesign },

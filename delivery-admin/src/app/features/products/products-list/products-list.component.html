@@ -121,6 +121,71 @@
           </div>
         </div>
 
+        <!-- One action for the ticked products. It appears with the first tick. -->
+        @if (showBulkBar()) {
+          <div class="mx-5 mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3" data-testid="bulk-bar">
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-3">
+              <p class="text-sm font-bold text-blue-900" data-testid="bulk-count">
+                {{ pickedCount() }} {{ pickedCount() === 1 ? 'product' : 'products' }} selected
+              </p>
+
+              @if (canBulkEdit()) {
+                <div class="flex items-center gap-1.5">
+                  <select [ngModel]="bulkCategoryId()" (ngModelChange)="bulkCategoryId.set($event)" aria-label="Move to category" data-testid="bulk-category"
+                    class="max-w-56 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-sm text-gray-700">
+                    <option [ngValue]="null">Move to category…</option>
+                    @for (c of categories(); track c.id) {
+                      <option [ngValue]="c.id">{{ c.label || c.name }}</option>
+                    }
+                  </select>
+                  <button type="button" (click)="bulkMove()" [disabled]="bulkCategoryId() == null || bulkSaving()" data-testid="bulk-move"
+                    class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-40">Move</button>
+                </div>
+              }
+
+              @if (allowedSwitches().length > 0) {
+                <div class="flex items-center gap-1.5">
+                  <select [ngModel]="bulkSwitch()" (ngModelChange)="bulkSwitch.set($event)" aria-label="More actions" data-testid="bulk-switch"
+                    class="max-w-56 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-sm text-gray-700">
+                    <option [ngValue]="null">More actions…</option>
+                    @for (s of allowedSwitches(); track s.action) {
+                      <option [ngValue]="s.action">{{ s.label }}</option>
+                    }
+                  </select>
+                  <button type="button" (click)="bulkApplySwitch()" [disabled]="bulkSwitch() == null || bulkSaving()" data-testid="bulk-apply"
+                    class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-40">Apply</button>
+                </div>
+              }
+
+              @if (canBulkEdit()) {
+                <div class="flex items-center gap-1.5" data-testid="bulk-chart">
+                  <div class="w-52">
+                    <app-size-chart-picker [(value)]="bulkChartId" [compact]="true" label="Size chart for the ticked products"
+                      fieldId="bulk-size-chart" testId="bulk-size-chart" noneLabel="Size chart: same as category" />
+                  </div>
+                  <button type="button" (click)="bulkSetChart()" [disabled]="bulkSaving()" data-testid="bulk-chart-apply"
+                    class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-40">Set chart</button>
+                </div>
+              }
+
+              @if (canBulkDelete()) {
+                <button type="button" (click)="bulkDelete()" [disabled]="bulkSaving()" data-testid="bulk-delete"
+                  class="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40">Delete</button>
+              }
+
+              <button type="button" (click)="clearPicks()" class="ml-auto text-sm font-medium text-blue-700 hover:underline" data-testid="bulk-clear">Clear selection</button>
+            </div>
+            <p class="mt-2 text-xs text-blue-700">
+              @if (pickedCount() > bulkLimit) {
+                <span class="font-semibold text-red-600">Up to {{ bulkLimit }} products at a time. Untick some first.</span>
+              } @else {
+                Ticks are kept while you search or change page, so you can gather products from several pages.
+              }
+              @if (bulkSaving()) { <span class="font-semibold">Working…</span> }
+            </p>
+          </div>
+        }
+
         <!-- Fits for many products at once: the ticked ones, or a whole category. -->
         @if (fitMode() && canSetFits()) {
           <div class="mx-5 mt-4 rounded-xl border border-indigo-200 bg-indigo-50 p-5" data-testid="fits-panel">
@@ -308,7 +373,7 @@
                 @if (pickingProducts()) {
                   <th class="px-4 py-3 text-left w-10">
                     <input type="checkbox" [checked]="allOnPagePicked()" (change)="togglePageSelection()"
-                      aria-label="Tick every product on this page"
+                      aria-label="Tick every product on this page" data-testid="tick-page"
                       class="h-4 w-4 cursor-pointer rounded border-gray-300 text-indigo-600" />
                   </th>
                 }
@@ -327,11 +392,11 @@
             </thead>
             <tbody class="divide-y divide-gray-50">
               @for (product of products(); track product.id) {
-                <tr class="hover:bg-gray-50 transition-colors" [class.bg-indigo-50]="pickingProducts() && isPicked(product.id)">
+                <tr class="hover:bg-gray-50 transition-colors" [class.bg-indigo-50]="pickingProducts() && isPicked(product.id)" [attr.data-product-id]="product.id">
                   @if (pickingProducts()) {
                     <td class="px-4 py-3.5">
                       <input type="checkbox" [checked]="isPicked(product.id)" (change)="togglePick(product.id)"
-                        [attr.aria-label]="'Tick ' + product.name"
+                        [attr.aria-label]="'Tick ' + product.name" data-testid="tick-row"
                         class="h-4 w-4 cursor-pointer rounded border-gray-300 text-indigo-600" />
                     </td>
                   }

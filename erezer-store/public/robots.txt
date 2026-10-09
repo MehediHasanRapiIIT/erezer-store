@@ -5,5 +5,11 @@ Disallow: /account
 Disallow: /orders
 Disallow: /wishlist
 Disallow: /bkash-callback
+Disallow: /cart
+Disallow: /admin
+Disallow: /order-placed
+Disallow: /reset-password
+Disallow: /verify-email
+Disallow: /unsubscribe
 
 Sitemap: https://shop.erezer.com/sitemap.xml

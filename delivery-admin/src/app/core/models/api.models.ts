@@ -50,6 +50,10 @@ export interface ProductRequest {
   /** Keep this product at full price, ignoring every automatic discount. */
   discountExcluded?: boolean;
   stockDisplay?: StockDisplay;
+  /** The product's own size chart; 0 for none of its own (it follows its category, then the default). Left out: unchanged. */
+  sizeChartId?: number;
+  /** A different chart for Regular Fit; 0 for the same chart. Left out: unchanged. */
+  regularFitSizeChartId?: number;
 }
 
 export interface ProductResponse {
@@ -93,6 +97,11 @@ export interface ProductResponse {
   /** Its category is excluded, which keeps it at full price too. Read-only. */
   categoryDiscountExcluded: boolean | null;
   stockDisplay?: StockDisplay | null;
+  /** The product's own size chart; null when it follows its category or the default. */
+  sizeChartId?: number | null;
+  regularFitSizeChartId?: number | null;
+  /** The chart its page shows, with the category and the default taken into account. */
+  effectiveSizeChartId?: number | null;
   showStockQuantity?: boolean | null;
   /** The Products list: the stock of each size; stockQuantity is their total. Absent when not sold in sizes. */
   sizeStock?: SizeStock[];
@@ -203,6 +212,8 @@ export interface CategoryRequest {
    * into a main category: always send it.
    */
   parentId?: number | null;
+  /** The size chart for the products in and under it; 0 for none of its own. Left out: unchanged. */
+  sizeChartId?: number;
 }
 
 export interface CategoryResponse {
@@ -224,6 +235,12 @@ export interface CategoryResponse {
   /** The main category this one sits under; null or absent for a main category. */
   parentId?: number | null;
   parentName?: string | null;
+  /** The size chart this category names for its products; null for none of its own. */
+  sizeChartId?: number | null;
+  /** How far down it sits: 0 for a main category, 1 for its subcategory, and so on. */
+  depth?: number;
+  /** The whole way down to it: "Men › T-Shirts › Drop Shoulder". */
+  path?: string | null;
   /** Products put directly in it. productCount also counts its subcategories'. */
   ownProductCount?: number;
   subcategoryCount?: number;
@@ -272,6 +289,8 @@ export interface BannerResponse {
   ctaLink: string | null;
   /** Order within a slot, lowest first. */
   sortOrder: number;
+  /** An upright picture shown on phones instead of imageUrl; null when there is none. */
+  mobileImageUrl?: string | null;
 }
 
 /**

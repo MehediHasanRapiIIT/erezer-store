@@ -47,6 +47,18 @@ server {
         expires -1;
     }
 
+    # The sitemap search engines read is built by the backend from the live
+    # catalog, so a new product is listed by itself. The upstream is a variable
+    # and Docker's own DNS the resolver, so nginx looks the backend up per
+    # request instead of at startup - it still starts when the backend is down.
+    location = /sitemap.xml {
+        resolver 127.0.0.11 valid=30s ipv6=off;
+        set $sitemap_upstream http://backend:8080;
+        proxy_pass $sitemap_upstream/api/sitemap.xml;
+        proxy_set_header Host $host;
+        add_header Cache-Control "public, max-age=3600";
+    }
+
     # Hashed build output is content-addressed and safe to cache forever.
     location ~* \.(?:js|css|woff2?|ttf|otf|jpg|jpeg|png|gif|webp|svg|ico)$ {
         expires 1y;

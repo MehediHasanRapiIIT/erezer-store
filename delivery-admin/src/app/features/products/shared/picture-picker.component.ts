@@ -34,6 +34,7 @@ const MAX_TOTAL_BYTES = 240 * 1024 * 1024;
         <span class="text-sm font-medium text-gray-700">Drop pictures here, or click to choose</span>
         <span class="text-xs text-gray-400">Choose several at once · up to {{ max }} · 15 MB each</span>
       </label>
+      <p class="picture-hint text-xs text-gray-500 mt-2" data-testid="picture-hint"><span class="font-semibold text-gray-700">Best size:</span> 1200 × 1500 px, upright. Any shape works and the whole picture is always shown, but upright pictures fill the product card best.</p>
 
       @if (problem()) {
         <p class="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-600" data-testid="picture-problem">{{ problem() }}</p>

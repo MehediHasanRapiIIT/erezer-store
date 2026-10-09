@@ -20,6 +20,7 @@ import { NoticeService } from '../../../core/services/notice.service';
         <div>
           <h2 class="font-bold text-gray-900">Product images</h2>
           <p class="text-xs text-gray-500">Upload multiple images. Set one as primary; reorder by changing sort index.</p>
+          <p class="picture-hint text-xs text-gray-500 mt-1" data-testid="picture-hint"><span class="font-semibold text-gray-700">Best size:</span> 1200 × 1500 px, upright. Any shape works and the whole picture is always shown, but upright pictures fill the product card best.</p>
           @if (!perms.can('products.images')) {
             <p class="text-xs text-gray-400">Needs the “Manage product photos” permission.</p>
           }

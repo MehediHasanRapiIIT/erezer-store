@@ -70,10 +70,13 @@ public class BannerController {
             @RequestParam(value = "slot", required = false) String slot,
             @RequestParam(value = "ctaLabel", required = false) String ctaLabel,
             @RequestParam(value = "ctaLink", required = false) String ctaLink,
-            @RequestParam(value = "sortOrder", required = false) Integer sortOrder) {
-        return ResponseEntity.ok(bannerService.uploadBanner(
-                image, content(promotionTitle, promotionDetails, fromDate, toDate,
-                        slot, ctaLabel, ctaLink, sortOrder)));
+            @RequestParam(value = "sortOrder", required = false) Integer sortOrder,
+            // An upright picture for phones. Optional.
+            @RequestParam(value = "mobileImage", required = false) MultipartFile mobileImage) {
+        BannerContentDTO content = content(promotionTitle, promotionDetails, fromDate, toDate,
+                slot, ctaLabel, ctaLink, sortOrder);
+        content.setMobileImage(mobileImage);
+        return ResponseEntity.ok(bannerService.uploadBanner(image, content));
     }
 
     /** Active banners for one home-page band, in display order. */
@@ -96,10 +99,14 @@ public class BannerController {
             @RequestParam(value = "slot", required = false) String slot,
             @RequestParam(value = "ctaLabel", required = false) String ctaLabel,
             @RequestParam(value = "ctaLink", required = false) String ctaLink,
-            @RequestParam(value = "sortOrder", required = false) Integer sortOrder) {
-        return ResponseEntity.ok(bannerService.updateBanner(
-                id, image, content(promotionTitle, promotionDetails, fromDate, toDate,
-                        slot, ctaLabel, ctaLink, sortOrder)));
+            @RequestParam(value = "sortOrder", required = false) Integer sortOrder,
+            @RequestParam(value = "mobileImage", required = false) MultipartFile mobileImage,
+            @RequestParam(value = "removeMobileImage", required = false) Boolean removeMobileImage) {
+        BannerContentDTO content = content(promotionTitle, promotionDetails, fromDate, toDate,
+                slot, ctaLabel, ctaLink, sortOrder);
+        content.setMobileImage(mobileImage);
+        content.setRemoveMobileImage(removeMobileImage);
+        return ResponseEntity.ok(bannerService.updateBanner(id, image, content));
     }
 
     /**

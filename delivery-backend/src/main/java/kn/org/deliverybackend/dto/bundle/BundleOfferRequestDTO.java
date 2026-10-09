@@ -28,15 +28,19 @@ public class BundleOfferRequestDTO {
 
     private String description;
 
-    @NotNull
+    /**
+     * FIXED_PRICE, BUY_X_GET_Y or QUANTITY_DISCOUNT. Left out by an older admin
+     * panel, which means Buy X Get Y when there are free items and a fixed
+     * price otherwise - what its form always meant.
+     */
+    private String offerType;
+    /** The steps of a QUANTITY_DISCOUNT; ignored for the other kinds. */
+    private List<BundleTierDTO> tiers = new ArrayList<>();
+    // Which of these three a kind needs is checked in the service, with a message in plain words.
     @Min(1)
     private Integer buyCount;
-
-    @NotNull
     @Min(0)
     private Integer getCount;
-
-    @NotNull
     @DecimalMin("0.0")
     private BigDecimal bundlePrice;
 

@@ -31,9 +31,11 @@ import { SeoService } from '../core/seo.service';
       <section class="relative full-bleed mb-8 border-b border-neutral-200 px-4 pb-8 sm:px-6 lg:px-8 dark:border-neutral-800" appReveal>
         <p class="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.32em] text-neutral-500 dark:text-neutral-400">
           <span class="h-px w-10 bg-neutral-400 dark:bg-neutral-600"></span>
-          @if (main(); as m) {
+          <!-- The way down to this category: every category above it, to step back up. -->
+          @for (m of trail(); track m.id; let last = $last) {
             <a [routerLink]="linkTo(m)" [queryParams]="queryFor(m)" class="underline-offset-4 hover:underline" data-testid="collection-parent">{{ m.name }}</a>
-          } @else {
+            @if (!last) { <span aria-hidden="true">›</span> }
+          } @empty {
             Collection
           }
         </p>
@@ -46,10 +48,11 @@ import { SeoService } from '../core/seo.service';
           {{ loading() ? 'Loading…' : (total() + ' ' + (total() === 1 ? 'product' : 'products')) }}
         </p>
         @if (subcategories().length > 0) {
-          <!-- The main category and its subcategories, to narrow the page by. -->
+          <!-- What is directly under this category, to narrow the page by; at the
+               bottom of a branch, this category among its siblings instead. -->
           <nav class="no-scrollbar -mx-1 mt-6 flex gap-2 overflow-x-auto px-1 pb-1" aria-label="Subcategories" data-testid="collection-subcategories">
-            @if (main() || category(); as top) {
-              <a [routerLink]="linkTo(top)" [queryParams]="queryFor(top)" [class]="pillClass(!main())">All {{ top.name }}</a>
+            @if (pillsOf(); as top) {
+              <a [routerLink]="linkTo(top)" [queryParams]="queryFor(top)" [class]="pillClass(top.id === category()?.id)">All {{ top.name }}</a>
             }
             @for (sub of subcategories(); track sub.id) {
               <a [routerLink]="linkTo(sub)" [queryParams]="queryFor(sub)" [class]="pillClass(sub.id === category()?.id)">{{ sub.name }}</a>
@@ -92,19 +95,38 @@ export class CollectionPage {
   private readonly pageSize = 20;
 
   protected readonly category = signal<ApiCategory | null>(null);
-  /** Every active category, to find this one's subcategories or its main category. */
+  /** Every active category, to find what is under this one and what it sits under. */
   private readonly allCategories = signal<ApiCategory[]>([]);
-  /** The main category this page's subcategory sits under; null on a main category's page. */
-  protected readonly main = computed(() => {
-    const parentId = this.category()?.parentId;
-    return parentId == null ? null : this.allCategories().find((c) => c.id === parentId) ?? null;
+  private childrenOf(id: number): ApiCategory[] {
+    return this.allCategories().filter((c) => c.parentId === id).sort((a, b) => a.name.localeCompare(b.name));
+  }
+  /** Every category above this one, from the main category down; empty on a main category's page. */
+  protected readonly trail = computed(() => {
+    const above: ApiCategory[] = [];
+    const seen = new Set<number>();
+    let parentId = this.category()?.parentId;
+    while (parentId != null && !seen.has(parentId)) {
+      seen.add(parentId);
+      const parent = this.allCategories().find((c) => c.id === parentId);
+      if (!parent) break;
+      above.unshift(parent);
+      parentId = parent.parentId;
+    }
+    return above;
   });
-  /** On a main category's page its subcategories; on a subcategory's page, it and its siblings. */
-  protected readonly subcategories = computed(() => {
+  /**
+   * The category whose subcategories the pills list: this one when it has any,
+   * otherwise the one above it, so the bottom of a branch shows its siblings.
+   */
+  protected readonly pillsOf = computed(() => {
     const category = this.category();
-    if (!category) return [];
-    const mainId = category.parentId ?? category.id;
-    return this.allCategories().filter((c) => c.parentId === mainId).sort((a, b) => a.name.localeCompare(b.name));
+    if (!category) return null;
+    if (this.childrenOf(category.id).length > 0) return category;
+    return this.trail().at(-1) ?? null;
+  });
+  protected readonly subcategories = computed(() => {
+    const top = this.pillsOf();
+    return top ? this.childrenOf(top.id) : [];
   });
   protected readonly products = signal<ApiProduct[]>([]);
   /** How many products the collection has, as counted by the server. */
@@ -141,7 +163,7 @@ export class CollectionPage {
           return;
         }
         this.category.set(category);
-        this.seo.update({ title: category.name, description: `Shop the ${category.name} collection from EREZER.` });
+        this.seo.update({ title: category.name, description: `Shop ${category.name} at Erezer. Cash on delivery and bKash, delivery across Bangladesh.`, image: category.imageUrl || undefined });
         this.api
           .browseProducts({ categoryId: category.id, page: 0, size: this.pageSize })
           .pipe(catchError(() => of(null)))

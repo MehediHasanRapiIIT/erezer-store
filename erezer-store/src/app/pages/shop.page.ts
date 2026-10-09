@@ -65,14 +65,15 @@ import { RevealDirective } from '../core/reveal.directive';
           </button>
         }
       </div>
-      @if (subcategories().length > 0) {
-        <!-- The chosen category's subcategories, to narrow it further. -->
+      <!-- One more row for each level chosen so far: what is under the main
+           category, then under the subcategory picked from that row, and so on. -->
+      @for (row of subcategoryRows(); track row.parent.id) {
         <div class="no-scrollbar -mx-1 mt-2 flex gap-2 overflow-x-auto px-1 pb-1" data-testid="shop-subcategories">
-          <button (click)="selectCategory(selectedMainId())" [class]="subPillClass(selectedCategoryId() === selectedMainId())">
-            All {{ selectedMainName() }}
+          <button (click)="selectCategory(row.parent.id)" [class]="subPillClass(row.activeId === null)">
+            All {{ row.parent.name }}
           </button>
-          @for (sub of subcategories(); track sub.id) {
-            <button (click)="selectCategory(sub.id)" [class]="subPillClass(selectedCategoryId() === sub.id)">{{ sub.name }}</button>
+          @for (sub of row.items; track sub.id) {
+            <button (click)="selectCategory(sub.id)" [class]="subPillClass(row.activeId === sub.id)">{{ sub.name }}</button>
           }
         </div>
       }
@@ -363,19 +364,35 @@ export class ShopPage implements OnInit {
   private readonly allCategories        = signal<ApiCategory[]>([]);
   /** The first row of pills: main categories. */
   protected readonly categories         = computed(() => this.allCategories().filter((c) => c.parentId == null));
-  /** The main category in play: the one chosen, or the one the chosen subcategory sits under. */
-  protected readonly selectedMainId     = computed(() => {
-    const id = this.selectedCategoryId();
-    if (id === null) return null;
-    return this.allCategories().find((c) => c.id === id)?.parentId ?? id;
+  /** The chosen category with every category above it, from the main category down. */
+  private readonly selectedChain        = computed(() => {
+    const chain: ApiCategory[] = [];
+    const seen = new Set<number>();
+    let id = this.selectedCategoryId();
+    while (id != null && !seen.has(id)) {
+      seen.add(id);
+      const at = this.allCategories().find((c) => c.id === id);
+      if (!at) break;
+      chain.unshift(at);
+      id = at.parentId ?? null;
+    }
+    return chain;
   });
-  protected readonly selectedMainName   = computed(() =>
-    this.allCategories().find((c) => c.id === this.selectedMainId())?.name ?? '');
-  /** The second row of pills: that main category's subcategories. */
-  protected readonly subcategories      = computed(() => {
-    const mainId = this.selectedMainId();
-    return mainId === null ? [] : this.allCategories().filter((c) => c.parentId === mainId)
-      .sort((a, b) => a.name.localeCompare(b.name));
+  /** The main category in play: the one chosen, or the one the chosen subcategory sits under, however deep. */
+  protected readonly selectedMainId     = computed(() => this.selectedChain()[0]?.id ?? this.selectedCategoryId());
+  /**
+   * The rows of pills under the main categories: one for each category in the
+   * chosen chain that has subcategories. `activeId` is the pill chosen in that
+   * row, or null when the row's own category ("All …") is the choice.
+   */
+  protected readonly subcategoryRows    = computed(() => {
+    const chain = this.selectedChain();
+    const rows: { parent: ApiCategory; items: ApiCategory[]; activeId: number | null }[] = [];
+    chain.forEach((parent, i) => {
+      const items = this.allCategories().filter((c) => c.parentId === parent.id).sort((a, b) => a.name.localeCompare(b.name));
+      if (items.length > 0) rows.push({ parent, items, activeId: chain[i + 1]?.id ?? null });
+    });
+    return rows;
   });
   /** Every page loaded so far, in order. */
   protected readonly products           = signal<ApiProduct[]>([]);

@@ -10,6 +10,7 @@ import { SettingsStore } from './core/store/settings.store';
 import { AuthService } from './core/auth.service';
 import { ApiService } from './core/api.service';
 import { EcommerceStore } from './core/store/ecommerce.store';
+import { SeoService } from './core/seo.service';
 
 @Component({
   selector: 'app-root',
@@ -25,9 +26,11 @@ export class App {
   private readonly api = inject(ApiService);
   private readonly store = inject(EcommerceStore);
   private readonly settings = inject(SettingsStore);
+  private readonly seo = inject(SeoService);
 
   constructor() {
     this.themeService.initializeTheme();
+    this.seo.followRoutes();
     this.publishScrollbarWidth();
 
     // Meta Pixel: start with whatever the server image was built with, then take

@@ -84,9 +84,9 @@ public class HomePageServiceImpl implements HomePageService {
                     ? null : categoriesById.get(product.getCategoryId());
             if (category != null) {
                 dto.setCategoryName(category.getName());
-                Category parent = category.getParentId() == null ? null : categoriesById.get(category.getParentId());
-                dto.setCategoryDiscountExcluded(Boolean.TRUE.equals(category.getDiscountExcluded())
-                        || (parent != null && Boolean.TRUE.equals(parent.getDiscountExcluded())));
+                // Kept at full price when the category, or anything it sits under, is.
+                dto.setCategoryDiscountExcluded(
+                        kn.org.deliverybackend.service.CategoryTree.discountExcluded(categoryRepository, category));
             } else {
                 dto.setCategoryDiscountExcluded(false);
             }

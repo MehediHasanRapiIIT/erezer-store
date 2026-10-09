@@ -123,6 +123,21 @@ public class Product extends AbstractBaseEntity<Long> {
     @Column(name = "stock_display", length = 20)
     private kn.org.deliverybackend.enumeration.StockDisplay stockDisplay;
 
+    /**
+     * The size chart this product shows, from the shop's library. Null: the
+     * chart of its category (or of the nearest category above that names one),
+     * else the default chart.
+     */
+    @Column(name = "size_chart_id")
+    private Long sizeChartId;
+
+    /**
+     * For a product that comes in two fits: a different chart for Regular Fit.
+     * Null: Regular Fit shows the same chart as the rest of the product.
+     */
+    @Column(name = "regular_fit_size_chart_id")
+    private Long regularFitSizeChartId;
+
     /** Spaces at either end of the product code are never kept. */
     @PrePersist
     @PreUpdate

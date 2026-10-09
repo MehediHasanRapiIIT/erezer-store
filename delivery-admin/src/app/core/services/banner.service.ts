@@ -38,15 +38,24 @@ export class BannerService {
     return this.http.get<BannerResponse[]>(`${this.baseUrl}/api/banners/slot/${slot}`);
   }
 
-  uploadBanner(image: File, content: BannerContent = {}): Observable<BannerResponse> {
+  /** `mobileImage` is the optional upright picture for phones. */
+  uploadBanner(image: File, content: BannerContent = {}, mobileImage?: File): Observable<BannerResponse> {
     const formData = this.toFormData(content);
     formData.append('image', image);
+    if (mobileImage) formData.append('mobileImage', mobileImage);
     return this.http.post<BannerResponse>(`${this.baseUrl}/api/banners`, formData);
   }
 
-  updateBanner(id: string, image: File | undefined, content: BannerContent = {}): Observable<BannerResponse> {
+  /**
+   * `mobileImage` adds or replaces the phone picture; `removeMobileImage` takes
+   * it away. Neither leaves it as it is.
+   */
+  updateBanner(id: string, image: File | undefined, content: BannerContent = {},
+               mobileImage?: File, removeMobileImage = false): Observable<BannerResponse> {
     const formData = this.toFormData(content);
     if (image) formData.append('image', image);
+    if (mobileImage) formData.append('mobileImage', mobileImage);
+    else if (removeMobileImage) formData.append('removeMobileImage', 'true');
     return this.http.put<BannerResponse>(`${this.baseUrl}/api/banners/${id}`, formData);
   }
 

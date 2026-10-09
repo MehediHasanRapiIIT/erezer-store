@@ -36,8 +36,15 @@ public class CategoryRequestDTO {
     /** True to keep this category's products at full price. */
     private Boolean discountExcluded;
 
-    /** The main category this one sits under; null for a main category. */
+    /** The category directly above this one; null for a main category. */
     private Long parentId;
+
+    /**
+     * The size chart for the products in and under this category. 0 means none
+     * of its own. Null leaves it unchanged, so a save that doesn't know about
+     * charts can't take one away.
+     */
+    private Long sizeChartId;
 
     /** True: product pages in this category show the stock quantity. Null leaves it unchanged. */
     private Boolean showStockQuantity;

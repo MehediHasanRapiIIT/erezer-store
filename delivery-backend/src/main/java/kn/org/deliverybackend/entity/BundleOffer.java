@@ -47,7 +47,18 @@ public class BundleOffer extends AbstractBaseEntity<UUID> {
     @Column(columnDefinition = "text")
     private String description;
 
-    /** How many items the customer pays for. */
+    /**
+     * FIXED_PRICE, BUY_X_GET_Y or QUANTITY_DISCOUNT (see BundleType). Null on a
+     * row from before types existed, which is read by whether it has free items.
+     */
+    @Column(name = "offer_type", length = 30)
+    private String offerType;
+
+    /** The steps of a quantity discount, as JSON: [{"quantity":2,"percentOff":10}, ...]. Null for the other kinds. */
+    @Column(name = "tiers_json", columnDefinition = "text")
+    private String tiersJson;
+
+    /** How many items the customer pays for. For a quantity discount, the smallest step. */
     @Column(name = "buy_count", nullable = false)
     private Integer buyCount;
 
@@ -55,7 +66,7 @@ public class BundleOffer extends AbstractBaseEntity<UUID> {
     @Column(name = "get_count", nullable = false)
     private Integer getCount;
 
-    /** Fixed total the customer is charged for the whole bundle. */
+    /** Fixed total the customer is charged for the whole bundle. Zero for a quantity discount, which has no one price. */
     @Column(name = "bundle_price", precision = 12, scale = 2, nullable = false)
     private BigDecimal bundlePrice;
 

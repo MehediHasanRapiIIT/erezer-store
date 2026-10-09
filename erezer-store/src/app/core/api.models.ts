@@ -73,6 +73,8 @@ export interface ApiBanner {
   /** Button destination; null hides the button. */
   ctaLink: string | null;
   sortOrder: number;
+  /** An upright picture for phones; null when the banner has only the wide one. */
+  mobileImageUrl?: string | null;
 }
 
 // ─── Category ─────────────────────────────────────────────────────────────────
@@ -86,9 +88,13 @@ export interface ApiCategory {
   slug?: string | null;
   showOnHome?: boolean;
   homeSortOrder?: number;
-  /** The main category a subcategory sits under; absent for a main category. */
+  /** The category directly above; absent for a main category. Subcategories go to any depth. */
   parentId?: number | null;
   parentName?: string | null;
+  /** How far down it sits: 0 for a main category. */
+  depth?: number;
+  /** The whole way down to it: "Men › T-Shirts › Drop Shoulder". */
+  path?: string | null;
 }
 
 // ─── Product ──────────────────────────────────────────────────────────────────
@@ -131,6 +137,11 @@ export interface ApiProduct {
   avgRating?: number;
   totalReviews?: number;
   stockQuantity?: number;
+
+  /** The size chart this product's page shows (its own, its category's, or the default), by id in the size chart library. */
+  effectiveSizeChartId?: number | null;
+  /** The chart shown for Regular Fit; the same id when the product names no other. */
+  effectiveRegularFitSizeChartId?: number | null;
 
   // Custom (made-to-order) sizing
   customSizeEnabled?: boolean | null;
@@ -439,9 +450,19 @@ export interface ApiBundleOffer {
   name: string;
   label: string | null;
   description: string | null;
+  /** FIXED_PRICE ("Any 3 for ৳999"), BUY_X_GET_Y, or QUANTITY_DISCOUNT ("buy 2 save 10%, buy 3 save 15%"). */
+  offerType?: 'FIXED_PRICE' | 'BUY_X_GET_Y' | 'QUANTITY_DISCOUNT';
+  /** The offer in words, ready to show. */
+  headline?: string | null;
+  /** The steps of a quantity discount, smallest quantity first; empty for the other kinds. */
+  tiers?: { quantity: number; percentOff: number }[];
+  /** The fewest and the most items the customer picks: the same, except for a quantity discount. */
+  minItems?: number;
+  maxItems?: number;
   buyCount: number;
   getCount: number;
   slots: number;
+  /** One price for the whole bundle. 0 for a quantity discount, which has no one price. */
   bundlePrice: number;
   compareAtPrice: number | null;
   savings: number | null;
@@ -690,6 +711,14 @@ export interface ApiSizeChartRow {
 export interface ApiSizeChart {
   columns: string[];
   rows: ApiSizeChartRow[];
+}
+
+/** One chart of the shop's size chart library. */
+export interface ApiSizeChartEntry {
+  id: number;
+  name: string;
+  chart: ApiSizeChart;
+  isDefault: boolean;
 }
 
 export interface ApiBrandStory {

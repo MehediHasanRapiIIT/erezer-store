@@ -63,17 +63,24 @@ interface SlotSelection {
             <h1 class="text-2xl font-bold">{{ b.name }}</h1>
 
             <div class="flex items-center gap-3">
-              @if (b.compareAtPrice) {
-                <span class="text-lg text-neutral-400 line-through">{{ b.compareAtPrice | currency:'BDT':'৳' }}</span>
+              @if (byQuantity()) {
+                <span class="text-2xl font-bold" data-testid="bundle-price">Up to {{ topPercent() }}% off</span>
+              } @else {
+                @if (b.compareAtPrice) {
+                  <span class="text-lg text-neutral-400 line-through">{{ b.compareAtPrice | currency:'BDT':'৳' }}</span>
+                }
+                <span class="text-2xl font-bold" data-testid="bundle-price">{{ b.bundlePrice | currency:'BDT':'৳' }}</span>
               }
-              <span class="text-2xl font-bold">{{ b.bundlePrice | currency:'BDT':'৳' }}</span>
               @if (b.savings && b.savings > 0) {
                 <span class="rounded bg-emerald-600 px-2 py-1 text-sm font-semibold text-white">Save {{ b.savings | currency:'BDT':'৳' }}</span>
               }
             </div>
 
             <div class="flex flex-wrap items-center gap-3">
-              <p class="app-muted text-sm">Buy {{ b.buyCount }} Get {{ b.getCount }} — pick {{ b.slots }} item{{ b.slots > 1 ? 's' : '' }} below.</p>
+              <p class="app-muted text-sm" data-testid="bundle-headline">
+                {{ b.headline || ('Buy ' + b.buyCount + ' Get ' + b.getCount) }} —
+                {{ byQuantity() ? 'pick ' + minItems() + ' or more below' : 'pick ' + b.slots + ' item' + (b.slots > 1 ? 's' : '') + ' below' }}.
+              </p>
               @if (hasSizeChart()) {
                 <button type="button" (click)="sizeGuideOpen.set(true)"
                   class="inline-flex items-center gap-1 text-xs font-semibold text-neutral-500 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-neutral-100">
@@ -83,8 +90,22 @@ interface SlotSelection {
             </div>
             @if (b.description) { <p class="text-sm text-neutral-600 dark:text-neutral-300">{{ b.description }}</p> }
 
-            <!-- Slots -->
-            <div class="grid gap-3" [style.grid-template-columns]="'repeat(' + b.slots + ', minmax(0,1fr))'">
+            @if (byQuantity()) {
+              <!-- The steps of the discount, with the one reached so far marked. -->
+              <ul class="flex flex-wrap gap-2" data-testid="bundle-steps">
+                @for (t of b.tiers ?? []; track t.quantity) {
+                  <li class="rounded-full border px-3 py-1 text-xs font-semibold"
+                    [class.border-emerald-600]="reachedPercent() === t.percentOff" [class.bg-emerald-600]="reachedPercent() === t.percentOff"
+                    [class.text-white]="reachedPercent() === t.percentOff"
+                    [class.border-neutral-300]="reachedPercent() !== t.percentOff" [class.dark:border-neutral-700]="reachedPercent() !== t.percentOff">
+                    {{ t.quantity }}+ items · {{ t.percentOff }}% off
+                  </li>
+                }
+              </ul>
+            }
+
+            <!-- Slots: a set number of them, or for a quantity discount as many as the customer adds. -->
+            <div class="grid gap-3" [style.grid-template-columns]="'repeat(' + slotColumns() + ', minmax(0,1fr))'" data-testid="bundle-slots">
               @for (sel of selections(); track $index) {
                 <button type="button" (click)="openSlot($index)"
                   class="flex aspect-[3/4] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-2 text-center transition"
@@ -103,6 +124,12 @@ interface SlotSelection {
                 </button>
               }
             </div>
+            @if (byQuantity() && selections().length < maxItems()) {
+              <button type="button" (click)="addSlot()" data-testid="bundle-add-item"
+                class="w-full rounded-xl border border-dashed border-neutral-300 py-2.5 text-sm font-semibold text-neutral-600 transition hover:border-neutral-900 hover:text-neutral-900 dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-white dark:hover:text-white">
+                ＋ Add another item{{ nextStep() ? ' — ' + nextStep() : '' }}
+              </button>
+            }
 
             <!-- Summary rows -->
             @if (filledCount() > 0) {
@@ -125,12 +152,23 @@ interface SlotSelection {
             <!-- Buy all -->
             <div class="flex items-center justify-between rounded-xl bg-neutral-900 px-5 py-4 text-white dark:bg-white dark:text-neutral-900">
               <div>
-                <p class="text-xs opacity-70">Buy all for</p>
-                <p class="text-xl font-bold">{{ b.bundlePrice | currency:'BDT':'৳' }}</p>
+                @if (byQuantity()) {
+                  <p class="text-xs opacity-70" data-testid="bundle-saving">
+                    {{ reachedPercent() > 0 ? reachedPercent() + '% off — you save ' : 'Pick ' + minItems() + ' or more to save' }}
+                    @if (reachedPercent() > 0) { {{ saving() | currency:'BDT':'৳' }} }
+                  </p>
+                  <p class="text-xl font-bold" data-testid="bundle-pay">
+                    @if (reachedPercent() > 0) { <span class="mr-1.5 text-sm font-medium line-through opacity-60">{{ pickedTotal() | currency:'BDT':'৳' }}</span> }
+                    {{ payable() | currency:'BDT':'৳' }}
+                  </p>
+                } @else {
+                  <p class="text-xs opacity-70">Buy all for</p>
+                  <p class="text-xl font-bold" data-testid="bundle-pay">{{ b.bundlePrice | currency:'BDT':'৳' }}</p>
+                }
               </div>
-              <button type="button" (click)="proceed()" [disabled]="!allFilled()"
+              <button type="button" (click)="proceed()" [disabled]="!allFilled()" data-testid="bundle-checkout"
                 class="rounded-lg bg-white px-5 py-2.5 text-sm font-bold text-neutral-900 disabled:opacity-40 dark:bg-neutral-900 dark:text-white">
-                {{ allFilled() ? 'Checkout' : (filledCount() + ' / ' + b.slots + ' selected') }}
+                {{ allFilled() ? 'Checkout' : (filledCount() + ' / ' + selections().length + ' selected') }}
               </button>
             </div>
           </div>
@@ -259,8 +297,48 @@ export class BundleDetailPage implements OnInit {
   protected readonly filledCount = computed(() => this.selections().filter(Boolean).length);
   protected readonly allFilled = computed(() => {
     const s = this.selections();
-    return s.length > 0 && s.every(Boolean);
+    return s.length > 0 && s.length >= this.minItems() && s.every(Boolean);
   });
+
+  // ── the kinds of offer ──────────────────────────────────────────────────
+  /** A quantity discount: any number of items from the smallest step up, a percentage off. */
+  protected readonly byQuantity = computed(() => this.bundle()?.offerType === 'QUANTITY_DISCOUNT');
+  protected readonly minItems = computed(() => this.bundle()?.minItems ?? this.bundle()?.slots ?? 0);
+  protected readonly maxItems = computed(() => this.bundle()?.maxItems ?? this.bundle()?.slots ?? 0);
+  protected readonly topPercent = computed(() => Math.max(0, ...(this.bundle()?.tiers ?? []).map((t) => t.percentOff)));
+  /** No more than four boxes to a row, however many items are being picked. */
+  protected readonly slotColumns = computed(() => Math.max(1, Math.min(4, this.selections().length)));
+  /** The normal prices of what has been picked so far. */
+  protected readonly pickedTotal = computed(() =>
+    this.selections().reduce((sum, s) => sum + (s?.unitPrice ?? 0), 0));
+  /** The percentage earned by the number of items picked: that of the highest step reached. */
+  protected readonly reachedPercent = computed(() => {
+    let percent = 0;
+    for (const t of this.bundle()?.tiers ?? []) if (this.filledCount() >= t.quantity) percent = t.percentOff;
+    return percent;
+  });
+  /** What the percentage takes off, to the paisa - the same sum the server does at checkout. */
+  protected readonly saving = computed(() => Math.round(this.pickedTotal() * this.reachedPercent()) / 100);
+  /** What the customer pays for the items: the bundle's one price, or for a quantity discount the total less the saving. */
+  protected readonly payable = computed(() => {
+    const b = this.bundle();
+    if (!b) return 0;
+    return this.byQuantity() ? Math.round((this.pickedTotal() - this.saving()) * 100) / 100 : b.bundlePrice;
+  });
+  /** "1 more for 15% off": how far the next step is, or '' on the last one. */
+  protected readonly nextStep = computed(() => {
+    const next = (this.bundle()?.tiers ?? []).find((t) => t.quantity > this.filledCount());
+    if (!next) return '';
+    const more = next.quantity - this.filledCount();
+    return `${more} more for ${next.percentOff}% off`;
+  });
+
+  /** One more box to fill, for a quantity discount. */
+  protected addSlot(): void {
+    if (this.selections().length >= this.maxItems()) return;
+    this.selections.update((list) => [...list, null]);
+    this.openSlot(this.selections().length - 1);
+  }
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
@@ -333,7 +411,9 @@ export class BundleDetailPage implements OnInit {
   protected removeSlot(index: number): void {
     this.selections.update((list) => {
       const next = [...list];
-      next[index] = null;
+      // A box added beyond the fewest needed goes away; the others are emptied.
+      if (this.byQuantity() && next.length > this.minItems()) next.splice(index, 1);
+      else next[index] = null;
       return next;
     });
   }
@@ -354,7 +434,8 @@ export class BundleDetailPage implements OnInit {
     this.bundleCheckout.start({
       bundleId: b.id,
       bundleName: b.name,
-      bundlePrice: b.bundlePrice,
+      // For a quantity discount, what these items come to; the server works it out again at checkout.
+      bundlePrice: this.payable(),
       lines,
     });
     void this.router.navigate(['/checkout']);

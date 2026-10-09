@@ -77,6 +77,15 @@ public class ProductResponseDTO {
     /** Whether the product page shows the quantity, with the category already taken into account. */
     private Boolean showStockQuantity;
 
+    /** The product's own size chart, for the edit form; null when it follows its category or the default. */
+    private Long sizeChartId;
+    /** Its own chart for Regular Fit; null when Regular Fit shows the same chart. */
+    private Long regularFitSizeChartId;
+    /** The chart the product page shows, with the category and the default already taken into account. Null when the shop has no chart. */
+    private Long effectiveSizeChartId;
+    /** The chart the product page shows for Regular Fit. */
+    private Long effectiveRegularFitSizeChartId;
+
     /**
      * True when the sale discount was given as an amount in taka, not a
      * percentage. The shop needs it to take the sale off a fit's own price the

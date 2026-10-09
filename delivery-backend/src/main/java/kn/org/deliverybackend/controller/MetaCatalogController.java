@@ -56,10 +56,19 @@ public class MetaCatalogController {
         for (Category c : all) {
             if (c.getId() != null) plain.put(c.getId(), c.getName());
         }
+        Map<Long, Long> parentOf = new HashMap<>();
+        for (Category c : all) {
+            if (c.getId() != null && c.getParentId() != null) parentOf.put(c.getId(), c.getParentId());
+        }
+        // "Men > T-Shirts > Drop Shoulder": the whole way down, as Meta's product_type wants it.
         for (Category c : all) {
             if (c.getId() == null) continue;
-            String parent = c.getParentId() == null ? null : plain.get(c.getParentId());
-            categoryNames.put(c.getId(), parent == null ? c.getName() : parent + " > " + c.getName());
+            StringBuilder path = new StringBuilder(c.getName() == null ? "" : c.getName());
+            java.util.Set<Long> seen = new java.util.HashSet<>(List.of(c.getId()));
+            for (Long up = parentOf.get(c.getId()); up != null && seen.add(up) && plain.containsKey(up); up = parentOf.get(up)) {
+                path.insert(0, plain.get(up) + " > ");
+            }
+            categoryNames.put(c.getId(), path.toString());
         }
 
         StringBuilder csv = new StringBuilder();

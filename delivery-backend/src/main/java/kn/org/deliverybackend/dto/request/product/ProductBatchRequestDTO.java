@@ -39,5 +39,7 @@ public class ProductBatchRequestDTO {
         private String productCode;
         /** This product's own price, when it differs from the shared one. */
         private BigDecimal price;
+        /** This product's own size chart, when it differs from the shared one. 0 means none of its own. */
+        private Long sizeChartId;
     }
 }

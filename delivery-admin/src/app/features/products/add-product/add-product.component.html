@@ -306,6 +306,15 @@
                       </label>
                     }
                   </div>
+                  <div class="mt-4 border-t border-gray-100 pt-4 space-y-3" data-testid="product-size-chart">
+                    <app-size-chart-picker [(value)]="sizeChartId" label="Size chart" fieldId="product-size-chart" testId="product-size-chart-select"
+                      help="The measurements customers see on this product's page."
+                      noneLabel="Same as its category (or the default chart)" />
+                    <app-size-chart-picker [(value)]="regularFitSizeChartId" label="Different chart for Regular Fit (optional)"
+                      fieldId="product-size-chart-regular" testId="product-size-chart-regular"
+                      help="Only for a product sold in both Drop Shoulder and Regular Fit, when the two measure differently."
+                      noneLabel="Same chart for both fits" />
+                  </div>
                 </div>
               </div>
             </div>

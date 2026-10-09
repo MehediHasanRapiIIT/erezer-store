@@ -143,7 +143,7 @@ export class CategoriesListComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** Opens "Add category" already set to sit under this main category. */
+  /** Opens "Add category" already set to sit inside this category, whatever its level. */
   addSubcategory(parentId: number) {
     this.router.navigate(['/categories/new'], { queryParams: { parentId } });
   }

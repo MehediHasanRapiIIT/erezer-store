@@ -44,4 +44,6 @@ public class PromotionalBannerDTO {
 
     @Schema(description = "Ordering within a slot, lowest first", example = "0")
     private Integer sortOrder;
+    @Schema(description = "An upright picture for phones; null means imageUrl is used everywhere")
+    private String mobileImageUrl;
 }

@@ -34,11 +34,15 @@ import type { ApiBundleOffer } from '../core/api.models';
                 }
               </div>
               <div class="space-y-1 p-4">
-                <p class="text-xs font-semibold uppercase tracking-wide text-amber-600">Buy {{ b.buyCount }} Get {{ b.getCount }}</p>
+                <p class="text-xs font-semibold uppercase tracking-wide text-amber-600" data-testid="bundle-card-headline">{{ b.headline || ('Buy ' + b.buyCount + ' Get ' + b.getCount) }}</p>
                 <h3 class="line-clamp-2 font-medium">{{ b.name }}</h3>
                 <div class="flex items-center gap-2">
                   @if (b.compareAtPrice) { <span class="text-sm text-neutral-400 line-through">{{ b.compareAtPrice | currency:'BDT':'৳' }}</span> }
-                  <span class="font-bold">{{ b.bundlePrice | currency:'BDT':'৳' }}</span>
+                  @if (b.offerType === 'QUANTITY_DISCOUNT') {
+                    <span class="font-bold" data-testid="bundle-card-price">Up to {{ topPercent(b) }}% off</span>
+                  } @else {
+                    <span class="font-bold" data-testid="bundle-card-price">{{ b.bundlePrice | currency:'BDT':'৳' }}</span>
+                  }
                 </div>
               </div>
             </a>
@@ -59,5 +63,10 @@ export class BundlesPage implements OnInit {
       this.bundles.set(list);
       this.loading.set(false);
     });
+  }
+
+  /** The biggest percentage a quantity discount gives. */
+  protected topPercent(b: ApiBundleOffer): number {
+    return Math.max(0, ...(b.tiers ?? []).map((t) => t.percentOff));
   }
 }

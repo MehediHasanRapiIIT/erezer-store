@@ -49,8 +49,17 @@ public class BannerServiceImpl implements BannerService {
         banner.setCtaLabel(c.getCtaLabel());
         banner.setCtaLink(c.getCtaLink());
         banner.setSortOrder(c.getSortOrder() != null ? c.getSortOrder() : 0);
+        if (c.getMobileImage() != null && !c.getMobileImage().isEmpty()) {
+            banner.setMobileImageUrl(bannerStorageService.uploadBanner(c.getMobileImage()));
+        }
 
         return toDTO(bannerRepository.save(banner));
+    }
+
+    /** Removes a stored banner picture by its address; nothing to do for null. */
+    private void deleteStored(String url) {
+        if (url == null || url.isBlank()) return;
+        bannerStorageService.deleteBanner(url.substring(url.lastIndexOf("/") + 1));
     }
 
     @Override
@@ -127,6 +136,15 @@ public class BannerServiceImpl implements BannerService {
         if (c.getCtaLink() != null) banner.setCtaLink(c.getCtaLink());
         if (c.getSortOrder() != null) banner.setSortOrder(c.getSortOrder());
 
+        // The phone picture: a new one replaces the old; "remove" takes it away.
+        if (c.getMobileImage() != null && !c.getMobileImage().isEmpty()) {
+            deleteStored(banner.getMobileImageUrl());
+            banner.setMobileImageUrl(bannerStorageService.uploadBanner(c.getMobileImage()));
+        } else if (Boolean.TRUE.equals(c.getRemoveMobileImage())) {
+            deleteStored(banner.getMobileImageUrl());
+            banner.setMobileImageUrl(null);
+        }
+
         return toDTO(bannerRepository.save(banner));
     }
 
@@ -140,6 +158,7 @@ public class BannerServiceImpl implements BannerService {
             String fileName = imageUrl.substring(imageUrl.lastIndexOf("/") + 1);
             bannerStorageService.deleteBanner(fileName);
         }
+        deleteStored(banner.getMobileImageUrl());
 
         bannerRepository.deleteById(id);
     }
@@ -155,7 +174,8 @@ public class BannerServiceImpl implements BannerService {
                 banner.getSlot() != null ? banner.getSlot() : BannerSlot.HERO,
                 banner.getCtaLabel(),
                 banner.getCtaLink(),
-                banner.getSortOrder() != null ? banner.getSortOrder() : 0
+                banner.getSortOrder() != null ? banner.getSortOrder() : 0,
+                banner.getMobileImageUrl()
         );
     }
 }

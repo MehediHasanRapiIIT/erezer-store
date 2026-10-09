@@ -75,7 +75,7 @@ import { TranslatePipe } from '../../core/i18n/translate.pipe';
                             [queryParams]="sub.slug ? {} : { category: sub.id }"
                             (click)="close()" data-testid="panel-subcategory"
                             class="inline-flex rounded-full border border-neutral-300 px-2.5 py-1 text-xs font-medium text-neutral-700 transition hover:border-neutral-900 hover:text-neutral-900 dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-white dark:hover:text-white">
-                            {{ sub.name }}
+                            {{ below(cat, sub) }}
                           </a>
                         </li>
                       }
@@ -115,7 +115,7 @@ export class CategoriesPanelComponent {
   readonly open = input(false);
   readonly closed = output<void>();
 
-  /** Main categories: the tiles. Their subcategories are listed under each. */
+  /** Main categories: the tiles. Everything under each, at any depth, is listed below it. */
   protected readonly categories = signal<ApiCategory[]>([]);
   private readonly subcategories = signal<ApiCategory[]>([]);
   protected readonly loading = signal(false);
@@ -144,8 +144,26 @@ export class CategoriesPanelComponent {
     });
   }
 
+  /** Everything under a main category, as a tree read top to bottom. */
   protected subcategoriesOf(mainId: number): ApiCategory[] {
-    return this.subcategories().filter((c) => c.parentId === mainId).sort((a, b) => a.name.localeCompare(b.name));
+    const found: ApiCategory[] = [];
+    const seen = new Set<number>([mainId]);
+    const walk = (parentId: number): void => {
+      for (const c of this.subcategories().filter((s) => s.parentId === parentId).sort((a, b) => a.name.localeCompare(b.name))) {
+        if (seen.has(c.id)) continue;
+        seen.add(c.id);
+        found.push(c);
+        walk(c.id);
+      }
+    };
+    walk(mainId);
+    return found;
+  }
+
+  /** A subcategory's name as it reads under its main category: "T-Shirts", then "T-Shirts › Drop Shoulder". */
+  protected below(main: ApiCategory, sub: ApiCategory): string {
+    const prefix = main.name + ' › ';
+    return sub.path?.startsWith(prefix) ? sub.path.slice(prefix.length) : sub.name;
   }
 
   /** "01", "02", … as on the tiles. */

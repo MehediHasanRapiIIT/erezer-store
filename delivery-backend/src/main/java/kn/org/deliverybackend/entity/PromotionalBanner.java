@@ -22,6 +22,14 @@ public class PromotionalBanner extends AbstractBaseEntity<UUID> {
     
     private String imageUrl;
 
+    /**
+     * An upright picture shown on phones instead of {@link #imageUrl}, which is
+     * wide and would lose its sides on a tall screen. Null: the one picture is
+     * used everywhere.
+     */
+    @Column(name = "mobile_image_url", length = 1000)
+    private String mobileImageUrl;
+
     private LocalDate fromDate;
 
     private LocalDate toDate;

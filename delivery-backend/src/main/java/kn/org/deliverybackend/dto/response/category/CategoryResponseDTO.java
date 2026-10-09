@@ -21,10 +21,14 @@ public class CategoryResponseDTO {
     private Boolean discountExcluded;
     private Boolean showStockQuantity;
 
-    /** The main category this one sits under; null for a main category. */
+    /** The category directly above this one; null for a main category. */
     private Long parentId;
-    /** That main category's name, for "Hoodies › Zip Hoodies". */
+    /** That category's name. */
     private String parentName;
+    /** How far down it sits: 0 for a main category, 1 for its subcategory, 2 for one under that, and so on. */
+    private int depth;
+    /** The whole way down to it: "Men › T-Shirts › Drop Shoulder". Just the name for a main category. */
+    private String path;
     /** Products put directly in this category, not counting its subcategories'. */
     private long ownProductCount;
     /** How many subcategories a main category has. */
@@ -44,4 +48,8 @@ public class CategoryResponseDTO {
      * Zero means delivered free.
      */
     private BigDecimal shippingCharge;
+    /** The size chart this category names for its products; null for none of its own. */
+    private Long sizeChartId;
+    /** The chart its products get from it: its own, else that of the nearest category above that names one. */
+    private Long effectiveSizeChartId;
 }

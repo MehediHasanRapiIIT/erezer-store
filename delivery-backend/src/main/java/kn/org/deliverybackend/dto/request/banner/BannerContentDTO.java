@@ -36,4 +36,8 @@ public class BannerContentDTO {
     private String ctaLabel;
     private String ctaLink;
     private Integer sortOrder;
+    /** An upright picture for phones, to add or replace; null leaves the current one. */
+    private org.springframework.web.multipart.MultipartFile mobileImage;
+    /** True takes the phone picture away, so the main picture is used on phones again. */
+    private Boolean removeMobileImage;
 }

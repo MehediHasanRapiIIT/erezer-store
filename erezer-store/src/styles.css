@@ -250,10 +250,15 @@ body {
   }
   .hero-stage {
     position: relative; inset: auto; width: 100%;
-    aspect-ratio: var(--hero-ratio, 16 / 9); max-height: 70svh;
+    aspect-ratio: var(--hero-ratio, 16 / 9); max-height: 82svh;
+    transition: aspect-ratio 0.5s ease;
   }
   .hero-parallax { top: 0; bottom: 0; transform: none !important; }
   .hero-stage .hero-kenburns { animation: none; object-fit: contain; }
+  /* The banner's own upright picture for phones fills the banner: if it is
+     taller than the screen allows, a little of its top and bottom goes rather
+     than a black band appearing down each side. */
+  .hero-stage .hero-kenburns.hero-phone-picture { object-fit: cover; }
   .hero-words { top: var(--app-header-h, 4rem); }
   .hero-words > div { padding: 0 1rem 1.6rem; }
   .hero-words p:first-child { font-size: 0.6rem; letter-spacing: 0.3em; }

@@ -1,4 +1,5 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { SizeChartPickerComponent } from '../../../shared/size-chart-picker/size-chart-picker.component';
 import { ActivatedRoute, RouterLink, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { KeyValuePipe } from '@angular/common';
@@ -14,7 +15,7 @@ import { CategoryResponse } from '../../../core/models/api.models';
 @Component({
   selector: 'app-add-category',
   standalone: true,
-  imports: [RouterLink, FormsModule, SidebarComponent, KeyValuePipe],
+  imports: [RouterLink, FormsModule, SidebarComponent, KeyValuePipe, SizeChartPickerComponent],
   templateUrl: './add-category.component.html',
 })
 export class AddCategoryComponent implements OnInit {
@@ -30,9 +31,11 @@ export class AddCategoryComponent implements OnInit {
 
   /** The main category this one sits under; null for a main category. */
   parentId = signal<number | null>(null);
-  /** Main categories it could sit under. */
+  /** The size chart for the products in and under this category; 0 for none of its own. */
+  sizeChartId = signal(0);
+  /** Every category it could sit inside, as a tree. (Named from when only main categories could hold one.) */
   mainCategories = signal<CategoryResponse[]>([]);
-  /** A category with subcategories of its own can't become one. */
+  /** It has subcategories of its own, which move with it. */
   hasSubcategories = signal(false);
   /** "Subcategory" is chosen, whether or not its main category has been picked yet. */
   isSub = signal(false);
@@ -44,7 +47,7 @@ export class AddCategoryComponent implements OnInit {
     this.parentMissing.set(false);
     if (!sub) this.parentId.set(null);
   }
-  parentName = computed(() => this.mainCategories().find((c) => c.id === this.parentId())?.name ?? 'its main category');
+  parentName = computed(() => this.mainCategories().find((c) => c.id === this.parentId())?.name ?? 'its parent category');
 
   ngOnInit(): void {
     // Opened from "Add subcategory" on a category: start under that one.
@@ -53,7 +56,7 @@ export class AddCategoryComponent implements OnInit {
     // "Add Subcategory" on the Categories page: a subcategory, its main category still to choose.
     this.isSub.set(from > 0 || this.route.snapshot.queryParamMap.get('kind') === 'sub');
     this.categoryService.getCategories().subscribe({
-      next: (all) => this.mainCategories.set(all.filter((c) => c.parentId == null)),
+      next: (all) => this.mainCategories.set(all),
       error: () => {},
     });
   }
@@ -110,6 +113,7 @@ export class AddCategoryComponent implements OnInit {
       showStockQuantity: this.showStockQuantity(),
       homeSortOrder: this.homeSortOrder(),
       parentId: this.parentId(),
+      sizeChartId: this.sizeChartId(),
     }).subscribe({
       next: () => {
         this.isLoading.set(false);

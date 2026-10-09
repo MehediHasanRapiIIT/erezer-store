@@ -14,7 +14,7 @@ export class DiscountsStore {
   private readonly api = inject(ApiService);
 
   readonly discounts = signal<ApiActiveDiscount[]>([]);
-  /** Subcategory id → its main category's id. */
+  /** Subcategory id → the id of the category directly above it. */
   private readonly parents = signal<Map<number, number>>(new Map());
 
   constructor() {
@@ -26,14 +26,17 @@ export class DiscountsStore {
 
   /**
    * The discounts as they apply to a product in this category. A discount on a
-   * main category also covers its subcategories, as on the server; it is
-   * re-aimed at the subcategory here so the pricing rules need not know.
+   * category also covers everything under it, at any depth, as on the server;
+   * it is re-aimed at this category here so the pricing rules need not know.
    */
   discountsFor(categoryId: number): ApiActiveDiscount[] {
-    const parent = this.parents().get(categoryId);
-    if (parent == null) return this.discounts();
+    const parents = this.parents();
+    const above = new Set<number>();
+    // Stops at a category already seen, so a loop in the data can't hang the page.
+    for (let up = parents.get(categoryId); up != null && up !== categoryId && !above.has(up); up = parents.get(up)) above.add(up);
+    if (above.size === 0) return this.discounts();
     return this.discounts().map((d) =>
-      d.scope === 'CATEGORY' && d.targetId === parent ? { ...d, targetId: categoryId } : d);
+      d.scope === 'CATEGORY' && above.has(d.targetId as number) ? { ...d, targetId: categoryId } : d);
   }
 
   reload(): void {

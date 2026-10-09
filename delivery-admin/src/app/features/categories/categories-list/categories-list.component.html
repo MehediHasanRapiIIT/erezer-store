@@ -102,8 +102,8 @@
               <!-- # -->
               <span class="text-sm text-gray-400 font-medium">{{ (currentPage() - 1) * pageSize + i + 1 }}</span>
 
-              <!-- Category name + thumbnail; a subcategory sits indented under its main category -->
-              <div class="flex items-center gap-3" [class.pl-8]="cat.parentId != null">
+              <!-- Category name + thumbnail; each level sits further in, under its parent -->
+              <div class="flex items-center gap-3" [style.padding-left.px]="(cat.depth ?? 0) * 28" [attr.data-depth]="cat.depth ?? 0" data-testid="category-row">
                 @if (cat.parentId != null) {
                   <span class="-ml-5 text-gray-300" aria-hidden="true">↳</span>
                 }
@@ -120,7 +120,12 @@
                 <div>
                   <p class="text-sm font-semibold text-gray-800">{{ cat.name }}</p>
                   @if (cat.parentId != null) {
-                    <p class="text-xs text-indigo-600" [attr.data-testid]="'sub-of-' + cat.id">Subcategory of {{ cat.parentName }}</p>
+                    <p class="text-xs text-indigo-600" [attr.data-testid]="'sub-of-' + cat.id">
+                      In {{ cat.path ? cat.path.slice(0, cat.path.lastIndexOf(' › ')) : cat.parentName }}
+                      @if (cat.subcategoryCount) {
+                        <span class="text-gray-500">· {{ cat.subcategoryCount }} subcategor{{ cat.subcategoryCount === 1 ? 'y' : 'ies' }}</span>
+                      }
+                    </p>
                   } @else {
                     <p class="text-xs text-gray-500">
                       <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-600">Main</span>
@@ -171,7 +176,7 @@
 
               <!-- Actions -->
               <div class="flex items-center justify-center gap-1">
-                @if (cat.parentId == null && perms.can('categories.create')) {
+                @if (perms.can('categories.create')) {
                   <button
                     (click)="addSubcategory(cat.id)" [attr.data-testid]="'add-sub-' + cat.id"
                     class="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"

@@ -254,99 +254,16 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
               </section>
             }
 
-            <!-- Size chart -->
-            <section class="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
-              <div class="flex items-center justify-between">
-                <div>
-                  <h2 class="text-base font-semibold">Size chart</h2>
-                  <p class="text-xs text-gray-500">Each measurement holds both cm and inch. Drop Shoulder and Regular Fit measure differently, so each has its own chart.</p>
-                  <div class="mt-2 inline-flex rounded-lg border border-gray-200 bg-white p-0.5 text-xs font-semibold" role="tablist" aria-label="Which size chart">
-                    @for (tab of chartTabs; track tab.id) {
-                      <button type="button" role="tab" [attr.aria-selected]="chartTab === tab.id" (click)="chartTab = tab.id"
-                        [attr.data-testid]="'chart-tab-' + tab.id"
-                        class="rounded-md px-3 py-1.5 transition-colors"
-                        [class.bg-blue-600]="chartTab === tab.id" [class.text-white]="chartTab === tab.id"
-                        [class.text-gray-600]="chartTab !== tab.id">{{ tab.label }}</button>
-                    }
-                  </div>
-                  <p class="mt-1.5 text-xs text-gray-500" data-testid="chart-hint">{{ chartHint() }}</p>
-                  @if (!perms.can('settings.sizechart')) {
-                    <p class="text-xs text-gray-400">Needs the “Edit the size chart” permission.</p>
-                  }
-                </div>
-                @if (perms.can('settings.sizechart')) {
-                <div class="flex gap-2">
-                  @if (chartTab !== 'GENERAL' && chart.rows.length === 0) {
-                    <button type="button" (click)="copyGeneralChart()" data-testid="chart-copy-general"
-                      class="px-2.5 py-1 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50">Start from the general chart</button>
-                  }
-                  <button type="button" (click)="addColumn()"
-                    class="px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50">+ Column</button>
-                  <button type="button" (click)="addRow()"
-                    class="px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50">+ Size row</button>
-                </div>
-                }
-              </div>
-
-              <fieldset [disabled]="!perms.can('settings.sizechart')" class="min-w-0 disabled:opacity-60">
-              <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                  <thead>
-                    <tr class="border-b border-gray-100 bg-gray-50 text-xs text-gray-500">
-                      <th class="px-2 py-2 text-left">Size</th>
-                      @for (col of chart.columns; track $index) {
-                        <th class="px-2 py-2 text-left">
-                          <div class="flex items-center gap-1">
-                            <input [(ngModel)]="chart.columns[$index]"
-                              class="w-28 rounded border border-gray-200 px-2 py-1 text-xs" />
-                            @if (perms.can('settings.sizechart')) {
-                            <button type="button" (click)="removeColumn($index)"
-                              class="act-btn-icon" title="Remove column">
-                              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                            </button>
-                            }
-                          </div>
-                        </th>
-                      }
-                      <th class="px-2 py-2"></th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-gray-50">
-                    @for (row of chart.rows; track $index; let ri = $index) {
-                      <tr>
-                        <td class="px-2 py-2">
-                          <input [(ngModel)]="row.size" placeholder="M"
-                            class="w-16 rounded border border-gray-200 px-2 py-1 text-xs font-semibold" />
-                        </td>
-                        @for (col of chart.columns; track $index; let ci = $index) {
-                          <td class="px-2 py-2">
-                            <div class="flex items-center gap-1">
-                              <input type="number" step="0.1" [(ngModel)]="row.cells[ci].cm"
-                                placeholder="cm" class="w-16 rounded border border-gray-200 px-2 py-1 text-xs" />
-                              <span class="text-[10px] text-gray-400">cm</span>
-                              <input type="number" step="0.1" [(ngModel)]="row.cells[ci].inch"
-                                placeholder="in" class="w-16 rounded border border-gray-200 px-2 py-1 text-xs" />
-                              <span class="text-[10px] text-gray-400">in</span>
-                            </div>
-                          </td>
-                        }
-                        <td class="px-2 py-2 text-right">
-                          @if (perms.can('settings.sizechart')) {
-                          <button type="button" (click)="removeRow(ri)" class="act-btn act-btn-delete" title="Remove row">
-                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
-                            Remove
-                          </button>
-                          }
-                        </td>
-                      </tr>
-                    } @empty {
-                      <tr><td [attr.colspan]="chart.columns.length + 2"
-                        class="px-2 py-4 text-center text-gray-400 text-xs">No size rows yet.</td></tr>
-                    }
-                  </tbody>
-                </table>
-              </div>
-              </fieldset>
+            <!-- Size charts have a page of their own now: many charts, chosen per product or per category. -->
+            <section class="bg-white rounded-xl border border-gray-200 p-5" data-testid="size-charts-moved">
+              <h2 class="text-base font-semibold">Size charts</h2>
+              <p class="mt-1 text-xs text-gray-500">
+                The shop can now have as many size charts as it needs, and each product or category can use its own.
+                The charts that were here are kept there.
+              </p>
+              <a routerLink="/size-charts" class="mt-3 inline-flex rounded-lg border border-blue-200 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50">
+                Open Size Charts
+              </a>
             </section>
 
             <!-- Brand story (landing "Our story" band) -->
@@ -422,6 +339,7 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                       Upload photos from your computer or phone. An Instagram link can't be used here —
                       Instagram doesn't let other sites show its photos, and stories disappear after a day.
                     </p>
+                    <p class="picture-hint text-xs text-gray-500 mt-1" data-testid="picture-hint"><span class="font-semibold text-gray-700">Best size:</span> 1200 × 1200 px, square. Other shapes are trimmed to a square.</p>
                   </div>
                   @if (perms.can('settings.homepage')) {
                     <label class="shrink-0 cursor-pointer rounded-lg border border-blue-200 px-2.5 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50"
@@ -492,6 +410,7 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                 <!-- Main photo -->
                 <div class="space-y-2">
                   <p class="text-xs font-medium text-gray-600">Main photo</p>
+                  <p class="picture-hint text-xs text-gray-500" data-testid="picture-hint"><span class="font-semibold text-gray-700">Best size:</span> 1920 × 800 px, wide. The title sits over it, so a calm picture without text works best.</p>
                   <div class="flex flex-wrap items-center gap-3">
                     @if (about.heroImageUrl) {
                       <img [src]="about.heroImageUrl" alt="Main photo" class="h-20 w-32 rounded-lg object-cover border border-gray-200" />
@@ -534,6 +453,7 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                       <textarea [(ngModel)]="sec.body" [name]="'aboutBody' + i" rows="4" maxlength="5000" placeholder="Text"
                         [attr.aria-label]="'Section ' + (i + 1) + ' text'"
                         class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"></textarea>
+                      <p class="picture-hint text-xs text-gray-500" data-testid="picture-hint"><span class="font-semibold text-gray-700">Best size:</span> 1200 × 900 px, a little wider than it is tall.</p>
                       <div class="flex flex-wrap items-center gap-3">
                         @if (sec.imageUrl) {
                           <img [src]="sec.imageUrl" [alt]="'Section ' + (i + 1) + ' photo'" class="h-14 w-20 rounded object-cover border border-gray-200" />
@@ -718,6 +638,7 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                     class="px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50">+ Outlet</button>
                   }
                 </div>
+                <p class="picture-hint text-xs text-gray-500" data-testid="picture-hint"><span class="font-semibold text-gray-700">Best size:</span> for an outlet picture, 1200 × 750 px, wide.</p>
                 <div class="grid gap-3 sm:grid-cols-2">
                   @for (o of footer.outlets; track $index; let oi = $index) {
                     <div class="rounded-lg border border-gray-100 bg-gray-50/60 p-3 space-y-2">

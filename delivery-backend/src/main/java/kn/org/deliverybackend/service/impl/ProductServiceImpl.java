@@ -57,6 +57,7 @@ public class ProductServiceImpl implements ProductService {
     private final CategoryRepository categoryRepository;
     private final EntityManager entityManager;
     private final kn.org.deliverybackend.repository.VariantRepository variantRepository;
+    private final SizeChartLibraryService sizeCharts;
 
     @Override
     public List<ProductResponseDTO> searchProducts(String name) {
@@ -269,6 +270,9 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public ProductResponseDTO createProduct(ProductRequestDTO productRequestDTO, MultipartFile image) {
         Product product = productMapper.toEntity(productRequestDTO);
+        // A chart the form names has to exist; 0 and nothing both mean "none of its own".
+        product.setSizeChartId(sizeCharts.checked(productRequestDTO.getSizeChartId()));
+        product.setRegularFitSizeChartId(sizeCharts.checked(productRequestDTO.getRegularFitSizeChartId()));
 
         if (image != null && !image.isEmpty()) {
             String imageUrl = fileStorageService.uploadFile(image);
@@ -338,6 +342,13 @@ public class ProductServiceImpl implements ProductService {
         if (productRequestDTO.getStockDisplay() != null) {
             product.setStockDisplay(productRequestDTO.getStockDisplay());
         }
+        // Size charts (null leaves the existing choice untouched; 0 takes it away).
+        if (productRequestDTO.getSizeChartId() != null) {
+            product.setSizeChartId(sizeCharts.checked(productRequestDTO.getSizeChartId()));
+        }
+        if (productRequestDTO.getRegularFitSizeChartId() != null) {
+            product.setRegularFitSizeChartId(sizeCharts.checked(productRequestDTO.getRegularFitSizeChartId()));
+        }
 
         return toEnrichedResponseDTO(productRepository.save(product));
     }
@@ -351,6 +362,10 @@ public class ProductServiceImpl implements ProductService {
         // storefront card knows the product is at full price without having to
         // fetch the category separately.
         dto.setCategoryDiscountExcluded(false);
+        dto.setSizeChartId(product.getSizeChartId());
+        dto.setRegularFitSizeChartId(product.getRegularFitSizeChartId());
+        dto.setEffectiveSizeChartId(sizeCharts.effectiveFor(product));
+        dto.setEffectiveRegularFitSizeChartId(sizeCharts.effectiveRegularFitFor(product));
         dto.setShowStockQuantity(StockDisplay.showsQuantity(product.getStockDisplay(), null));
         if (product.getCategoryId() != null) {
             categoryRepository.findById(product.getCategoryId()).ifPresent(cat -> {

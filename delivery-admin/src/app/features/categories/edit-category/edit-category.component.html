@@ -90,42 +90,40 @@
                   <span class="block text-xs text-gray-500">Stands on its own, like Hoodies or T-Shirts.</span>
                 </span>
               </label>
-              <label class="flex items-start gap-2.5 rounded-lg border p-3 transition-colors"
-                [class.cursor-pointer]="!hasSubcategories()" [class.cursor-not-allowed]="hasSubcategories()"
-                [class.opacity-50]="hasSubcategories()"
+              <label class="flex cursor-pointer items-start gap-2.5 rounded-lg border p-3 transition-colors"
                 [class.border-blue-500]="isSub()" [class.bg-blue-50]="isSub()" [class.border-gray-200]="!isSub()">
                 <input type="radio" name="category-kind" class="mt-0.5 accent-blue-600" data-testid="kind-sub"
-                  [checked]="isSub()" [disabled]="hasSubcategories()" (change)="setKind(true)" />
+                  [checked]="isSub()" (change)="setKind(true)" />
                 <span>
                   <span class="block text-sm font-semibold text-gray-800">Subcategory</span>
-                  <span class="block text-xs text-gray-500">Sits inside a main category, like Zip Hoodies inside Hoodies.</span>
+                  <span class="block text-xs text-gray-500">Sits inside another category, at any level: T-Shirts inside Men, Drop Shoulder inside T-Shirts.</span>
                 </span>
               </label>
             </div>
             @if (hasSubcategories()) {
-              <p class="mt-1.5 text-xs text-gray-400">This category has subcategories of its own, so it stays a main category.</p>
+              <p class="mt-1.5 text-xs text-gray-400" data-testid="moves-with-children">This category has subcategories of its own. If you put it inside another category, they move with it.</p>
             }
           </fieldset>
 
           @if (isSub()) {
             <div>
               <label for="category-parent" class="block text-sm font-medium text-gray-700 mb-1.5">
-                Inside which main category? <span class="text-red-500">*</span>
+                Inside which category? <span class="text-red-500">*</span>
               </label>
               <select id="category-parent" data-testid="category-parent"
                 [ngModel]="parentId()" (ngModelChange)="parentId.set($event)"
                 class="w-full px-3.5 py-2.5 text-sm border rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-300"
                 [class.border-red-400]="parentMissing()" [class.border-gray-200]="!parentMissing()">
-                <option [ngValue]="null">Choose a main category…</option>
+                <option [ngValue]="null">Choose a category…</option>
                 @for (m of mainCategories(); track m.id) {
-                  <option [ngValue]="m.id">{{ m.name }}</option>
+                  <option [ngValue]="m.id">{{ m.label || m.name }}</option>
                 }
               </select>
               @if (parentMissing()) {
-                <p class="mt-1 text-xs text-red-600">Choose the main category this subcategory sits inside.</p>
+                <p class="mt-1 text-xs text-red-600">Choose the category this subcategory sits inside.</p>
               } @else if (parentId() != null) {
                 <p class="mt-1.5 text-xs text-gray-500" data-testid="subcategory-note">
-                  Its products also show when a customer opens {{ parentName() }}, and it follows
+                  Its products also show when a customer opens {{ parentName() }} or anything above it, and it follows
                   {{ parentName() }}'s delivery charge, discounts and stock display unless you set its own below.
                 </p>
               }
@@ -150,10 +148,18 @@
             }
           </div>
 
+          <!-- Size chart for everything in this category -->
+          <div data-testid="category-size-chart">
+            <app-size-chart-picker [(value)]="sizeChartId" label="Size chart for this category" fieldId="category-size-chart" testId="category-size-chart-select"
+              help="Every product in this category, and in the categories under it, shows this chart unless the product has its own."
+              [noneLabel]="isSub() ? 'Same as the category above it (or the default chart)' : 'None of its own (the default chart)'" />
+          </div>
+
           <!-- Category image -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1.5">Category Image</label>
-            <p class="text-xs text-gray-400 mb-2">Shown in the storefront "Shop by category" tiles.</p>
+            <p class="text-xs text-gray-400 mb-1">Shown in the storefront "Shop by category" tiles.</p>
+            <p class="picture-hint text-xs text-gray-500 mb-2" data-testid="picture-hint"><span class="font-semibold text-gray-700">Best size:</span> 1200 × 1500 px, upright. Keep the main subject in the middle; the edges may be trimmed. Without a picture the tile is plain dark.</p>
             <div class="flex items-center gap-4">
               <div class="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
                 @if (imageUrl()) {

@@ -12,8 +12,16 @@ export interface BatchItem {
   productCode: string;
   /** Its own price, when it differs from the shared one. */
   price?: number | null;
+  /** Its own size chart, when it differs from the shared one; 0 for none of its own. */
+  sizeChartId?: number | null;
   pictures: File[];
 }
+
+/** What can be done to many products at once. Matches the backend's BulkProductAction. */
+export type BulkProductAction =
+  | 'MOVE_CATEGORY' | 'DELETE' | 'SHOW' | 'HIDE' | 'FEATURE' | 'UNFEATURE'
+  | 'NEW_ARRIVAL_ON' | 'NEW_ARRIVAL_OFF' | 'NEVER_DISCOUNT_ON' | 'NEVER_DISCOUNT_OFF'
+  | 'STOCK_SHOW_QUANTITY' | 'STOCK_SHOW_LABELS' | 'SET_SIZE_CHART';
 
 @Injectable({ providedIn: 'root' })
 export class ProductService {
@@ -100,7 +108,7 @@ export class ProductService {
     const batch = {
       shared,
       sizes,
-      items: items.map((i) => ({ name: i.name, productCode: i.productCode, price: i.price ?? null })),
+      items: items.map((i) => ({ name: i.name, productCode: i.productCode, price: i.price ?? null, sizeChartId: i.sizeChartId ?? null })),
     };
     form.append('batch', new Blob([JSON.stringify(batch)], { type: 'application/json' }));
     items.forEach((item, row) => {
@@ -155,6 +163,9 @@ export class ProductService {
     if (dto.customSizeNote != null)      formData.append('customSizeNote', dto.customSizeNote);
     if (dto.discountExcluded != null)    formData.append('discountExcluded', String(dto.discountExcluded));
     if (dto.stockDisplay != null)        formData.append('stockDisplay', dto.stockDisplay);
+    // 0 takes the product's own chart away; leaving it out would keep the old one.
+    if (dto.sizeChartId != null)           formData.append('sizeChartId', String(dto.sizeChartId));
+    if (dto.regularFitSizeChartId != null) formData.append('regularFitSizeChartId', String(dto.regularFitSizeChartId));
     if (image) {
       formData.append('image', image);
     }
@@ -171,6 +182,15 @@ export class ProductService {
   setStockDisplay(id: number, value: StockDisplay): Observable<ProductResponse> {
     return this.http.patch<ProductResponse>(
       `${this.baseUrl}/admin/products/${id}/stock-display`, null, { params: { value } });
+  }
+
+  /**
+   * One action for the products ticked on the Products page. The answer is a
+   * sentence saying what was done, ready to show.
+   */
+  bulk(action: BulkProductAction, productIds: number[], categoryId?: number | null, sizeChartId?: number | null): Observable<{ changed: number; message: string }> {
+    return this.http.put<{ changed: number; message: string }>(
+      `${this.baseUrl}/admin/products/bulk`, { action, productIds, categoryId: categoryId ?? null, sizeChartId: sizeChartId ?? null });
   }
 
   deleteProduct(id: number): Observable<void> {

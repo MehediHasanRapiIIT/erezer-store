@@ -13,6 +13,7 @@ import {
   ApiReview,
   ApiStockStatus,
   ApiStoreSettings,
+  ApiSizeChartEntry,
   ApiVariant,
 } from '../core/api.models';
 import { EcommerceStore } from '../core/store/ecommerce.store';
@@ -855,12 +856,31 @@ export class ProductDetailPage implements OnInit {
     return this.availableFits().length === 0 ? this.variants() : this.variants().filter((v) => v.fit === fit);
   });
 
+  /** The shop's size chart library; a product names the chart it shows by id. */
+  private readonly sizeCharts = signal<ApiSizeChartEntry[]>([]);
+
   /**
-   * The size chart to show: the picked fit's own, because Drop Shoulder and
-   * Regular Fit measure differently, or the shop's general chart when that fit
-   * has none (and for a product with no fits).
+   * This product's chart from the library: the one for Regular Fit while that
+   * fit is picked, otherwise the product's. The server has already worked out
+   * which that is - the product's own, its category's, or the default. Null
+   * when the library has nothing for it (or has not arrived).
+   */
+  private readonly libraryChart = computed(() => {
+    const p = this.product();
+    if (!p) return null;
+    const id = this.selectedFit() === 'REGULAR_FIT' ? p.effectiveRegularFitSizeChartId : p.effectiveSizeChartId;
+    const chart = id == null ? null : this.sizeCharts().find((c) => c.id === id)?.chart ?? null;
+    return chart && chart.rows?.length > 0 ? chart : null;
+  });
+
+  /**
+   * The size chart to show: the product's chart from the library. A shop that
+   * has no library yet falls back to the charts kept in its settings - the
+   * picked fit's own, or the general one.
    */
   protected readonly sizeChart = computed(() => {
+    const fromLibrary = this.libraryChart();
+    if (fromLibrary) return fromLibrary;
     const settings = this.settings();
     const fit = this.selectedFit();
     const own = fit ? settings?.fitSizeCharts?.[fit] : null;
@@ -874,6 +894,13 @@ export class ProductDetailPage implements OnInit {
    */
   protected readonly sizeChartFit = computed(() => {
     const fit = this.selectedFit();
+    if (this.libraryChart()) {
+      // Named only when the two fits really show different charts.
+      const p = this.product();
+      const differs = p != null && p.effectiveRegularFitSizeChartId != null
+        && p.effectiveRegularFitSizeChartId !== p.effectiveSizeChartId;
+      return fit && differs ? this.fitLabelOf(fit) : '';
+    }
     const own = fit ? this.settings()?.fitSizeCharts?.[fit] : null;
     return fit && own && own.rows?.length > 0 ? this.fitLabelOf(fit) : '';
   });
@@ -1107,6 +1134,7 @@ export class ProductDetailPage implements OnInit {
   // ── lifecycle ─────────────────────────────────────────────────────────────
 
   ngOnInit(): void {
+    this.api.getSizeCharts().pipe(catchError(() => of([] as ApiSizeChartEntry[]))).subscribe((charts) => this.sizeCharts.set(charts));
     // Store settings + active discounts are product-independent — load once.
     this.api.getStoreSettings().pipe(catchError(() => of(null)))
       .subscribe((s) => this.settings.set(s));
@@ -1293,7 +1321,7 @@ export class ProductDetailPage implements OnInit {
   private applySeo(p: ApiProduct): void {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const url = origin ? `${origin}/product/${p.id}` : undefined;
-    const description = (p.description ?? '').slice(0, 200) || `${p.name} — shop now at Erezer.`;
+    const description = (p.description ?? '').trim() || `${p.name} — shop now at Erezer.`;
     this.seo.update({
       title: p.name,
       description,
@@ -1308,7 +1336,8 @@ export class ProductDetailPage implements OnInit {
       brand: p.brand ?? undefined,
       price: this.effectivePrice(p),
       currency: 'BDT',
-      availability: p.isAvailable === false ? 'OutOfStock' : 'InStock',
+      availability: p.isAvailable === false || p.stockQuantity === 0 ? 'OutOfStock' : 'InStock',
+      rating: p.totalReviews ? { value: p.avgRating ?? 0, count: p.totalReviews } : undefined,
       url,
     });
   }

@@ -216,8 +216,14 @@ public class ShippingServiceImpl implements ShippingService {
         java.util.Set<Long> following = new java.util.LinkedHashSet<>();
         following.add(categoryId);
         int subcategoriesOwn = 0;
-        for (Category sub : categoryRepository.findByParentIdAndDeletedFalse(categoryId)) {
-            if (sub.getShippingCharge() == null) following.add(sub.getId()); else subcategoriesOwn++;
+        // Walk down level by level; a subcategory with its own charge keeps it,
+        // and so does everything under that subcategory.
+        java.util.Deque<Long> toVisit = new java.util.ArrayDeque<>(List.of(categoryId));
+        while (!toVisit.isEmpty()) {
+            for (Category sub : categoryRepository.findByParentIdAndDeletedFalse(toVisit.poll())) {
+                if (sub.getShippingCharge() != null) { subcategoriesOwn++; continue; }
+                if (following.add(sub.getId())) toVisit.add(sub.getId());
+            }
         }
         List<Product> inCategory = productRepository.findLiveByCategories(following);
         int keptOwn = (int) inCategory.stream().filter(p -> p.getShippingCharge() != null).count();

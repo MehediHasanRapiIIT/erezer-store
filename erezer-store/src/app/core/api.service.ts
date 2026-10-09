@@ -26,6 +26,7 @@ import {
   ApiReviewPage,
   ApiStockStatus,
   ApiStoreSettings,
+  ApiSizeChartEntry,
   ApiVariant,
   AuthTokenResponse,
   BkashPaymentResponse,
@@ -178,6 +179,11 @@ export class ApiService {
 
   getStoreSettings(): Observable<ApiStoreSettings> {
     return this.http.get<ApiStoreSettings>(`${BASE}/api/store-settings`);
+  }
+
+  /** The shop's size charts; a product says which one it shows by id. */
+  getSizeCharts(): Observable<ApiSizeChartEntry[]> {
+    return this.http.get<ApiSizeChartEntry[]>(`${BASE}/api/size-charts`);
   }
 
   getActiveDiscounts(): Observable<ApiActiveDiscount[]> {

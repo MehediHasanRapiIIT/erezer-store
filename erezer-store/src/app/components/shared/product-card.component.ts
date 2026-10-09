@@ -67,7 +67,7 @@ import { EcommerceStore } from '../../core/store/ecommerce.store';
 
         <!-- slide-up add to cart: always visible on a tablet, hover-reveal on desktop.
              Not on a phone, where it covered a third of a small picture: there the
-             cart button sits beside the product's name (below). -->
+             "Add to Cart" button is the last line of the card (below). -->
         <div class="absolute inset-x-0 bottom-0 hidden p-2 transition-all duration-300 sm:block sm:p-3 md:translate-y-full md:opacity-0 md:group-hover:translate-y-0 md:group-hover:opacity-100">
           <button
             type="button"
@@ -89,19 +89,6 @@ import { EcommerceStore } from '../../core/store/ecommerce.store';
           <a [routerLink]="['/product', product().slug]" class="min-w-0 flex-1 sm:flex-initial line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-5 tracking-tight underline-offset-4 hover:underline sm:line-clamp-none sm:min-h-0 sm:text-base sm:leading-normal">
             {{ product().name }}
           </a>
-          <!-- Phone: add to cart, as an icon where the thumb already is. -->
-          <button
-            type="button"
-            (click)="quickAddToCart()"
-            [disabled]="product().inStock <= 0"
-            [attr.aria-label]="product().inStock <= 0 ? product().name + ' is sold out' : 'Add ' + product().name + ' to cart'"
-            data-testid="card-cart"
-            class="-mt-1.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-white transition active:scale-90 disabled:opacity-35 dark:bg-white dark:text-black sm:hidden"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
-            </svg>
-          </button>
           <!-- The regular price hangs under the price without taking a line of
                its own, so cards on sale and at full price keep their rows level. -->
           <span class="relative hidden shrink-0 text-right sm:block">
@@ -117,22 +104,40 @@ import { EcommerceStore } from '../../core/store/ecommerce.store';
             <span class="text-xs text-neutral-500 line-through dark:text-neutral-400" data-testid="card-was-phone">{{ was | currency:'BDT':'৳' }}</span>
           }
         </p>
-        <!-- The rating, and after "add to cart" on this card a short way to the
-             checkout at the right end of the same line, under the cart button.
-             It takes no line of its own, so the card keeps its height and the
-             row stays level; the rating gives way if the two don't fit. On a
-             wide card the crossed-out price hangs at this corner, so the link
-             stops short of it. -->
-        <div class="flex items-center justify-between gap-2" [class.sm:pr-20]="added() && !!product().originalPrice">
-          <p class="min-w-0 truncate text-xs text-neutral-500 dark:text-neutral-400 sm:text-sm">
-            {{ store.getAverageRating(product()).toFixed(1) }} / 5 · {{ store.getReviewCount(product().id) }} reviews
-          </p>
+        <!-- Tablet and desktop: one spare line under the name. The crossed-out
+             regular price hangs into its right end, and after "add to cart" on
+             this card a short way to the checkout appears here, stopping short
+             of that price. The line is always there, so the card keeps its
+             height and the row stays level. (No rating here: the product page
+             has the reviews.) -->
+        <div class="hidden min-h-5 items-center justify-end gap-2 sm:flex" [class.sm:pr-20]="added() && !!product().originalPrice">
           @if (added()) {
             <a routerLink="/checkout" data-testid="card-checkout"
               class="animate-overlay-in -my-1 inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold leading-4 text-white shadow-sm transition hover:bg-emerald-700 sm:px-3 sm:text-xs">
               <span class="sr-only">Added to cart.</span>
               Checkout
               <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+            </a>
+          }
+        </div>
+        <!-- Phone: no rating line; in its place a proper "Add to Cart" button,
+             joined after the first add by the way to the checkout. Both states
+             are one line of the same height, so the rows of cards stay level. -->
+        <div class="flex items-stretch gap-1.5 pt-0.5 sm:hidden">
+          <button
+            type="button"
+            (click)="quickAddToCart()"
+            [disabled]="product().inStock <= 0"
+            data-testid="card-cart"
+            class="h-9 min-w-0 flex-1 truncate rounded-full bg-neutral-900 px-2 text-xs font-semibold text-white transition active:scale-95 disabled:opacity-40 dark:bg-white dark:text-black"
+          >
+            {{ product().inStock <= 0 ? 'Sold out' : added() ? '+ Add' : 'Add to Cart' }}
+          </button>
+          @if (added()) {
+            <a routerLink="/checkout" data-testid="card-checkout-phone"
+              class="animate-overlay-in inline-flex h-9 min-w-0 flex-1 items-center justify-center truncate rounded-full bg-emerald-600 px-2 text-xs font-semibold text-white transition active:scale-95">
+              <span class="sr-only">Added to cart.</span>
+              Checkout
             </a>
           }
         </div>

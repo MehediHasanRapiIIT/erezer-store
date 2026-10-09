@@ -4,7 +4,7 @@ import { EMPTY, Subject, catchError, debounceTime, distinctUntilChanged, map, of
 import { PagerComponent } from '../../shared/pager/pager.component';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import { ProductMultiPickerComponent } from '../../shared/product-picker/product-multi-picker.component';
-import { BundleRequest, BundleResponse, BundleService } from '../../core/services/bundle.service';
+import { BundleRequest, BundleResponse, BundleService, BundleTier, BundleType } from '../../core/services/bundle.service';
 import { UploadService } from '../../core/services/upload.service';
 import { PermissionService } from '../../core/services/permission.service';
 import { ConfirmService } from '../../core/services/confirm.service';
@@ -15,6 +15,9 @@ interface BundleForm {
   name: string;
   label: string;
   description: string;
+  offerType: BundleType;
+  /** The steps of a quantity discount. */
+  tiers: BundleTier[];
   buyCount: number | null;
   getCount: number | null;
   bundlePrice: number | null;
@@ -30,7 +33,9 @@ const EMPTY_FORM: BundleForm = {
   name: '',
   label: 'Limited time',
   description: '',
-  buyCount: 2,
+  offerType: 'FIXED_PRICE',
+  tiers: [],
+  buyCount: 3,
   getCount: 1,
   bundlePrice: null,
   compareAtPrice: null,
@@ -107,9 +112,13 @@ const EMPTY_FORM: BundleForm = {
                   @for (b of bundles(); track b.id) {
                     <tr [class.bg-blue-50]="editingId() === b.id">
                       <td class="px-4 py-2.5 font-medium">{{ b.name }}</td>
-                      <td class="px-4 py-2.5 text-center text-xs text-gray-600">Buy {{ b.buyCount }} Get {{ b.getCount }}</td>
+                      <td class="px-4 py-2.5 text-center text-xs text-gray-600" data-testid="bundle-headline">{{ b.headline }}</td>
                       <td class="px-4 py-2.5 text-right">
-                        <span class="font-semibold">৳{{ b.bundlePrice }}</span>
+                        @if (b.offerType === 'QUANTITY_DISCOUNT') {
+                          <span class="text-xs text-gray-500">by quantity</span>
+                        } @else {
+                          <span class="font-semibold">৳{{ b.bundlePrice }}</span>
+                        }
                         @if (b.compareAtPrice) { <span class="ml-1 text-xs text-gray-400 line-through">৳{{ b.compareAtPrice }}</span> }
                       </td>
                       <td class="px-4 py-2.5 text-center">{{ b.products.length }}</td>
@@ -157,7 +166,7 @@ const EMPTY_FORM: BundleForm = {
                 <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   <label class="text-xs font-medium text-gray-600 sm:col-span-2">
                     Name
-                    <input [(ngModel)]="form.name" placeholder="Classic Polo Bundle (Buy 2 Get 1 Free)"
+                    <input [(ngModel)]="form.name" placeholder="e.g. T-Shirt Bundle" data-testid="bundle-name"
                       class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
                   </label>
                   <label class="text-xs font-medium text-gray-600">
@@ -166,33 +175,102 @@ const EMPTY_FORM: BundleForm = {
                       class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
                   </label>
 
-                  <label class="text-xs font-medium text-gray-600">
-                    Buy count
-                    <input type="number" min="1" [(ngModel)]="form.buyCount"
-                      class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
-                  </label>
-                  <label class="text-xs font-medium text-gray-600">
-                    Get free count
-                    <input type="number" min="0" [(ngModel)]="form.getCount"
-                      class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
-                  </label>
-                  <div class="flex items-end pb-2 text-xs text-gray-500">
-                    = <strong class="mx-1">{{ slots() }}</strong> slots to fill
-                  </div>
+                  <!-- What kind of offer: each kind asks for different numbers below. -->
+                  <fieldset class="col-span-2 sm:col-span-3" data-testid="bundle-type">
+                    <legend class="mb-1.5 text-xs font-medium text-gray-600">Kind of offer</legend>
+                    <div class="grid gap-2 sm:grid-cols-3">
+                      @for (t of offerTypes; track t.value) {
+                        <label class="flex cursor-pointer items-start gap-2.5 rounded-lg border p-3 transition-colors"
+                          [class.border-blue-500]="form.offerType === t.value" [class.bg-blue-50]="form.offerType === t.value"
+                          [class.border-gray-200]="form.offerType !== t.value">
+                          <input type="radio" name="bundle-offer-type" class="mt-0.5 accent-blue-600" [attr.data-testid]="'bundle-type-' + t.value"
+                            [checked]="form.offerType === t.value" (change)="setType(t.value)" />
+                          <span>
+                            <span class="block text-sm font-semibold text-gray-800">{{ t.label }}</span>
+                            <span class="block text-xs font-normal text-gray-500">{{ t.example }}</span>
+                          </span>
+                        </label>
+                      }
+                    </div>
+                  </fieldset>
 
-                  <label class="text-xs font-medium text-gray-600">
-                    Bundle price (৳) <span class="text-red-500">*</span>
-                    <input type="number" step="0.01" min="0" [(ngModel)]="form.bundlePrice"
-                      class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
-                  </label>
-                  <label class="text-xs font-medium text-gray-600">
-                    Compare-at price (৳) <span class="font-normal text-gray-400">(strikethrough)</span>
-                    <input type="number" step="0.01" min="0" [(ngModel)]="form.compareAtPrice"
-                      class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
-                  </label>
-                  <div class="flex items-end pb-2 text-xs" [class.text-emerald-600]="savings() > 0" [class.text-gray-400]="savings() <= 0">
-                    @if (savings() > 0) { Save ৳{{ savings() }} } @else { — }
-                  </div>
+                  @if (form.offerType === 'FIXED_PRICE') {
+                    <label class="text-xs font-medium text-gray-600">
+                      How many items <span class="text-red-500">*</span>
+                      <input type="number" min="1" [(ngModel)]="form.buyCount" data-testid="bundle-items"
+                        class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                    </label>
+                    <label class="text-xs font-medium text-gray-600">
+                      Price for all of them (৳) <span class="text-red-500">*</span>
+                      <input type="number" step="0.01" min="0" [(ngModel)]="form.bundlePrice" data-testid="bundle-price"
+                        class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                    </label>
+                    <label class="text-xs font-medium text-gray-600">
+                      Usual price (৳) <span class="font-normal text-gray-400">(shown crossed out)</span>
+                      <input type="number" step="0.01" min="0" [(ngModel)]="form.compareAtPrice"
+                        class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                    </label>
+                  }
+
+                  @if (form.offerType === 'BUY_X_GET_Y') {
+                    <label class="text-xs font-medium text-gray-600">
+                      Items the customer pays for <span class="text-red-500">*</span>
+                      <input type="number" min="1" [(ngModel)]="form.buyCount" data-testid="bundle-buy"
+                        class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                    </label>
+                    <label class="text-xs font-medium text-gray-600">
+                      Free items on top <span class="text-red-500">*</span>
+                      <input type="number" min="1" [(ngModel)]="form.getCount" data-testid="bundle-get"
+                        class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                    </label>
+                    <div class="flex items-end pb-2 text-xs text-gray-500">
+                      = <strong class="mx-1">{{ slots() }}</strong> items picked in all
+                    </div>
+                    <label class="text-xs font-medium text-gray-600">
+                      Price for all of them (৳) <span class="text-red-500">*</span>
+                      <input type="number" step="0.01" min="0" [(ngModel)]="form.bundlePrice" data-testid="bundle-price"
+                        class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                    </label>
+                    <label class="text-xs font-medium text-gray-600">
+                      Usual price (৳) <span class="font-normal text-gray-400">(shown crossed out)</span>
+                      <input type="number" step="0.01" min="0" [(ngModel)]="form.compareAtPrice"
+                        class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                    </label>
+                    <div></div>
+                  }
+
+                  @if (form.offerType === 'QUANTITY_DISCOUNT') {
+                    <div class="col-span-2 sm:col-span-3 rounded-lg border border-gray-200 p-3" data-testid="bundle-tiers">
+                      <div class="mb-2 flex items-center justify-between">
+                        <p class="text-xs font-medium text-gray-600">Steps <span class="font-normal text-gray-400">— the more items, the bigger the percentage off</span></p>
+                        @if (form.tiers.length < 6) {
+                          <button type="button" (click)="addTier()" data-testid="bundle-add-tier"
+                            class="rounded-lg border border-blue-200 px-2.5 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50">+ Step</button>
+                        }
+                      </div>
+                      @for (tier of form.tiers; track $index; let ti = $index) {
+                        <div class="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-gray-700" data-testid="bundle-tier">
+                          Buy
+                          <input type="number" min="2" max="20" [(ngModel)]="tier.quantity" [attr.aria-label]="'Quantity of step ' + (ti + 1)"
+                            class="w-20 rounded-lg border border-gray-200 px-2 py-1.5 text-sm" />
+                          or more, save
+                          <input type="number" min="1" max="99" step="0.5" [(ngModel)]="tier.percentOff" [attr.aria-label]="'Percent off for step ' + (ti + 1)"
+                            class="w-20 rounded-lg border border-gray-200 px-2 py-1.5 text-sm" />
+                          %
+                          @if (form.tiers.length > 1) {
+                            <button type="button" (click)="removeTier(ti)" class="text-xs font-medium text-red-500 hover:underline">Remove</button>
+                          }
+                        </div>
+                      }
+                      <p class="mt-2 text-[11px] text-gray-400">The customer picks any number of items from the smallest step up (at most 20 in one order). The percentage comes off the normal prices of what they picked.</p>
+                    </div>
+                  }
+
+                  <!-- The offer in a sentence, as customers will understand it. -->
+                  <p class="col-span-2 sm:col-span-3 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600" data-testid="bundle-preview">
+                    <span class="font-semibold text-gray-800">How it reads:</span> {{ preview() }}
+                    @if (savings() > 0) { <span class="ml-1 font-semibold text-emerald-600">Save ৳{{ savings() }}.</span> }
+                  </p>
 
                   <label class="text-xs font-medium text-gray-600">
                     Sort order
@@ -222,6 +300,7 @@ const EMPTY_FORM: BundleForm = {
                       {{ uploading() ? 'Uploading…' : '+ Add image' }}
                     </label>
                   </div>
+                  <p class="picture-hint text-xs text-gray-500 mb-2" data-testid="picture-hint"><span class="font-semibold text-gray-700">Best size:</span> 1200 × 1200 px, square. Other shapes are trimmed to a square.</p>
                   <div class="flex flex-wrap gap-2">
                     @for (url of form.imageUrls; track url) {
                       <div class="group relative">
@@ -272,14 +351,87 @@ export class BundlesComponent implements OnInit, OnDestroy {
   readonly editingId = signal<string | null>(null);
   readonly errorMessage = signal<string>('');
 
-  protected form: BundleForm = { ...EMPTY_FORM, imageUrls: [], productIds: [] };
+  protected form: BundleForm = { ...EMPTY_FORM, tiers: [], imageUrls: [], productIds: [] };
 
-  protected readonly slots = computed(() => (this.form.buyCount ?? 0) + (this.form.getCount ?? 0));
-  protected readonly savings = computed(() => {
+  /** The kinds of offer, with an example of each for the picker. */
+  protected readonly offerTypes: { value: BundleType; label: string; example: string }[] = [
+    { value: 'FIXED_PRICE', label: 'Fixed-price bundle', example: 'Any 3 for ৳999' },
+    { value: 'BUY_X_GET_Y', label: 'Buy X Get Y free', example: 'Buy 2 Get 1 Free' },
+    { value: 'QUANTITY_DISCOUNT', label: 'Quantity discount', example: 'Buy 2 save 10%, buy 3 save 15%' },
+  ];
+
+  // Read from the form each time: the form is a plain object, not a signal.
+  protected slots(): number {
+    return (this.form.buyCount ?? 0) + (this.form.offerType === 'BUY_X_GET_Y' ? (this.form.getCount ?? 0) : 0);
+  }
+
+  protected savings(): number {
+    if (this.form.offerType === 'QUANTITY_DISCOUNT') return 0;
     const c = this.form.compareAtPrice ?? 0;
     const b = this.form.bundlePrice ?? 0;
     return c > b ? c - b : 0;
-  });
+  }
+
+  protected setType(type: BundleType): void {
+    this.form.offerType = type;
+    this.errorMessage.set('');
+    if (type === 'BUY_X_GET_Y' && !this.form.getCount) this.form.getCount = 1;
+    if (type === 'QUANTITY_DISCOUNT' && this.form.tiers.length === 0) {
+      this.form.tiers = [{ quantity: 2, percentOff: 10 }, { quantity: 3, percentOff: 15 }];
+    }
+  }
+
+  protected addTier(): void {
+    const last = this.form.tiers[this.form.tiers.length - 1];
+    this.form.tiers.push({ quantity: last?.quantity ? last.quantity + 1 : 2, percentOff: last?.percentOff ? last.percentOff + 5 : 10 });
+  }
+
+  protected removeTier(index: number): void {
+    this.form.tiers.splice(index, 1);
+  }
+
+  /** The offer in a sentence, from what is typed so far. */
+  protected preview(): string {
+    const f = this.form;
+    const price = f.bundlePrice ? `৳${f.bundlePrice}` : 'the price you set';
+    if (f.offerType === 'FIXED_PRICE') {
+      return `Customers pick any ${f.buyCount || '…'} of the products below and pay ${price} for all of them.`;
+    }
+    if (f.offerType === 'BUY_X_GET_Y') {
+      return `Buy ${f.buyCount || '…'} Get ${f.getCount || '…'} Free: customers pick ${this.slots() || '…'} of the products below and pay ${price} for all of them.`;
+    }
+    const steps = [...f.tiers].filter((t) => t.quantity && t.percentOff).sort((a, b) => a.quantity! - b.quantity!)
+      .map((t) => `${t.quantity} or more save ${t.percentOff}%`);
+    return steps.length
+      ? `Customers pick as many of the products below as they like: ${steps.join(', ')}.`
+      : 'Add a step, such as 2 or more save 10%.';
+  }
+
+  /** What is wrong with the numbers of the chosen kind of offer, or '' when they are fine. */
+  private offerProblem(): string {
+    const f = this.form;
+    if (f.offerType === 'QUANTITY_DISCOUNT') {
+      if (f.tiers.length === 0) return 'Add at least one step, such as 2 items for 10% off.';
+      const sorted = [...f.tiers].sort((a, b) => (a.quantity ?? 0) - (b.quantity ?? 0));
+      for (let i = 0; i < sorted.length; i++) {
+        const t = sorted[i];
+        if (!t.quantity || t.quantity < 2) return 'Each step needs a quantity of 2 or more.';
+        if (t.quantity > 20) return 'A step can be for at most 20 items.';
+        if (!t.percentOff || t.percentOff <= 0 || t.percentOff >= 100) return 'Each step needs a percentage above 0 and below 100.';
+        if (i > 0 && t.quantity === sorted[i - 1].quantity) return `Two steps are for ${t.quantity} items. Keep one.`;
+        if (i > 0 && t.percentOff <= sorted[i - 1].percentOff!) return `Buying ${t.quantity} must save more than buying ${sorted[i - 1].quantity}.`;
+      }
+      return '';
+    }
+    if (!f.buyCount || f.buyCount < 1) {
+      return f.offerType === 'FIXED_PRICE' ? 'Say how many items are in the bundle.' : 'Say how many items the customer pays for.';
+    }
+    if (f.offerType === 'BUY_X_GET_Y' && (!f.getCount || f.getCount < 1)) {
+      return 'Say how many items are free. For none, choose a fixed-price bundle.';
+    }
+    if (f.bundlePrice == null || f.bundlePrice <= 0) return 'Give the price of the bundle.';
+    return '';
+  }
 
   protected readonly pageSize = 20;
   /** Zero-based page on screen, and the number of bundles across all pages. */
@@ -338,7 +490,7 @@ export class BundlesComponent implements OnInit, OnDestroy {
     this.editingId.set(null);
     this.creating.set(true);
     this.errorMessage.set('');
-    this.form = { ...EMPTY_FORM, imageUrls: [], productIds: [] };
+    this.form = { ...EMPTY_FORM, tiers: [], imageUrls: [], productIds: [] };
   }
 
   protected startEdit(b: BundleResponse): void {
@@ -349,6 +501,8 @@ export class BundlesComponent implements OnInit, OnDestroy {
       name: b.name,
       label: b.label ?? '',
       description: b.description ?? '',
+      offerType: b.offerType ?? (b.getCount > 0 ? 'BUY_X_GET_Y' : 'FIXED_PRICE'),
+      tiers: (b.tiers ?? []).map((t) => ({ ...t })),
       buyCount: b.buyCount,
       getCount: b.getCount,
       bundlePrice: b.bundlePrice,
@@ -364,7 +518,7 @@ export class BundlesComponent implements OnInit, OnDestroy {
   protected cancelEdit(): void {
     this.creating.set(false);
     this.editingId.set(null);
-    this.form = { ...EMPTY_FORM, imageUrls: [], productIds: [] };
+    this.form = { ...EMPTY_FORM, tiers: [], imageUrls: [], productIds: [] };
   }
 
   // ── Images ──────────────────────────────────────────────────────────────
@@ -388,9 +542,8 @@ export class BundlesComponent implements OnInit, OnDestroy {
 
   protected save(): void {
     if (!this.form.name.trim()) { this.errorMessage.set('Name is required.'); return; }
-    if (!this.form.buyCount || this.form.buyCount < 1) { this.errorMessage.set('Buy count must be at least 1.'); return; }
-    if (this.form.getCount == null || this.form.getCount < 0) { this.errorMessage.set('Get count must be 0 or more.'); return; }
-    if (this.form.bundlePrice == null || this.form.bundlePrice <= 0) { this.errorMessage.set('Enter a bundle price greater than 0.'); return; }
+    const problem = this.offerProblem();
+    if (problem) { this.errorMessage.set(problem); return; }
     if (this.form.productIds.length === 0) { this.errorMessage.set('Select at least one eligible product.'); return; }
 
     this.saving.set(true);
@@ -399,10 +552,12 @@ export class BundlesComponent implements OnInit, OnDestroy {
       name: this.form.name.trim(),
       label: this.form.label.trim() || null,
       description: this.form.description.trim() || null,
-      buyCount: this.form.buyCount!,
-      getCount: this.form.getCount!,
-      bundlePrice: this.form.bundlePrice!,
-      compareAtPrice: this.form.compareAtPrice,
+      offerType: this.form.offerType,
+      tiers: this.form.offerType === 'QUANTITY_DISCOUNT' ? this.form.tiers : [],
+      buyCount: this.form.offerType === 'QUANTITY_DISCOUNT' ? null : this.form.buyCount!,
+      getCount: this.form.offerType === 'BUY_X_GET_Y' ? this.form.getCount! : 0,
+      bundlePrice: this.form.offerType === 'QUANTITY_DISCOUNT' ? null : this.form.bundlePrice!,
+      compareAtPrice: this.form.offerType === 'QUANTITY_DISCOUNT' ? null : this.form.compareAtPrice,
       isActive: this.form.isActive,
       featured: this.form.featured,
       sortOrder: this.form.sortOrder ?? 0,

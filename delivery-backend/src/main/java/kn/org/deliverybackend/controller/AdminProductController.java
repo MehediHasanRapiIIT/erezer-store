@@ -114,6 +114,9 @@ public class AdminProductController {
             if (item.getPrice() != null) {
                 product.setPrice(item.getPrice());
             }
+            if (item.getSizeChartId() != null) {
+                product.setSizeChartId(item.getSizeChartId());
+            }
             Set<ConstraintViolation<ProductRequestDTO>> problems = validator.validate(product);
             if (!problems.isEmpty()) {
                 throw new InvalidRequestException("Row " + (i + 1) + ": " + problems.iterator().next().getMessage());

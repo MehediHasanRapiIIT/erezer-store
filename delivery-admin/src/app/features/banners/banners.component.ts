@@ -87,6 +87,11 @@ export class BannersComponent implements OnInit, OnDestroy {
   imageFile = signal<File | null>(null);
   imagePreview = signal('');
   existingImageUrl = signal('');
+  /** The upright picture for phones: a new file, its preview, the saved one, and "take it away". */
+  mobileFile = signal<File | null>(null);
+  mobilePreview = signal('');
+  existingMobileUrl = signal('');
+  removeMobile = signal(false);
   promotionTitle = signal('');
   promotionDetails = signal('');
   fromDate = signal('');
@@ -117,7 +122,7 @@ export class BannersComponent implements OnInit, OnDestroy {
       label: 'Big picture at the top',
       where: 'The first thing shoppers see, filling the screen. If you add several banners here they take turns as a slideshow.',
       shows: 'Shows the headline, the short line and a button, over the bottom-left of the photo.',
-      imageHint: 'A wide photo, at least 1920 x 1080 px. Keep the bottom-left area fairly plain so the words stay readable.',
+      imageHint: 'Best size: 1920 × 1080 px, wide. This is the picture for laptops and tablets. Keep the bottom-left area fairly plain so the words stay readable; the very top and bottom edges may be trimmed.',
       buttonHint: 'The big white button on the picture. Without one, shoppers get a standard "Shop the collection" button.',
       titlePlaceholder: 'e.g. Eid Collection 2026',
       detailsPlaceholder: 'e.g. New arrivals for the festive season',
@@ -128,7 +133,7 @@ export class BannersComponent implements OnInit, OnDestroy {
       label: 'Tall picture, left',
       where: 'Just under the top picture: two tall pictures side by side, usually one collection each.',
       shows: 'Shows the headline and short line in the middle of the picture, with an outlined button. The whole picture can be clicked.',
-      imageHint: 'A tall (portrait) photo, at least 1000 x 1400 px.',
+      imageHint: 'Best size: 1000 × 1400 px, upright (taller than it is wide).',
       buttonHint: 'Where the whole picture takes the shopper. The button words appear as an outlined pill.',
       titlePlaceholder: 'e.g. New arrivals',
       detailsPlaceholder: "e.g. This season's cuts",
@@ -139,7 +144,7 @@ export class BannersComponent implements OnInit, OnDestroy {
       label: 'Tall picture, right',
       where: 'Just under the top picture: two tall pictures side by side, usually one collection each.',
       shows: 'Shows the headline and short line in the middle of the picture, with an outlined button. The whole picture can be clicked.',
-      imageHint: 'A tall (portrait) photo, at least 1000 x 1400 px.',
+      imageHint: 'Best size: 1000 × 1400 px, upright (taller than it is wide).',
       buttonHint: 'Where the whole picture takes the shopper. The button words appear as an outlined pill.',
       titlePlaceholder: 'e.g. The Pink Edit',
       detailsPlaceholder: 'e.g. Erezer Pink collection',
@@ -150,7 +155,7 @@ export class BannersComponent implements OnInit, OnDestroy {
       label: 'Small tile 1 (top left)',
       where: 'Four smaller pictures in a two-by-two block, one collection each.',
       shows: 'Shows only one label in the middle: the button words, or the headline if there are none. The short line is not shown on tiles.',
-      imageHint: 'A landscape photo, at least 1200 x 700 px.',
+      imageHint: 'Best size: 1200 × 700 px, wide.',
       buttonHint: 'Where the whole tile takes the shopper. The button words are the label on the tile.',
       titlePlaceholder: 'e.g. Bags',
       detailsPlaceholder: '',
@@ -161,7 +166,7 @@ export class BannersComponent implements OnInit, OnDestroy {
       label: 'Small tile 2 (top right)',
       where: 'Four smaller pictures in a two-by-two block, one collection each.',
       shows: 'Shows only one label in the middle: the button words, or the headline if there are none. The short line is not shown on tiles.',
-      imageHint: 'A landscape photo, at least 1200 x 700 px.',
+      imageHint: 'Best size: 1200 × 700 px, wide.',
       buttonHint: 'Where the whole tile takes the shopper. The button words are the label on the tile.',
       titlePlaceholder: 'e.g. Caps',
       detailsPlaceholder: '',
@@ -172,7 +177,7 @@ export class BannersComponent implements OnInit, OnDestroy {
       label: 'Small tile 3 (bottom left)',
       where: 'Four smaller pictures in a two-by-two block, one collection each.',
       shows: 'Shows only one label in the middle: the button words, or the headline if there are none. The short line is not shown on tiles.',
-      imageHint: 'A landscape photo, at least 1200 x 700 px.',
+      imageHint: 'Best size: 1200 × 700 px, wide.',
       buttonHint: 'Where the whole tile takes the shopper. The button words are the label on the tile.',
       titlePlaceholder: 'e.g. Accessories',
       detailsPlaceholder: '',
@@ -183,7 +188,7 @@ export class BannersComponent implements OnInit, OnDestroy {
       label: 'Small tile 4 (bottom right)',
       where: 'Four smaller pictures in a two-by-two block, one collection each.',
       shows: 'Shows only one label in the middle: the button words, or the headline if there are none. The short line is not shown on tiles.',
-      imageHint: 'A landscape photo, at least 1200 x 700 px.',
+      imageHint: 'Best size: 1200 × 700 px, wide.',
       buttonHint: 'Where the whole tile takes the shopper. The button words are the label on the tile.',
       titlePlaceholder: 'e.g. Jackets',
       detailsPlaceholder: '',
@@ -194,7 +199,7 @@ export class BannersComponent implements OnInit, OnDestroy {
       label: 'Design-your-own photo',
       where: 'Near the bottom of the page: a grey text panel that invites shoppers to design their own garment, with your photo beside it.',
       shows: 'The headline, short line and button appear in the grey panel, not on the photo. Leave them empty to keep the standard wording.',
-      imageHint: 'A roughly square photo, at least 1200 x 1200 px, ideally of a plain garment or the studio.',
+      imageHint: 'Best size: 1200 × 1200 px, square. A plain garment or the studio works well.',
       buttonHint: 'Normally this goes to the design studio. Change it only if you have a reason.',
       titlePlaceholder: 'Customize your apparel, your way.',
       detailsPlaceholder: 'Design your own t-shirts, hoodies and more in our online studio, no minimum order, even a single piece.',
@@ -540,6 +545,7 @@ export class BannersComponent implements OnInit, OnDestroy {
     this.applyLink(banner.ctaLink);
     this.sortOrder.set(banner.sortOrder ?? 0);
     this.existingImageUrl.set(banner.imageUrl ?? '');
+    this.existingMobileUrl.set(banner.mobileImageUrl ?? '');
     this.showForm.set(true);
   }
 
@@ -573,6 +579,35 @@ export class BannersComponent implements OnInit, OnDestroy {
     this.imagePreview.set('');
   }
 
+  // ── the picture for phones ────────────────────────────────────────────────
+
+  /** What the phone picture box shows: the one just chosen, else the saved one unless it is being removed. */
+  mobileShown(): string {
+    return this.mobilePreview() || (this.removeMobile() ? '' : this.existingMobileUrl());
+  }
+
+  onMobileSelect(e: Event): void {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    this.mobileFile.set(file);
+    this.removeMobile.set(false);
+    const reader = new FileReader();
+    reader.onload = (ev) => this.mobilePreview.set(ev.target!.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  /** Drops the picture just chosen, or marks the saved one to be taken away on save. */
+  clearMobile(): void {
+    if (this.mobileFile()) {
+      this.mobileFile.set(null);
+      this.mobilePreview.set('');
+    } else {
+      this.removeMobile.set(true);
+    }
+  }
+
   onSave(): void {
     const editId = this.editingId();
 
@@ -596,8 +631,9 @@ export class BannersComponent implements OnInit, OnDestroy {
     };
 
     const req$ = editId
-      ? this.bannerService.updateBanner(editId, this.imageFile() ?? undefined, content)
-      : this.bannerService.uploadBanner(this.imageFile()!, content);
+      ? this.bannerService.updateBanner(editId, this.imageFile() ?? undefined, content,
+          this.mobileFile() ?? undefined, this.removeMobile())
+      : this.bannerService.uploadBanner(this.imageFile()!, content, this.mobileFile() ?? undefined);
 
     req$.subscribe({
       next: () => {
@@ -638,6 +674,10 @@ export class BannersComponent implements OnInit, OnDestroy {
     this.imageFile.set(null);
     this.imagePreview.set('');
     this.existingImageUrl.set('');
+    this.mobileFile.set(null);
+    this.mobilePreview.set('');
+    this.existingMobileUrl.set('');
+    this.removeMobile.set(false);
     this.promotionTitle.set('');
     this.promotionDetails.set('');
     this.fromDate.set('');

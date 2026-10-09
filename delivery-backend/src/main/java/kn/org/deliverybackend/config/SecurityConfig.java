@@ -125,6 +125,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/shipping/**").permitAll()
                         .requestMatchers("/api/checkout/quote").permitAll()
                         .requestMatchers("/api/meta/**").permitAll()
+                        // The sitemap search engines read; the storefront serves it at /sitemap.xml.
+                        .requestMatchers(HttpMethod.GET, "/api/sitemap.xml").permitAll()
                         .requestMatchers("/api/payments/bkash/**").permitAll()
                         .requestMatchers("/api/support/contact").permitAll()
                         // Track Order page: by order number, showing status and items only.
@@ -134,6 +136,8 @@ public class SecurityConfig {
                         // requests and shared-design lookup are all guest-usable.
                         .requestMatchers("/api/custom-design/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/store-settings").permitAll()
+                        // The size chart library: shown to customers, and listed in admin forms.
+                        .requestMatchers(HttpMethod.GET, "/api/size-charts").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/discounts/active").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/flash-sale").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/flash-sales/**").permitAll()

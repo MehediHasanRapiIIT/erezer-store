@@ -22,12 +22,49 @@ public class CategoryServiceImpl implements CategoryService {
     private final CategoryRepository categoryRepository;
     private final CategoryMapper categoryMapper;
     private final ProductRepository productRepository;
+    private final SizeChartLibraryService sizeCharts;
 
     @Override
     public List<CategoryResponseDTO> getAllCategories() {
-        return categoryRepository.findAll().stream()
+        return inTreeOrder(categoryRepository.findAll()).stream()
                 .map(this::toEnrichedDTO)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Categories as a tree read top to bottom: each one followed at once by
+     * everything under it, siblings by name. A category whose parent is not in
+     * the list (deleted, or filtered out) is placed at the top level rather
+     * than lost.
+     */
+    private static List<Category> inTreeOrder(List<Category> all) {
+        java.util.Map<Long, Category> byId = new java.util.HashMap<>();
+        for (Category c : all) if (c.getId() != null) byId.put(c.getId(), c);
+        java.util.Comparator<Category> byName = java.util.Comparator
+                .comparing((Category c) -> c.getName() == null ? "" : c.getName().toLowerCase(Locale.ROOT))
+                .thenComparing(c -> c.getId() == null ? 0L : c.getId());
+        java.util.Map<Long, List<Category>> children = new java.util.HashMap<>();
+        List<Category> top = new java.util.ArrayList<>();
+        for (Category c : all) {
+            Long parentId = c.getParentId();
+            if (parentId == null || !byId.containsKey(parentId) || parentId.equals(c.getId())) top.add(c);
+            else children.computeIfAbsent(parentId, k -> new java.util.ArrayList<>()).add(c);
+        }
+        List<Category> ordered = new java.util.ArrayList<>();
+        java.util.Set<Long> placed = new java.util.HashSet<>();
+        java.util.Deque<Category> stack = new java.util.ArrayDeque<>();
+        top.sort(byName.reversed());
+        top.forEach(stack::push);
+        while (!stack.isEmpty()) {
+            Category c = stack.pop();
+            if (c.getId() != null && !placed.add(c.getId())) continue;
+            ordered.add(c);
+            List<Category> under = children.getOrDefault(c.getId(), List.of());
+            under.stream().sorted(byName.reversed()).forEach(stack::push);
+        }
+        // Anything caught in a loop was never reached from the top: keep it visible.
+        for (Category c : all) if (c.getId() == null || placed.add(c.getId())) { if (!ordered.contains(c)) ordered.add(c); }
+        return ordered;
     }
 
     @Override
@@ -35,14 +72,10 @@ public class CategoryServiceImpl implements CategoryService {
         // A shop keeps a handful of categories, so they are searched here and
         // only the requested page leaves the server.
         String text = q == null ? "" : q.trim().toLowerCase(java.util.Locale.ROOT);
-        List<Category> matching = categoryRepository.findAll(org.springframework.data.domain.Sort.by("id")).stream()
-                .filter(c -> !Boolean.TRUE.equals(c.getDeleted()))
+        // Tree order first, then the search: what matches keeps its place in the tree.
+        List<Category> matching = inTreeOrder(categoryRepository.findAll(org.springframework.data.domain.Sort.by("id")).stream()
+                .filter(c -> !Boolean.TRUE.equals(c.getDeleted())).toList()).stream()
                 .filter(c -> text.isEmpty() || contains(c.getName(), text) || contains(c.getSlug(), text))
-                // Each main category, then its subcategories by name.
-                .sorted(java.util.Comparator
-                        .comparing((Category c) -> c.getParentId() != null ? c.getParentId() : c.getId())
-                        .thenComparing(c -> c.getParentId() != null)
-                        .thenComparing(c -> c.getName() == null ? "" : c.getName().toLowerCase(java.util.Locale.ROOT)))
                 .toList();
         int safeSize = kn.org.deliverybackend.util.SearchText.pageSize(size);
         int safePage = Math.max(page, 0);
@@ -75,6 +108,7 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryResponseDTO createCategory(CategoryRequestDTO categoryRequestDTO) {
         Category category = categoryMapper.toEntity(categoryRequestDTO);
         category.setParentId(checkedParent(categoryRequestDTO.getParentId(), null));
+        category.setSizeChartId(sizeCharts.checked(categoryRequestDTO.getSizeChartId()));
         applyHomeSectionFields(category, categoryRequestDTO, null);
         Category saved = categoryRepository.save(category);
         return toEnrichedDTO(saved);
@@ -88,6 +122,10 @@ public class CategoryServiceImpl implements CategoryService {
         category.setIsActive(categoryRequestDTO.getIsActive());
         category.setImageUrl(categoryRequestDTO.getImageUrl());
         category.setParentId(checkedParent(categoryRequestDTO.getParentId(), id));
+        // Null leaves the chart as it is; 0 takes it away.
+        if (categoryRequestDTO.getSizeChartId() != null) {
+            category.setSizeChartId(sizeCharts.checked(categoryRequestDTO.getSizeChartId()));
+        }
         applyHomeSectionFields(category, categoryRequestDTO, id);
         return toEnrichedDTO(categoryRepository.save(category));
     }
@@ -104,9 +142,10 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     /**
-     * The parent a category is being put under, checked: it has to exist, be a
-     * main category itself, and not be the category in hand; and a category
-     * that has subcategories can't become one. Two levels, no more.
+     * The parent a category is being put under, checked: it has to exist, and
+     * it can't be the category in hand or anything under it - that would make
+     * a loop. Any depth is fine otherwise, and a category moves with
+     * everything under it.
      */
     private Long checkedParent(Long parentId, Long selfId) {
         if (parentId == null) return null;
@@ -116,13 +155,9 @@ public class CategoryServiceImpl implements CategoryService {
         Category parent = categoryRepository.findById(parentId)
                 .filter(p -> !Boolean.TRUE.equals(p.getDeleted()))
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + parentId));
-        if (parent.getParentId() != null) {
+        if (selfId != null && kn.org.deliverybackend.service.CategoryTree.family(categoryRepository, selfId).contains(parentId)) {
             throw new kn.org.deliverybackend.exception.InvalidRequestException(
-                    parent.getName() + " is a subcategory itself. Choose a main category.");
-        }
-        if (selfId != null && !categoryRepository.findByParentIdAndDeletedFalse(selfId).isEmpty()) {
-            throw new kn.org.deliverybackend.exception.InvalidRequestException(
-                    "This category has subcategories, so it can't become one. Move them first.");
+                    parent.getName() + " is inside this category, so this category can't be put under it.");
         }
         return parentId;
     }
@@ -179,7 +214,7 @@ public class CategoryServiceImpl implements CategoryService {
 
     private CategoryResponseDTO toEnrichedDTO(Category category) {
         CategoryResponseDTO dto = categoryMapper.toResponseDTO(category);
-        // A main category counts what is in its subcategories too.
+        // A category counts what is in everything under it too.
         java.util.Set<Long> family = kn.org.deliverybackend.service.CategoryTree.family(categoryRepository, category.getId());
         dto.setProductCount(productRepository.findByCategoryIdIn(family).size());
         dto.setOwnProductCount(family.size() == 1 ? dto.getProductCount()
@@ -187,6 +222,10 @@ public class CategoryServiceImpl implements CategoryService {
         dto.setSubcategoryCount(family.size() - 1);
         kn.org.deliverybackend.service.CategoryTree.parentOf(categoryRepository, category)
                 .ifPresent(parent -> dto.setParentName(parent.getName()));
+        dto.setSizeChartId(category.getSizeChartId());
+        dto.setEffectiveSizeChartId(sizeCharts.forCategory(category));
+        dto.setDepth(kn.org.deliverybackend.service.CategoryTree.depth(categoryRepository, category));
+        dto.setPath(kn.org.deliverybackend.service.CategoryTree.path(categoryRepository, category));
         dto.setEffectiveShippingCharge(kn.org.deliverybackend.service.CategoryTree.shippingCharge(categoryRepository, category));
         dto.setEffectiveDiscountExcluded(kn.org.deliverybackend.service.CategoryTree.discountExcluded(categoryRepository, category));
         dto.setEffectiveShowStockQuantity(Boolean.TRUE.equals(

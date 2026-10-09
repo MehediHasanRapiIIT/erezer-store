@@ -1,4 +1,5 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { SizeChartPickerComponent } from '../../../shared/size-chart-picker/size-chart-picker.component';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { SidebarComponent } from '../../../shared/sidebar/sidebar.component';
@@ -39,6 +40,8 @@ interface BatchRow {
   codeTyped: boolean;
   /** Its own price; null to use the shared one. */
   price: number | null;
+  /** Its own size chart: an id, 0 for none of its own, or null to use the shared choice. */
+  sizeChartId: number | null;
   pictures: File[];
 }
 
@@ -55,7 +58,7 @@ interface BatchRow {
 @Component({
   selector: 'app-add-batch',
   standalone: true,
-  imports: [RouterLink, FormsModule, SidebarComponent, DiscountInputComponent, FitSizesComponent],
+  imports: [RouterLink, FormsModule, SidebarComponent, DiscountInputComponent, FitSizesComponent, SizeChartPickerComponent],
   templateUrl: './add-batch.component.html',
 })
 export class AddBatchComponent implements OnInit, OnDestroy {
@@ -83,6 +86,8 @@ export class AddBatchComponent implements OnInit, OnDestroy {
   readonly discountExcluded = signal(false);
   /** Stock on the product page: follow the category (default), the quantity, or labels. */
   readonly stockDisplay = signal<StockDisplay>('CATEGORY');
+  /** The size chart every product gets unless its row says otherwise; 0 for none of their own. */
+  readonly sizeChartId = signal(0);
   protected readonly stockDisplayOptions: { value: StockDisplay; label: string }[] = [
     { value: 'CATEGORY', label: 'Same as category' },
     { value: 'QUANTITY', label: 'Show quantity' },
@@ -346,6 +351,11 @@ export class AddBatchComponent implements OnInit, OnDestroy {
     this.rows.update((rows) => rows.map((r, i) => (i === index ? { ...r, ...change } : r)));
   }
 
+  /** A row's own chart. Choosing the same as the shared one goes back to following it. */
+  setRowChart(index: number, chartId: number): void {
+    this.patchRow(index, { sizeChartId: chartId === this.sizeChartId() ? null : chartId });
+  }
+
   setRowPrice(index: number, value: unknown): void {
     this.patchRow(index, { price: value === '' || value == null ? null : +value });
   }
@@ -353,7 +363,7 @@ export class AddBatchComponent implements OnInit, OnDestroy {
   private newRow(nameFromPhoto: string, pictures: File[]): BatchRow {
     return {
       key: this.nextKey++, name: this.startingName(nameFromPhoto), nameTyped: false, nameFromPhoto,
-      code: '', codeTyped: false, price: null, pictures,
+      code: '', codeTyped: false, price: null, sizeChartId: null, pictures,
     };
   }
 
@@ -430,12 +440,14 @@ export class AddBatchComponent implements OnInit, OnDestroy {
       isFeatured: this.isFeatured(),
       discountExcluded: this.discountExcluded(),
       stockDisplay: this.stockDisplay(),
+      sizeChartId: this.sizeChartId(),
     };
     const sizes = this.canAddSizes() ? fitVariants(this.fitSizes()) : [];
     const items: BatchItem[] = this.rows().map((r) => ({
       name: r.name.trim(),
       productCode: r.code.trim(),
       price: r.price,
+      sizeChartId: r.sizeChartId,
       pictures: this.canAddPictures() ? r.pictures : [],
     }));
 

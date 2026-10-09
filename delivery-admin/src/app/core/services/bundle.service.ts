@@ -5,13 +5,26 @@ import { environment } from '../../../environments/environment';
 import { PageResponse, ProductResponse } from '../models/api.models';
 
 /** Admin create/update payload for a bundle offer. */
+/** The kinds of bundle offer. Matches the backend's BundleType. */
+export type BundleType = 'FIXED_PRICE' | 'BUY_X_GET_Y' | 'QUANTITY_DISCOUNT';
+
+/** One step of a quantity discount: this many items or more get this percentage off. */
+export interface BundleTier {
+  quantity: number | null;
+  percentOff: number | null;
+}
+
 export interface BundleRequest {
   name: string;
   label?: string | null;
   description?: string | null;
-  buyCount: number;
-  getCount: number;
-  bundlePrice: number;
+  offerType: BundleType;
+  /** The steps of a quantity discount; empty for the other kinds. */
+  tiers: BundleTier[];
+  /** Not sent for a quantity discount, which has no set number of items and no one price. */
+  buyCount: number | null;
+  getCount: number | null;
+  bundlePrice: number | null;
   compareAtPrice?: number | null;
   isActive: boolean;
   featured?: boolean | null;
@@ -26,6 +39,10 @@ export interface BundleResponse {
   name: string;
   label: string | null;
   description: string | null;
+  offerType: BundleType;
+  /** The offer in words: "Any 3 for ৳999", "Buy 2 Get 1 Free", "Buy 2, save 10% · Buy 3, save 15%". */
+  headline: string;
+  tiers: BundleTier[];
   buyCount: number;
   getCount: number;
   slots: number;

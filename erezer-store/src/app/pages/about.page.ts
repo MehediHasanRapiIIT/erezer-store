@@ -1,5 +1,5 @@
 import { Component, computed, effect, inject } from '@angular/core';
-import { Title } from '@angular/platform-browser';
+import { SeoService } from '../core/seo.service';
 import { RouterLink } from '@angular/router';
 import { SettingsStore } from '../core/store/settings.store';
 import { RevealDirective } from '../core/reveal.directive';
@@ -77,14 +77,15 @@ import { RevealDirective } from '../core/reveal.directive';
 })
 export class AboutPage {
   private readonly settings = inject(SettingsStore);
-  private readonly title = inject(Title);
+  private readonly seo = inject(SeoService);
 
   protected readonly about = computed(() => this.settings.settings()?.aboutPage ?? null);
 
   constructor() {
     effect(() => {
       const heading = this.about()?.title;
-      this.title.setTitle(heading ? `${heading} | EREZER` : 'About | EREZER');
+      // The heading the shop wrote in the admin panel, once it has arrived.
+      if (heading) this.seo.update({ title: heading, description: 'About Erezer, a clothing shop in Bangladesh: who we are and what we make.' });
     });
   }
 

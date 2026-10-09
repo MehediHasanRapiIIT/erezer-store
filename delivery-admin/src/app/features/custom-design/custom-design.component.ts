@@ -85,6 +85,7 @@ const COLOR_VIEWS: { key: ColorView; label: string }[] = [
                         <input [(ngModel)]="color.name" placeholder="Colour name" class="flex-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-800" />
                         <button (click)="removeColor(it, $index)" class="text-xs font-medium text-red-500 hover:text-red-600">Remove</button>
                       </div>
+                      <p class="picture-hint text-xs text-gray-500 mb-2" data-testid="picture-hint"><span class="font-semibold text-gray-700">Best size:</span> 1200 × 1200 px, square, with the garment in the middle on a plain or see-through background. Use the same size for every side.</p>
                       <div class="grid grid-cols-4 gap-2">
                         @for (v of colorViews; track v.key) {
                           <label class="flex cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed border-gray-200 p-2 text-center text-xs text-gray-400 hover:bg-gray-50">
@@ -154,6 +155,7 @@ const COLOR_VIEWS: { key: ColorView; label: string }[] = [
               <h2 class="mb-3 text-sm font-semibold uppercase text-gray-400">Logo library</h2>
               <div class="rounded-xl border border-gray-200 bg-white p-4">
                 @if (perms.can('design.logos')) {
+                  <p class="picture-hint text-xs text-gray-500 mb-3" data-testid="picture-hint"><span class="font-semibold text-gray-700">Best size:</span> a PNG about 1000 px wide with a see-through background, so it sits cleanly on any colour of garment.</p>
                   <div class="mb-4 flex flex-wrap items-end gap-2">
                     <label class="text-xs font-semibold uppercase text-gray-400">Name
                       <input [(ngModel)]="newLogoName" placeholder="Logo name" class="mt-1 block rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-800" />

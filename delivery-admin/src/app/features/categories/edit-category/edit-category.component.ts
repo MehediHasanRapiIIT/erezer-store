@@ -1,4 +1,5 @@
 import { Component, signal, OnInit, inject, computed } from '@angular/core';
+import { SizeChartPickerComponent } from '../../../shared/size-chart-picker/size-chart-picker.component';
 import { RouterLink, Router, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { SidebarComponent } from '../../../shared/sidebar/sidebar.component';
@@ -13,7 +14,7 @@ import { NoticeService } from '../../../core/services/notice.service';
 @Component({
   selector: 'app-edit-category',
   standalone: true,
-  imports: [RouterLink, FormsModule, SidebarComponent],
+  imports: [RouterLink, FormsModule, SidebarComponent, SizeChartPickerComponent],
   templateUrl: './edit-category.component.html',
 })
 export class EditCategoryComponent implements OnInit {
@@ -26,9 +27,11 @@ export class EditCategoryComponent implements OnInit {
 
   /** The main category this one sits under; null for a main category. */
   parentId = signal<number | null>(null);
-  /** Main categories it could sit under. */
+  /** The size chart for the products in and under this category; 0 for none of its own. */
+  sizeChartId = signal(0);
+  /** Every category it could sit inside, as a tree. (Named from when only main categories could hold one.) */
   mainCategories = signal<CategoryResponse[]>([]);
-  /** A category with subcategories of its own can't become one. */
+  /** It has subcategories of its own, which move with it. */
   hasSubcategories = signal(false);
   /** "Subcategory" is chosen, whether or not its main category has been picked yet. */
   isSub = signal(false);
@@ -40,7 +43,7 @@ export class EditCategoryComponent implements OnInit {
     this.parentMissing.set(false);
     if (!sub) this.parentId.set(null);
   }
-  parentName = computed(() => this.mainCategories().find((c) => c.id === this.parentId())?.name ?? 'its main category');
+  parentName = computed(() => this.mainCategories().find((c) => c.id === this.parentId())?.name ?? 'its parent category');
 
   categoryId   = signal<number>(0);
   categoryName = signal('');
@@ -81,7 +84,13 @@ export class EditCategoryComponent implements OnInit {
     this.categoryId.set(id);
 
     this.categoryService.getCategories().subscribe({
-      next: (all) => this.mainCategories.set(all.filter((c) => c.parentId == null && c.id !== id)),
+      // Not itself, and nothing inside itself: that would make a loop.
+      next: (all) => {
+        const inside = new Set<number>([id]);
+        // The list is in tree order, so a parent always comes before what is under it.
+        for (const c of all) if (c.parentId != null && inside.has(c.parentId)) inside.add(c.id);
+        this.mainCategories.set(all.filter((c) => !inside.has(c.id)));
+      },
       error: () => {},
     });
 
@@ -95,6 +104,7 @@ export class EditCategoryComponent implements OnInit {
         this.showStockQuantity.set(cat.showStockQuantity ?? false);
         this.homeSortOrder.set(cat.homeSortOrder ?? 0);
         this.parentId.set(cat.parentId ?? null);
+        this.sizeChartId.set(cat.sizeChartId ?? 0);
         this.isSub.set(cat.parentId != null);
         this.hasSubcategories.set((cat.subcategoryCount ?? 0) > 0);
         this.isFetching.set(false);
@@ -126,6 +136,7 @@ export class EditCategoryComponent implements OnInit {
       showStockQuantity: this.showStockQuantity(),
       homeSortOrder: this.homeSortOrder(),
       parentId: this.parentId(),
+      sizeChartId: this.sizeChartId(),
     }).subscribe({
       next: () => {
         this.isLoading.set(false);
