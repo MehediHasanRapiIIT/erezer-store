@@ -44,7 +44,12 @@ const HERO_FADE_PX = 24;
           </svg>
         </button>
 
-        <a routerLink="/" class="shrink-0 text-lg font-semibold tracking-[0.22em] sm:text-xl">EREZER</a>
+        <!-- The logo, painted in the text colour: dark on a light page, white on a
+             dark one and over the hero. The picture is only its shape (a mask). -->
+        <a routerLink="/" class="shrink-0" aria-label="Erezer – home" data-testid="brand-logo">
+          <span class="block aspect-[865/96] h-[15px] bg-current sm:h-[17px]" role="img" aria-label="Erezer"
+            style="-webkit-mask:url(logo-wordmark.png) left center/contain no-repeat;mask:url(logo-wordmark.png) left center/contain no-repeat"></span>
+        </a>
 
         <!-- Desktop nav -->
         <!-- Desktop nav: every label stays on one line; below lg the menu button carries these links. -->
@@ -150,7 +155,8 @@ const HERO_FADE_PX = 24;
       aria-modal="true"
     >
       <div class="flex items-center justify-between border-b border-neutral-200 px-5 py-4 dark:border-neutral-800">
-        <span class="text-lg font-semibold tracking-[0.22em]">EREZER</span>
+        <span class="block aspect-[865/96] h-[15px] bg-current" role="img" aria-label="Erezer" data-testid="brand-logo-menu"
+          style="-webkit-mask:url(logo-wordmark.png) left center/contain no-repeat;mask:url(logo-wordmark.png) left center/contain no-repeat"></span>
         <button
           type="button"
           (click)="closeMenu()"
