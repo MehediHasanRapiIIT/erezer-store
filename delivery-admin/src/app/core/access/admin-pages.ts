@@ -22,6 +22,8 @@ export const ACCESS = {
   productEdit:  { any: ['products.edit'] },
   productPrices: { all: ['products.edit', 'products.price'] },
   productCodes: { any: ['products.edit'] },
+  // Anyone who sees products can look at the shop's order; changing it needs products.rank.
+  shopOrder:    { any: ['products.view'] },
   categories:   { any: ['categories.view'] },
   categoryNew:  { any: ['categories.create'] },
   categoryEdit: { any: ['categories.edit'] },
@@ -65,6 +67,7 @@ export const ADMIN_PAGES: AdminPage[] = [
   { label: 'Dashboard',     icon: 'dashboard',  route: '/dashboard',     access: ACCESS.dashboard },
   { label: 'Orders',        icon: 'orders',     route: '/orders',        access: ACCESS.orders },
   { label: 'Products',      icon: 'products',   route: '/products',      access: ACCESS.products },
+  { label: 'Shop Order',    icon: 'products',   route: '/shop-order',    access: ACCESS.shopOrder },
   { label: 'Categories',    icon: 'categories', route: '/categories',    access: ACCESS.categories },
   { label: 'Inventory',     icon: 'inventory',  route: '/inventory',     access: ACCESS.inventory },
   { label: 'Analytics',     icon: 'analytics',  route: '/analytics',     access: ACCESS.analytics },

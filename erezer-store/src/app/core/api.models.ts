@@ -810,6 +810,8 @@ export interface ApiFooterOutlet {
   name: string | null;
   address: string | null;
   phone: string | null;
+  /** The outlet's own Google Maps link; without it the name and address are searched for. */
+  mapUrl?: string | null;
 }
 
 export interface ApiFooter {

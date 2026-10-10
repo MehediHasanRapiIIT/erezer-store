@@ -44,7 +44,8 @@ import { SeoService } from '../core/seo.service';
         <h1 class="mt-4 text-4xl font-semibold leading-[1.05] tracking-[-0.02em] md:text-5xl xl:text-6xl">
           {{ category()?.name || 'Collection' }}
         </h1>
-        <p class="app-muted mt-4 text-base">
+        <!-- The count is left out on a phone; "Loading…" still shows there. -->
+        <p class="app-muted mt-4 text-base" [class.max-sm:hidden]="!loading()" data-testid="result-count">
           {{ loading() ? 'Loading…' : (total() + ' ' + (total() === 1 ? 'product' : 'products')) }}
         </p>
         @if (subcategories().length > 0) {

@@ -26,6 +26,8 @@ public class ProductResponseDTO {
     private Boolean isAvailable;
     private Boolean isNewArrival;
     private Boolean isFeatured;
+    /** Its place in the shop (1 is first), or null when it is not ranked. */
+    private Integer shopRank;
     private int stockQuantity;
     private StockStatus stockStatus;
     private double avgRating;

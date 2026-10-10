@@ -60,7 +60,7 @@ import { FlashSaleStore } from '../core/store/flash-sale.store';
               }
               <h2 class="mt-1 text-xl font-bold tracking-tight">{{ s.name }}</h2>
               <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-                {{ s.products.length }} {{ s.products.length === 1 ? 'item' : 'items' }} ·
+                <span class="max-sm:hidden" data-testid="result-count">{{ s.products.length }} {{ s.products.length === 1 ? 'item' : 'items' }} · </span>
                 @if (upcoming(s)) { Starts {{ s.startsAt | date:'MMM d, h:mm a' }} }
                 @else { Ends {{ s.endsAt | date:'MMM d, h:mm a' }} }
               </p>

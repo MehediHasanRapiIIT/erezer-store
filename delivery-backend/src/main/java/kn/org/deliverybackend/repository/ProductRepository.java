@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -113,4 +114,21 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     List<Product> findRelated(@Param("categoryId") Long categoryId,
                               @Param("excludeId") Long excludeId,
                               Pageable pageable);
+    // ── the shop's order ("Shop Order" in the admin panel) ───────────────────
+
+    /** The ranked products, first to last. */
+    @Query("SELECT p FROM Product p WHERE p.shopRank IS NOT NULL AND p.deleted = false ORDER BY p.shopRank, p.id")
+    List<Product> findRanked();
+
+    /** Which of these ids are products that still exist. */
+    @Query("SELECT p.id FROM Product p WHERE p.id IN :ids AND p.deleted = false")
+    List<Long> findLiveIds(@Param("ids") java.util.Collection<Long> ids);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("UPDATE Product p SET p.shopRank = NULL WHERE p.shopRank IS NOT NULL")
+    int clearShopRanks();
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("UPDATE Product p SET p.shopRank = :rank WHERE p.id = :id")
+    int setShopRank(@Param("id") Long id, @Param("rank") int rank);
 }

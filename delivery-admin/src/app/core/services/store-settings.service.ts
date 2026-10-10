@@ -59,6 +59,8 @@ export interface FooterOutlet {
   name: string;
   address: string;
   phone: string;
+  /** The outlet's own Google Maps link; optional. */
+  mapUrl?: string;
 }
 
 export interface Footer {

@@ -31,7 +31,7 @@ import { EcommerceStore } from '../core/store/ecommerce.store';
         </span>
         <h1 class="mt-5 text-4xl font-bold tracking-tight sm:text-6xl">{{ s.name }}</h1>
         <p class="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
-          {{ s.products.length }} {{ s.products.length === 1 ? 'item' : 'items' }} · Ends {{ s.endsAt | date:'M/d/yyyy, h:mm:ss a' }}
+          <span class="max-sm:hidden" data-testid="result-count">{{ s.products.length }} {{ s.products.length === 1 ? 'item' : 'items' }} · </span>Ends {{ s.endsAt | date:'M/d/yyyy, h:mm:ss a' }}
         </p>
 
         @if (!expired()) {
@@ -62,7 +62,7 @@ import { EcommerceStore } from '../core/store/ecommerce.store';
           <div class="flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-amber-500" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg>
             <h2 class="app-section-title text-2xl">Sale Items</h2>
-            <span class="text-sm text-neutral-500 dark:text-neutral-400">{{ s.products.length }} items</span>
+            <span class="text-sm text-neutral-500 max-sm:hidden dark:text-neutral-400" data-testid="result-count">{{ s.products.length }} items</span>
           </div>
           <a routerLink="/shop" class="text-sm font-medium underline underline-offset-4">Browse all</a>
         </div>

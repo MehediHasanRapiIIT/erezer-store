@@ -62,6 +62,10 @@ public class Product extends AbstractBaseEntity<Long> {
     @Column(name = "is_featured")
     private Boolean isFeatured;
 
+    /** Its place in the shop (1 is first), set on the admin "Shop Order" page; null when it is not ranked. */
+    @Column(name = "shop_rank")
+    private Integer shopRank;
+
     @Column(name = "stock_quantity", nullable = false, columnDefinition = "int default 0 check (stock_quantity >= 0)")
     private int stockQuantity = 0;
 

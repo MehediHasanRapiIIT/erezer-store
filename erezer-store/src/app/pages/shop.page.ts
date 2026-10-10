@@ -83,8 +83,8 @@ import { RevealDirective } from '../core/reveal.directive';
     <!-- top offset clears the global sticky header (~60px) so it pins just below it -->
     <section class="full-bleed sticky top-16 z-20 mb-0">
       <div class="toolbar-in flex flex-wrap items-center gap-2.5 border-y border-neutral-200/70 bg-white/70 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8 dark:border-neutral-800/70 dark:bg-neutral-900/70">
-        <!-- Result count -->
-        <div class="mr-auto flex items-baseline gap-1.5 pl-1.5">
+        <!-- Result count: left out on a phone, where the row is needed for the controls. -->
+        <div class="mr-auto hidden items-baseline gap-1.5 pl-1.5 sm:flex" data-testid="result-count">
           <span class="text-lg font-semibold tabular-nums leading-none text-neutral-900 dark:text-neutral-100">{{ displayCount() }}</span>
           <span class="text-[11px] font-medium uppercase tracking-[0.18em] app-muted">{{ resultCount() === 1 ? 'result' : 'results' }}</span>
         </div>

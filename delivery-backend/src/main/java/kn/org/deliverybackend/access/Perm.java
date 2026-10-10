@@ -59,6 +59,8 @@ public enum Perm {
     PRODUCTS_PRICE("products.price", "Products", "Change prices", "Price and sale discount, when adding or editing."),
     PRODUCTS_DELETE("products.delete", "Products", "Delete products", null),
     PRODUCTS_FEATURE("products.feature", "Products", "Feature products on the home page", null),
+    PRODUCTS_RANK("products.rank", "Products", "Arrange products in the shop",
+            "Which products come first on the Shop page and the category pages."),
     PRODUCTS_IMAGES("products.images", "Products", "Manage product photos", null),
     PRODUCTS_VARIANTS("products.variants", "Products", "Manage sizes and colours", null),
 

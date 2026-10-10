@@ -105,17 +105,32 @@ const FALLBACK: ApiFooter = {
             <div class="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               @for (outlet of outlets(); track $index) {
                 <div class="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-                  @if (outlet.imageUrl) {
-                    <div class="aspect-[16/10] overflow-hidden">
-                      <img [src]="outlet.imageUrl" [alt]="outlet.name || 'Outlet'"
-                        class="h-full w-full object-cover" loading="lazy" />
-                    </div>
-                  }
-                  <div class="space-y-1 p-4">
-                    <p class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{{ outlet.name }}</p>
-                    @if (outlet.address) {
-                      <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ outlet.address }}</p>
+                  <!-- Pressing the picture, name or address opens the outlet in Google Maps. -->
+                  <a [attr.href]="mapLink(outlet)" target="_blank" rel="noopener" class="group block" data-testid="outlet-map-link"
+                    [attr.aria-label]="'See ' + (outlet.name || 'this store') + ' on Google Maps'">
+                    @if (outlet.imageUrl) {
+                      <div class="aspect-[16/10] overflow-hidden">
+                        <img [src]="outlet.imageUrl" [alt]="outlet.name || 'Outlet'"
+                          class="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" loading="lazy" />
+                      </div>
                     }
+                    <div class="space-y-1 px-4 pt-4">
+                      <p class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{{ outlet.name }}</p>
+                      @if (outlet.address) {
+                        <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ outlet.address }}</p>
+                      }
+                      @if (mapLink(outlet)) {
+                        <p class="inline-flex items-center gap-1 pt-1 text-xs font-medium text-neutral-700 underline-offset-4 group-hover:underline dark:text-neutral-300">
+                          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+                          </svg>
+                          View on map
+                        </p>
+                      }
+                    </div>
+                  </a>
+                  <div class="space-y-1 px-4 pb-4 pt-1">
                     @if (outlet.phone) {
                       <a [href]="'tel:' + outlet.phone"
                         class="inline-block text-xs font-medium text-neutral-700 transition hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-neutral-100">
@@ -152,6 +167,17 @@ export class FooterComponent {
   });
 
   protected readonly outlets = computed<ApiFooterOutlet[]>(() => this.footer().outlets ?? []);
+
+  /**
+   * Where pressing an outlet goes: the Google Maps link the shop gave it, or a
+   * Google Maps search for its name and address. Only a web link is ever used.
+   */
+  protected mapLink(outlet: ApiFooterOutlet): string | null {
+    const own = (outlet.mapUrl ?? '').trim();
+    if (/^https?:\/\/\S+$/i.test(own)) return own;
+    const place = [outlet.name, outlet.address].map((t) => (t ?? '').trim()).filter(Boolean).join(', ');
+    return place ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(place) : null;
+  }
 
   protected isInternal(url: string): boolean {
     return !!url && url.startsWith('/');

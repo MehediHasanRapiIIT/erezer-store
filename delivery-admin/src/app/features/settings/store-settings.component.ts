@@ -635,7 +635,7 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                 <div class="flex items-center justify-between">
                   <div>
                     <p class="text-sm font-semibold text-gray-800">Our outlets</p>
-                    <p class="text-xs text-gray-500">Store locations with photo, name, address and phone.</p>
+                    <p class="text-xs text-gray-500">Store locations with photo, name, address and phone. A customer who presses one is taken to it on Google Maps.</p>
                   </div>
                   @if (perms.can('settings.footer')) {
                   <button type="button" (click)="addOutlet()"
@@ -679,6 +679,19 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
                         class="w-full rounded border border-gray-200 px-2 py-1 text-xs" />
                       <input [(ngModel)]="o.phone" placeholder="Phone"
                         class="w-full rounded border border-gray-200 px-2 py-1 text-xs" />
+                      <input [(ngModel)]="o.mapUrl" placeholder="Google Maps link (optional)" data-testid="outlet-map"
+                        class="w-full rounded border border-gray-200 px-2 py-1 text-xs" />
+                      @if (o.mapUrl && !isWebLink(o.mapUrl)) {
+                        <p class="text-[11px] text-red-600" data-testid="outlet-map-error">This is not a link. It should start with https://</p>
+                      } @else {
+                        <p class="text-[11px] text-gray-400">
+                          In Google Maps, open the shop, press <span class="font-semibold">Share</span>, copy the link and paste it here.
+                          Left empty, the map is searched for the name and address.
+                        </p>
+                      }
+                      @if (mapLink(o); as link) {
+                        <a [href]="link" target="_blank" rel="noopener" class="inline-block text-[11px] text-blue-600 underline" data-testid="outlet-map-test">See where customers will land</a>
+                      }
                     </div>
                   } @empty {
                     <p class="text-xs text-gray-400">No outlets yet.</p>
@@ -1061,7 +1074,19 @@ export class StoreSettingsComponent implements OnInit {
 
   // ── "Our outlets" / store locations ────────────────────────────────────────
   protected addOutlet(): void {
-    this.footer.outlets.push({ imageUrl: '', name: '', address: '', phone: '' });
+    this.footer.outlets.push({ imageUrl: '', name: '', address: '', phone: '', mapUrl: '' });
+  }
+
+  protected isWebLink(text: string): boolean {
+    return /^https?:\/\/\S+$/i.test(text.trim());
+  }
+
+  /** Where the shop sends a customer who presses this outlet: its own link, or a map search for its name and address. */
+  protected mapLink(o: { name: string; address: string; mapUrl?: string }): string | null {
+    const own = (o.mapUrl ?? '').trim();
+    if (own && this.isWebLink(own)) return own;
+    const place = [o.name, o.address].map((t) => (t ?? '').trim()).filter(Boolean).join(', ');
+    return place ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(place) : null;
   }
   protected removeOutlet(i: number): void { this.footer.outlets.splice(i, 1); }
 

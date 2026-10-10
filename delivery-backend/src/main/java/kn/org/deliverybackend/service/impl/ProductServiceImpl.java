@@ -203,8 +203,15 @@ public class ProductServiceImpl implements ProductService {
     }
 
     /**
-     * Featured first and then newest, or by the price customers see. Always
-     * ends with the id, so a page never repeats or skips a product.
+     * The shop's own order, or by the price customers see.
+     *
+     * <p>The shop's own order: the products the admin ranked on "Shop Order",
+     * first to last, then everything else, featured first and then newest. A
+     * ranked product with nothing in stock gives up its place and is sorted with
+     * "everything else" until it is back, so the top of the shop is never a row
+     * of sold-out products.
+     *
+     * <p>Always ends with the id, so a page never repeats or skips a product.
      */
     private static List<jakarta.persistence.criteria.Order> browseOrder(Root<Product> root, CriteriaBuilder cb, String sort) {
         List<jakarta.persistence.criteria.Order> order = new ArrayList<>();
@@ -218,6 +225,8 @@ public class ProductServiceImpl implements ProductService {
                 order.add(cb.asc(root.get("id")));
             }
             default -> {
+                Predicate holdsItsPlace = cb.and(cb.isNotNull(root.get("shopRank")), cb.gt(root.<Integer>get("stockQuantity"), 0));
+                order.add(cb.asc(cb.<Integer>selectCase().when(holdsItsPlace, root.<Integer>get("shopRank")).otherwise(Integer.MAX_VALUE)));
                 order.add(cb.desc(cb.coalesce(root.<Boolean>get("isFeatured"), Boolean.FALSE)));
                 order.add(cb.desc(root.get("id")));
             }
