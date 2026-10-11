@@ -149,7 +149,7 @@ export class CategoriesPanelComponent {
     const found: ApiCategory[] = [];
     const seen = new Set<number>([mainId]);
     const walk = (parentId: number): void => {
-      for (const c of this.subcategories().filter((s) => s.parentId === parentId).sort((a, b) => a.name.localeCompare(b.name))) {
+      for (const c of this.subcategories().filter((s) => s.parentId === parentId)) {
         if (seen.has(c.id)) continue;
         seen.add(c.id);
         found.push(c);

@@ -157,6 +157,12 @@ export class OrderDetailComponent implements OnInit {
     this.router.navigate(['/orders']);
   }
 
+  /** Opens the screen where the customer's details, the items and the prices can be corrected. */
+  editOrder(): void {
+    const o = this.order();
+    if (o) this.router.navigate(['/orders', o.id, 'edit']);
+  }
+
   /** Open the preview modal and fetch the PDF (auth-fetched blob → embedded preview). */
   printInvoice(): void {
     const order = this.order();

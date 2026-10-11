@@ -18,6 +18,8 @@ public class CategoryResponseDTO {
     private String slug;
     private Boolean showOnHome;
     private Integer homeSortOrder;
+    /** Its place among its siblings in the shop (1 is first), or null when not arranged. */
+    private Integer shopOrder;
     private Boolean discountExcluded;
     private Boolean showStockQuantity;
 

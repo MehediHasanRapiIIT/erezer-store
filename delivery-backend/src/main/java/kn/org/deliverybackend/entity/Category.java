@@ -49,6 +49,14 @@ public class Category extends AbstractBaseEntity<Long> {
     private Integer homeSortOrder;
 
     /**
+     * Its place among its siblings in the shop (1 is first): among the main
+     * categories, or among the subcategories of its parent. Null when the admin
+     * has not arranged it; those follow the arranged ones, by name.
+     */
+    @Column(name = "shop_order")
+    private Integer shopOrder;
+
+    /**
      * True to keep every product in this category at full price: the discount
      * engine ignores every automatic discount for them, including store-wide
      * ones. Null means not excluded.

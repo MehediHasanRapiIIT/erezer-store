@@ -69,6 +69,8 @@ public class HomePageServiceImpl implements HomePageService {
         List<Category> categories = allCategories.stream()
                 .filter(Category::getIsActive)
                 .filter(c -> c.getParentId() == null)
+                // In the order the admin arranged them on "Shop Order", then by name.
+                .sorted(CategoryServiceImpl.SHOP_ORDER)
                 .collect(Collectors.toList());
         response.setCategories(categoryMapper.toDTOs(categories));
 

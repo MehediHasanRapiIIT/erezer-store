@@ -17,6 +17,7 @@ export interface AccessRule {
 export const ACCESS = {
   dashboard:    { any: ['dashboard.view'] },
   orders:       { any: ['orders.view'] },
+  orderEdit:    { all: ['orders.view', 'orders.edit'] },
   products:     { any: ['products.view'] },
   productNew:   { all: ['products.create', 'products.price'] },
   productEdit:  { any: ['products.edit'] },

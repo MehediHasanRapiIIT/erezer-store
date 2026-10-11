@@ -389,7 +389,8 @@ export class ShopPage implements OnInit {
     const chain = this.selectedChain();
     const rows: { parent: ApiCategory; items: ApiCategory[]; activeId: number | null }[] = [];
     chain.forEach((parent, i) => {
-      const items = this.allCategories().filter((c) => c.parentId === parent.id).sort((a, b) => a.name.localeCompare(b.name));
+      // In the order the shop arranged them (the server sends categories in that order).
+      const items = this.allCategories().filter((c) => c.parentId === parent.id);
       if (items.length > 0) rows.push({ parent, items, activeId: chain[i + 1]?.id ?? null });
     });
     return rows;

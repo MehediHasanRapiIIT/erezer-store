@@ -9,6 +9,7 @@ import { PermissionService } from '../../core/services/permission.service';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { NoticeService } from '../../core/services/notice.service';
 import { parseApiError } from '../../core/utils/api-error.util';
+import { CategoryOrderComponent } from './category-order.component';
 
 const PAGE_SIZE = 20;
 /** The most products that can be ranked; the server refuses more. */
@@ -24,7 +25,7 @@ const MAX_RANKED = 500;
 @Component({
   selector: 'app-shop-order',
   standalone: true,
-  imports: [FormsModule, SidebarComponent],
+  imports: [FormsModule, SidebarComponent, CategoryOrderComponent],
   template: `
     <div class="flex h-screen bg-gray-50 overflow-hidden">
       <app-sidebar />
@@ -36,13 +37,27 @@ const MAX_RANKED = 500;
             <span class="text-xs text-gray-400" data-testid="ranked-count">{{ ranked().length }} ranked</span>
             @if (saving()) { <span class="text-xs text-blue-600">Saving…</span> }
           </div>
-          @if (canRank() && ranked().length > 0) {
+          @if (tab() === 'products' && canRank() && ranked().length > 0) {
             <button type="button" (click)="clearAll()" [disabled]="saving()" data-testid="rank-clear"
               class="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 rounded-lg disabled:opacity-50">Remove all</button>
           }
         </header>
 
         <main class="flex-1 overflow-y-auto p-6 space-y-5">
+          <!-- Products or categories: two lists, arranged the same way -->
+          @if (canSeeCategories()) {
+            <div class="inline-flex rounded-lg border border-gray-200 bg-white p-1" role="tablist" data-testid="order-tabs">
+              <button type="button" role="tab" (click)="tab.set('products')" [attr.aria-selected]="tab() === 'products'" data-testid="tab-products"
+                class="px-4 py-1.5 text-sm font-semibold rounded-md transition-colors"
+                [class.bg-blue-600]="tab() === 'products'" [class.text-white]="tab() === 'products'" [class.text-gray-600]="tab() !== 'products'">Products</button>
+              <button type="button" role="tab" (click)="tab.set('categories')" [attr.aria-selected]="tab() === 'categories'" data-testid="tab-categories"
+                class="px-4 py-1.5 text-sm font-semibold rounded-md transition-colors"
+                [class.bg-blue-600]="tab() === 'categories'" [class.text-white]="tab() === 'categories'" [class.text-gray-600]="tab() !== 'categories'">Categories</button>
+            </div>
+          }
+          @if (tab() === 'categories') {
+            <app-category-order />
+          } @else {
           <div class="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-900">
             <p class="font-semibold">How the shop orders its products</p>
             <p class="mt-1">
@@ -123,9 +138,15 @@ const MAX_RANKED = 500;
           <!-- ── finding products to rank ─────────────────────────────────── -->
           <section class="bg-white rounded-xl border border-gray-200" data-testid="find-products">
             <div class="px-5 py-3 border-b border-gray-100 flex flex-wrap items-center gap-3">
+              @if (canRank()) {
+                <!-- Ticks every product in the list below that is not ranked yet; the ranked ones have no box to tick. -->
+                <input type="checkbox" [checked]="allPicked()" [indeterminate]="somePicked()" [disabled]="selectable().length === 0"
+                  (change)="toggleAll()" aria-label="Select every product in this list" title="Select every product in this list" data-testid="find-pick-all"
+                  class="h-4 w-4 rounded border-gray-300 text-blue-600 disabled:opacity-40" />
+              }
               <div class="mr-auto">
                 <h2 class="text-sm font-bold text-gray-800">Find products</h2>
-                <p class="text-xs text-gray-500">Search by name, SKU or product code, or choose a category.</p>
+                <p class="text-xs text-gray-500">Search by name, SKU or product code, or choose a category. Tick the box here to select every product in the list.</p>
               </div>
               <input type="search" [ngModel]="q()" (ngModelChange)="onSearch($event)" placeholder="Search by name, SKU or code…" data-testid="find-search"
                 class="w-64 rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-300" />
@@ -197,6 +218,7 @@ const MAX_RANKED = 500;
               </div>
             }
           </section>
+          }
         </main>
       </div>
     </div>
@@ -211,6 +233,9 @@ export class ShopOrderComponent implements OnInit {
   private readonly notices = inject(NoticeService);
 
   protected readonly canRank = computed(() => this.perms.can('products.rank'));
+  /** The Categories tab is for people who may see categories. */
+  protected readonly canSeeCategories = computed(() => this.perms.can('categories.view'));
+  protected readonly tab = signal<'products' | 'categories'>('products');
 
   protected readonly ranked = signal<ShopOrderItem[]>([]);
   protected readonly loading = signal(true);
@@ -370,6 +395,21 @@ export class ShopOrderComponent implements OnInit {
     if (page < 0 || page >= this.pages()) return;
     this.page.set(page);
     this.find();
+  }
+
+  /** The products on this page of the list that can be ticked: those not ranked yet. */
+  protected readonly selectable = computed(() => {
+    const ranked = new Set(this.ranked().map((r) => r.id));
+    return this.results().map((p) => p.id).filter((id) => !ranked.has(id));
+  });
+  protected readonly allPicked = computed(() => this.selectable().length > 0 && this.selectable().every((id) => this.picked().includes(id)));
+  protected readonly somePicked = computed(() => !this.allPicked() && this.selectable().some((id) => this.picked().includes(id)));
+
+  /** Ticks every product in the list, or unticks them when they are all ticked already. Ticks on other pages are kept. */
+  protected toggleAll(): void {
+    const page = this.selectable();
+    if (this.allPicked()) this.picked.update((ids) => ids.filter((id) => !page.includes(id)));
+    else this.picked.update((ids) => [...ids, ...page.filter((id) => !ids.includes(id))]);
   }
 
   protected togglePick(id: number): void {

@@ -26,6 +26,22 @@ import java.util.List;
 public class AdminShopOrderController {
 
     private final ShopOrderService shopOrder;
+    private final kn.org.deliverybackend.service.CategoryService categories;
+
+    /** The body of a category save: the group (null for the main categories) and its categories, first to last. */
+    public record CategoryOrderRequest(Long parentId, List<Long> categoryIds) {
+    }
+
+    /** Arranges the main categories, or one category's subcategories, in the shop. */
+    @RequiresPermission(Perm.CATEGORIES_EDIT)
+    @PutMapping("/categories")
+    public List<kn.org.deliverybackend.dto.response.category.CategoryResponseDTO> saveCategories(@RequestBody CategoryOrderRequest request) {
+        List<kn.org.deliverybackend.dto.response.category.CategoryResponseDTO> all =
+                categories.arrangeSiblings(request == null ? null : request.parentId(), request == null ? null : request.categoryIds());
+        StaffAccess.describe(request != null && request.parentId() != null
+                ? "Changed the order of subcategories in the shop" : "Changed the order of categories in the shop");
+        return all;
+    }
 
     /** The body of a save: the ranked products' ids, first to last. */
     public record ShopOrderRequest(List<Long> productIds) {

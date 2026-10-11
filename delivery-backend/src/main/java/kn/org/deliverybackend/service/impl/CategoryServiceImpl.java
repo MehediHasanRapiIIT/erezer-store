@@ -33,16 +33,14 @@ public class CategoryServiceImpl implements CategoryService {
 
     /**
      * Categories as a tree read top to bottom: each one followed at once by
-     * everything under it, siblings by name. A category whose parent is not in
+     * everything under it, siblings in the shop's order ({@link #SHOP_ORDER}). A category whose parent is not in
      * the list (deleted, or filtered out) is placed at the top level rather
      * than lost.
      */
     private static List<Category> inTreeOrder(List<Category> all) {
         java.util.Map<Long, Category> byId = new java.util.HashMap<>();
         for (Category c : all) if (c.getId() != null) byId.put(c.getId(), c);
-        java.util.Comparator<Category> byName = java.util.Comparator
-                .comparing((Category c) -> c.getName() == null ? "" : c.getName().toLowerCase(Locale.ROOT))
-                .thenComparing(c -> c.getId() == null ? 0L : c.getId());
+        java.util.Comparator<Category> byName = SHOP_ORDER;
         java.util.Map<Long, List<Category>> children = new java.util.HashMap<>();
         List<Category> top = new java.util.ArrayList<>();
         for (Category c : all) {
@@ -67,23 +65,110 @@ public class CategoryServiceImpl implements CategoryService {
         return ordered;
     }
 
+    /**
+     * Siblings in the shop's order: the ones the admin arranged on "Shop Order"
+     * first, in that order, then the rest by name.
+     */
+    public static final java.util.Comparator<Category> SHOP_ORDER = java.util.Comparator
+            .comparing((Category c) -> c.getShopOrder() == null ? Integer.MAX_VALUE : c.getShopOrder())
+            .thenComparing(c -> c.getName() == null ? "" : c.getName().toLowerCase(Locale.ROOT))
+            .thenComparing(c -> c.getId() == null ? 0L : c.getId());
+
+    /**
+     * Puts siblings in the order given: the main categories when {@code parentId}
+     * is null, otherwise the subcategories of that category. Every id must be a
+     * live category with that parent. Siblings left out of the list are no longer
+     * arranged, and follow the listed ones by name.
+     */
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public List<CategoryResponseDTO> arrangeSiblings(Long parentId, List<Long> orderedIds) {
+        List<Long> order = new java.util.ArrayList<>(new java.util.LinkedHashSet<>(orderedIds == null ? List.<Long>of() : orderedIds));
+        order.remove(null);
+        List<Category> siblings = categoryRepository.findAll().stream()
+                .filter(c -> !Boolean.TRUE.equals(c.getDeleted()))
+                .filter(c -> java.util.Objects.equals(c.getParentId(), parentId))
+                .toList();
+        java.util.Map<Long, Category> byId = new java.util.HashMap<>();
+        for (Category c : siblings) byId.put(c.getId(), c);
+        for (Long id : order) {
+            if (!byId.containsKey(id)) {
+                throw new kn.org.deliverybackend.exception.InvalidRequestException(
+                        "A category in the list is not in this group any more. Reload the page and try again.");
+            }
+        }
+        for (Category c : siblings) {
+            int at = order.indexOf(c.getId());
+            Integer place = at < 0 ? null : at + 1;
+            if (!java.util.Objects.equals(place, c.getShopOrder())) {
+                c.setShopOrder(place);
+                categoryRepository.save(c);
+            }
+        }
+        return getAllCategories();
+    }
+
     @Override
     public org.springframework.data.domain.Page<CategoryResponseDTO> adminPage(String q, int page, int size) {
-        // A shop keeps a handful of categories, so they are searched here and
-        // only the requested page leaves the server.
+        return adminPage(q, null, null, null, null, page, size);
+    }
+
+    @Override
+    public org.springframework.data.domain.Page<CategoryResponseDTO> adminPage(String q, String status, String kind, String image,
+                                                                               String sort, int page, int size) {
+        // A shop keeps a handful of categories, so they are searched, narrowed
+        // and ordered here and only the requested page leaves the server.
         String text = q == null ? "" : q.trim().toLowerCase(java.util.Locale.ROOT);
-        // Tree order first, then the search: what matches keeps its place in the tree.
+        // Tree order first, then the search and filters: what matches keeps its place in the tree.
         List<Category> matching = inTreeOrder(categoryRepository.findAll(org.springframework.data.domain.Sort.by("id")).stream()
                 .filter(c -> !Boolean.TRUE.equals(c.getDeleted())).toList()).stream()
                 .filter(c -> text.isEmpty() || contains(c.getName(), text) || contains(c.getSlug(), text))
+                .filter(c -> switch (choice(status)) {
+                    case "active" -> Boolean.TRUE.equals(c.getIsActive());
+                    case "hidden" -> !Boolean.TRUE.equals(c.getIsActive());
+                    default -> true;
+                })
+                .filter(c -> switch (choice(kind)) {
+                    case "main" -> c.getParentId() == null;
+                    case "sub" -> c.getParentId() != null;
+                    default -> true;
+                })
+                .filter(c -> switch (choice(image)) {
+                    case "missing" -> c.getImageUrl() == null || c.getImageUrl().isBlank();
+                    case "with" -> c.getImageUrl() != null && !c.getImageUrl().isBlank();
+                    default -> true;
+                })
                 .toList();
         int safeSize = kn.org.deliverybackend.util.SearchText.pageSize(size);
         int safePage = Math.max(page, 0);
         int from = Math.min(safePage * safeSize, matching.size());
         int to = Math.min(from + safeSize, matching.size());
-        List<CategoryResponseDTO> content = matching.subList(from, to).stream().map(this::toEnrichedDTO).toList();
-        return new org.springframework.data.domain.PageImpl<>(content,
-                org.springframework.data.domain.PageRequest.of(safePage, safeSize), matching.size());
+        org.springframework.data.domain.PageRequest request = org.springframework.data.domain.PageRequest.of(safePage, safeSize);
+
+        java.util.Comparator<Category> byName = java.util.Comparator.comparing(
+                c -> c.getName() == null ? "" : c.getName().toLowerCase(java.util.Locale.ROOT));
+        List<CategoryResponseDTO> content;
+        switch (choice(sort)) {
+            case "name" -> content = matching.stream().sorted(byName).toList().subList(from, to).stream().map(this::toEnrichedDTO).toList();
+            case "name-desc" -> content = matching.stream().sorted(byName.reversed()).toList().subList(from, to).stream().map(this::toEnrichedDTO).toList();
+            case "newest" -> content = matching.stream()
+                    .sorted(java.util.Comparator.comparing(Category::getId, java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
+                    .toList().subList(from, to).stream().map(this::toEnrichedDTO).toList();
+            case "products", "products-asc" -> {
+                // The product count is worked out per category, so every match is counted before ordering.
+                java.util.Comparator<CategoryResponseDTO> byCount = java.util.Comparator.comparingLong(CategoryResponseDTO::getProductCount);
+                if ("products".equals(choice(sort))) byCount = byCount.reversed();
+                content = matching.stream().map(this::toEnrichedDTO)
+                        .sorted(byCount.thenComparing(d -> d.getName() == null ? "" : d.getName().toLowerCase(java.util.Locale.ROOT)))
+                        .toList().subList(from, to);
+            }
+            default -> content = matching.subList(from, to).stream().map(this::toEnrichedDTO).toList();
+        }
+        return new org.springframework.data.domain.PageImpl<>(content, request, matching.size());
+    }
+
+    private static String choice(String value) {
+        return value == null ? "" : value.trim().toLowerCase(java.util.Locale.ROOT);
     }
 
     private static boolean contains(String value, String lowerText) {

@@ -23,6 +23,10 @@ public class OrderItem extends AbstractBaseEntity<UUID> {
 
     private Long productId;
 
+    /** The product's name when the order was placed, so the order still says what was bought after the product is renamed or deleted. */
+    @Column(name = "product_name")
+    private String productName;
+
     /** The product code when the order was placed, kept like the price so later edits don't rewrite invoices. */
     @Column(name = "product_code", length = 40)
     private String productCode;

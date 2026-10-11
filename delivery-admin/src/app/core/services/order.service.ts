@@ -15,6 +15,22 @@ import {
 // Re-export so existing imports keep compiling.
 export type { OrderStatus } from '../models/api.models';
 
+/**
+ * An admin's correction to an order. Anything left out is not changed. `items`,
+ * when given, is the whole order as it should now be: a line with an id is
+ * already on the order, a line without one is being added, and a line that is
+ * missing is being removed.
+ */
+export interface OrderEdit {
+  customerName?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  deliveryAddress?: string;
+  shippingFee?: number;
+  discountAmount?: number;
+  items?: { id: string | null; productId: number | null; variantId: number | null; quantity: number; unitPrice: number | null }[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class OrderService {
   private http = inject(HttpClient);
@@ -64,6 +80,15 @@ export class OrderService {
   /** Admin: fetch one order fresh (enriched customer + items). */
   getAdminOrder(orderId: string): Observable<OrderResponse> {
     return this.http.get<OrderResponse>(`${this.baseUrl}/admin/orders/${orderId}`);
+  }
+
+  /**
+   * Corrects an order: customer details, items and quantities, and (with the
+   * "Change prices on an order" permission) prices. The server moves stock for
+   * every item that changed and answers with the order as it now is.
+   */
+  editOrder(orderId: string, edit: OrderEdit): Observable<OrderResponse> {
+    return this.http.put<OrderResponse>(`${this.baseUrl}/admin/orders/${orderId}`, edit);
   }
 
   /** Invoice PDF (as a Blob) for viewing / printing. */

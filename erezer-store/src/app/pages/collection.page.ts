@@ -99,7 +99,8 @@ export class CollectionPage {
   /** Every active category, to find what is under this one and what it sits under. */
   private readonly allCategories = signal<ApiCategory[]>([]);
   private childrenOf(id: number): ApiCategory[] {
-    return this.allCategories().filter((c) => c.parentId === id).sort((a, b) => a.name.localeCompare(b.name));
+    // In the order the shop arranged them (the server sends categories in that order).
+    return this.allCategories().filter((c) => c.parentId === id);
   }
   /** Every category above this one, from the main category down; empty on a main category's page. */
   protected readonly trail = computed(() => {

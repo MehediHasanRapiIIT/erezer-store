@@ -270,4 +270,34 @@ class SubcategoriesTest {
         service.deleteCategory(ZIP);
         verify(categories).deleteById(ZIP);
     }
+    // ── the admin's own order (Shop Order → Categories) ──────────────────────
+
+    @Test
+    void theAdminCanArrangeTheMainCategoriesAndASubcategoriesGroup() {
+        category(7, "Bags", null);
+        when(categories.findAll()).thenAnswer(inv -> new ArrayList<>(byId.values()));
+
+        // Main categories: Hoodies, then Caps. Bags is left out, so it follows them by name.
+        List<String> afterMain = service.arrangeSiblings(null, List.of(HOODIES, CAPS)).stream().map(CategoryResponseDTO::getName).toList();
+        assertEquals(List.of("Hoodies", "Pullover Hoodies", "Zip Hoodies", "Caps", "Bags"), afterMain);
+        assertEquals(1, byId.get(HOODIES).getShopOrder());
+        assertEquals(2, byId.get(CAPS).getShopOrder());
+        assertNull(byId.get(7L).getShopOrder());
+
+        // The subcategories of Hoodies: Zip before Pullover.
+        List<String> afterSub = service.arrangeSiblings(HOODIES, List.of(ZIP, PULLOVER)).stream().map(CategoryResponseDTO::getName).toList();
+        assertEquals(List.of("Hoodies", "Zip Hoodies", "Pullover Hoodies", "Caps", "Bags"), afterSub);
+
+        // An empty list puts the group back in name order.
+        List<String> reset = service.arrangeSiblings(null, List.of()).stream().map(CategoryResponseDTO::getName).toList();
+        assertEquals(List.of("Bags", "Caps", "Hoodies", "Zip Hoodies", "Pullover Hoodies"), reset);
+    }
+
+    @Test
+    void aCategoryFromAnotherGroupCannotBeArrangedWithThisOne() {
+        when(categories.findAll()).thenAnswer(inv -> new ArrayList<>(byId.values()));
+        assertThrows(kn.org.deliverybackend.exception.InvalidRequestException.class, () -> service.arrangeSiblings(null, List.of(HOODIES, ZIP)));
+        assertThrows(kn.org.deliverybackend.exception.InvalidRequestException.class, () -> service.arrangeSiblings(HOODIES, List.of(ZIP, 99L)));
+        assertNull(byId.get(HOODIES).getShopOrder(), "nothing was arranged");
+    }
 }

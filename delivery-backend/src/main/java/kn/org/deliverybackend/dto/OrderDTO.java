@@ -49,6 +49,12 @@ public class OrderDTO {
     private String customerPhone;
     private String customerEmail;
 
+    /** What the customer has already paid online for this order (bKash), or null when nothing was. Admin only. */
+    private BigDecimal paidAmount;
+    private BigDecimal subtotalAmount;
+    private BigDecimal discountAmount;
+    private BigDecimal shippingFee;
+
     // Enriched rider info (populated from UserRider table)
     private String riderName;
     private String riderPhone;

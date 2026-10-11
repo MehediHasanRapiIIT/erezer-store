@@ -99,7 +99,8 @@ public class OrderEmailListener {
         for (OrderItem oi : orderItemRepository.findByOrderId(order.getId())) {
             String name = productRepository.findById(oi.getProductId())
                     .map(Product::getName)
-                    .orElse("Item");
+                    // A product deleted since: the name kept on the order line.
+                    .orElse(oi.getProductName() != null && !oi.getProductName().isBlank() ? oi.getProductName() : "Item");
             BigDecimal price = oi.getPriceAtOrder() != null ? oi.getPriceAtOrder() : BigDecimal.ZERO;
             BigDecimal line = price.multiply(BigDecimal.valueOf(oi.getQuantity()));
             subtotal = subtotal.add(line);

@@ -10,9 +10,14 @@ export class CategoryService {
   private baseUrl = environment.apiBaseUrl;
 
   /** One page of the admin Categories page; the server searches name and web address. */
-  getCategoriesPage(q: string, page: number, size: number): Observable<PageResponse<CategoryResponse>> {
+  getCategoriesPage(q: string, page: number, size: number,
+      narrow: { status?: string; kind?: string; image?: string; sort?: string } = {}): Observable<PageResponse<CategoryResponse>> {
     const params: Record<string, string> = { page: String(page), size: String(size) };
     if (q) params['q'] = q;
+    // The list's Filter and Sort; left out, the server sends every category in tree order.
+    for (const [key, value] of Object.entries(narrow)) {
+      if (value) params[key] = value;
+    }
     return this.http.get<PageResponse<CategoryResponse>>(`${this.baseUrl}/admin/categories`, { params })
       .pipe(map((p) => ({ ...p, content: p.content.map(labelled) })));
   }
@@ -24,6 +29,15 @@ export class CategoryService {
    */
   getCategories(): Observable<CategoryResponse[]> {
     return this.http.get<CategoryResponse[]>(`${this.baseUrl}/api/categories`).pipe(map((all) => all.map(labelled)));
+  }
+
+  /**
+   * Puts the main categories (parentId null) or one category's subcategories in
+   * the order given, for the shop. Answers with every category, in the new order.
+   */
+  arrange(parentId: number | null, categoryIds: number[]): Observable<CategoryResponse[]> {
+    return this.http.put<CategoryResponse[]>(`${this.baseUrl}/admin/shop-order/categories`, { parentId, categoryIds })
+      .pipe(map((all) => all.map(labelled)));
   }
 
   getCategory(id: number): Observable<CategoryResponse> {

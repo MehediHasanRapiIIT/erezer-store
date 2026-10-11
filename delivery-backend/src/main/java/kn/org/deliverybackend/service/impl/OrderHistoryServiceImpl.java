@@ -54,6 +54,7 @@ public class OrderHistoryServiceImpl implements OrderHistoryService {
     private final UsersRepository usersRepository;
     private final UserRiderRepository userRiderRepository;
     private final ProductRepository productRepository;
+    private final kn.org.deliverybackend.repository.PaymentRepository paymentRepository;
     private final VariantRepository variantRepository;
     private final ProductImageRepository productImageRepository;
     private final OrderMapper orderMapper;
@@ -167,7 +168,19 @@ public class OrderHistoryServiceImpl implements OrderHistoryService {
         Order order = orderRepository.findById(orderId)
                 .filter(o -> !Boolean.TRUE.equals(o.getDeleted()))
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
-        return toOrderDTOWithItems(order);
+        OrderDTO dto = toOrderDTOWithItems(order);
+        // What the order page needs to edit an order and to warn when the total no longer matches a payment.
+        dto.setSubtotalAmount(order.getSubtotalAmount());
+        dto.setDiscountAmount(order.getDiscountAmount());
+        dto.setShippingFee(order.getShippingFee());
+        java.math.BigDecimal paid = paymentRepository.findByOrderId(order.getId()).stream()
+                .filter(p -> p.getAmount() != null && p.getStatus() != null
+                        && (p.getStatus().equalsIgnoreCase("Completed") || p.getStatus().equalsIgnoreCase("Success")
+                                || p.getStatus().equalsIgnoreCase("Paid")))
+                .map(kn.org.deliverybackend.entity.Payment::getAmount)
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+        dto.setPaidAmount(paid.signum() > 0 ? paid : null);
+        return dto;
     }
 
     @Override

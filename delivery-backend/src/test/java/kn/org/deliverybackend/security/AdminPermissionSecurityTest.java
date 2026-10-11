@@ -91,6 +91,7 @@ class AdminPermissionSecurityTest {
     @MockBean private OrderHistoryService orderHistoryService;
     @MockBean private OrderService orderService;
     @MockBean private InvoiceService invoiceService;
+    @MockBean private kn.org.deliverybackend.service.impl.OrderEditService orderEditService;
     @MockBean private ReportService reportService;
     @MockBean private StoreSettingsService storeSettingsService;
     @MockBean private kn.org.deliverybackend.integration.keycloak.KeycloakAdminClient keycloak;

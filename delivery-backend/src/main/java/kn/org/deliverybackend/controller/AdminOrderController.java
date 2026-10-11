@@ -38,6 +38,7 @@ public class AdminOrderController {
     private final OrderHistoryService orderHistoryService;
     private final OrderService orderService;
     private final InvoiceService invoiceService;
+    private final kn.org.deliverybackend.service.impl.OrderEditService orderEditService;
 
     @RequiresPermission(Perm.ORDERS_VIEW)
     @GetMapping("/summary")
@@ -112,6 +113,30 @@ public class AdminOrderController {
     }
 
     /** Returns the full status-history timeline for an order. */
+    /**
+     * Corrects an order: the customer's details, the items and their quantities,
+     * and (with "Change prices on an order") the prices. Stock follows the items.
+     */
+    @RequiresPermission(Perm.ORDERS_EDIT)
+    @org.springframework.web.bind.annotation.PutMapping("/{orderId}")
+    public ResponseEntity<OrderDTO> editOrder(@PathVariable UUID orderId,
+                                              @RequestBody kn.org.deliverybackend.dto.OrderEditRequestDTO request) {
+        String editor = kn.org.deliverybackend.access.StaffAccess.current()
+                .map(staff -> staff.name() != null && !staff.name().isBlank() ? staff.name() : staff.username())
+                .orElse("admin");
+        java.util.List<String> changes = orderEditService.edit(orderId, request,
+                kn.org.deliverybackend.access.StaffAccess.has(Perm.ORDERS_REPRICE), editor);
+        if (!changes.isEmpty()) {
+            OrderDTO edited = orderHistoryService.getOrderByIdForAdmin(orderId);
+            kn.org.deliverybackend.access.StaffAccess.describe("Edited order "
+                    + (edited.getOrderNumber() != null ? edited.getOrderNumber() : orderId) + " (" + changes.size()
+                    + (changes.size() == 1 ? " change)" : " changes)"));
+            kn.org.deliverybackend.access.StaffAccess.details(String.join("; ", changes));
+            return ResponseEntity.ok(edited);
+        }
+        return ResponseEntity.ok(orderHistoryService.getOrderByIdForAdmin(orderId));
+    }
+
     @RequiresPermission(Perm.ORDERS_VIEW)
     @GetMapping("/{orderId}/track")
     public ResponseEntity<OrderTrackingDTO> getTracking(@PathVariable UUID orderId) {

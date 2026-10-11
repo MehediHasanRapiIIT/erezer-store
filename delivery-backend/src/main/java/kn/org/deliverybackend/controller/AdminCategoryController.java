@@ -29,8 +29,13 @@ public class AdminCategoryController {
     @GetMapping
     public Page<CategoryResponseDTO> list(
             @RequestParam(required = false) String q,
+            // The list's Filter and Sort. Left out, the list is every category in tree order.
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String kind,
+            @RequestParam(required = false) String image,
+            @RequestParam(required = false) String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return categoryService.adminPage(q, page, size);
+        return categoryService.adminPage(q, status, kind, image, sort, page, size);
     }
 }

@@ -26,6 +26,51 @@ export class CategoriesListComponent implements OnInit, OnDestroy {
   private searchSubject = new Subject<string>();
   /** 1-based, for the page buttons; the server's pages start at 0. */
   currentPage = signal(1);
+
+  // ── Filter and Sort (done by the server, like the search) ─────────────────
+  readonly statusFilter = signal<'' | 'active' | 'hidden'>('');
+  readonly kindFilter = signal<'' | 'main' | 'sub'>('');
+  readonly imageFilter = signal<'' | 'missing' | 'with'>('');
+  readonly sortBy = signal('');
+  /** Which of the two small panels is open. */
+  readonly openPanel = signal<'filter' | 'sort' | null>(null);
+  readonly activeFilters = computed(() => [this.statusFilter(), this.kindFilter(), this.imageFilter()].filter(Boolean).length);
+  readonly sortOptions: { value: string; label: string }[] = [
+    { value: '', label: 'Category tree (main, then its subcategories)' },
+    { value: 'name', label: 'Name: A to Z' },
+    { value: 'name-desc', label: 'Name: Z to A' },
+    { value: 'products', label: 'Most products first' },
+    { value: 'products-asc', label: 'Fewest products first' },
+    { value: 'newest', label: 'Newest first' },
+  ];
+  readonly sortLabel = computed(() => {
+    const chosen = this.sortOptions.find((o) => o.value === this.sortBy());
+    return chosen && chosen.value ? chosen.label : '';
+  });
+
+  togglePanel(panel: 'filter' | 'sort'): void {
+    this.openPanel.update((open) => (open === panel ? null : panel));
+  }
+
+  setFilter(which: 'status' | 'kind' | 'image', value: string): void {
+    if (which === 'status') this.statusFilter.set(value as '' | 'active' | 'hidden');
+    if (which === 'kind') this.kindFilter.set(value as '' | 'main' | 'sub');
+    if (which === 'image') this.imageFilter.set(value as '' | 'missing' | 'with');
+    this.loadPage(1);
+  }
+
+  clearFilters(): void {
+    this.statusFilter.set('');
+    this.kindFilter.set('');
+    this.imageFilter.set('');
+    this.loadPage(1);
+  }
+
+  setSort(value: string): void {
+    this.sortBy.set(value);
+    this.openPanel.set(null);
+    this.loadPage(1);
+  }
   readonly pageSize = 10;
 
   /** The page on screen. */
@@ -75,7 +120,9 @@ export class CategoriesListComponent implements OnInit, OnDestroy {
     const request = ++this.latestRequest;
     this.isLoading.set(true);
     this.errorMessage.set('');
-    this.categoryService.getCategoriesPage(this.searchQuery().trim(), page - 1, this.pageSize).subscribe({
+    this.categoryService.getCategoriesPage(this.searchQuery().trim(), page - 1, this.pageSize, {
+      status: this.statusFilter(), kind: this.kindFilter(), image: this.imageFilter(), sort: this.sortBy(),
+    }).subscribe({
       next: (data) => {
         if (request !== this.latestRequest) return;
         // The last category on the last page was just deleted: show the page before.

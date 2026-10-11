@@ -243,6 +243,8 @@ export interface CategoryResponse {
   sizeChartId?: number | null;
   /** How far down it sits: 0 for a main category, 1 for its subcategory, and so on. */
   depth?: number;
+  /** Its place among its siblings in the shop (1 is first); null when the admin has not arranged it. */
+  shopOrder?: number | null;
   /** The whole way down to it: "Men › T-Shirts › Drop Shoulder". */
   path?: string | null;
   /** Products put directly in it. productCount also counts its subcategories'. */
@@ -364,6 +366,13 @@ export interface OrderResponse {
   cancellationReason?: string | null;
   cancelledAt?: string | null;
   customerEmail?: string | null;
+
+  // Only on a single order read for the admin order page.
+  subtotalAmount?: number | null;
+  discountAmount?: number | null;
+  shippingFee?: number | null;
+  /** What the customer already paid online (bKash); null when nothing was. */
+  paidAmount?: number | null;
 }
 
 // ─── Order status & tracking (Phase 2) ──────────────────────────────────────

@@ -12,6 +12,7 @@ const EXPLICIT_NEEDS: Readonly<Record<string, readonly string[]>> = {
   'reports.view': ['finance.revenue'],
   'reports.export': ['reports.view', 'finance.revenue'],
   'products.create': ['products.price', 'products.view'],
+  'orders.reprice': ['orders.edit', 'orders.view'],
   'newsletter.campaigns.edit': ['newsletter.campaigns.view'],
   'newsletter.campaigns.send': ['newsletter.campaigns.view'],
   'staff.manage': ['staff.view'],

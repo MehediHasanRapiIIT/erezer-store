@@ -652,6 +652,7 @@ public class OrderServiceImpl implements OrderService {
             oi.setPriceAtOrder(PricingSupport.effectiveUnitPrice(p, variant));
             // Kept like the price, so changing the product's code later leaves this order's invoice alone.
             oi.setProductCode(p.getProductCode());
+            oi.setProductName(p.getName());
             // Snapshot variant attributes so order history survives later edits/deletes.
             if (variant != null) {
                 // Variants are size-only — snapshot the size as the name too.
