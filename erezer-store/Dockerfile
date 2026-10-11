@@ -51,6 +51,16 @@ server {
     # catalog, so a new product is listed by itself. The upstream is a variable
     # and Docker's own DNS the resolver, so nginx looks the backend up per
     # request instead of at startup - it still starts when the backend is down.
+    # robots.txt names the sitemap by its full address, which must be the
+    # address the shop is being visited on. Written with the shop's first
+    # address in the file; swapped here for whichever host this request came to,
+    # so the file is right on any domain without a rebuild.
+    location = /robots.txt {
+        sub_filter 'https://shop.erezer.com' 'https://$host';
+        sub_filter_types text/plain;
+        sub_filter_once off;
+    }
+
     location = /sitemap.xml {
         resolver 127.0.0.11 valid=30s ipv6=off;
         set $sitemap_upstream http://backend:8080;

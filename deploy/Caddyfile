@@ -60,6 +60,17 @@
 	reverse_proxy admin:80
 }
 
+# -- Addresses the shop used to have ------------------------------------------
+# When the shop moves (shop.erezer.com -> erezer.com), list the old address and
+# any alias here, in .env:  STOREFRONT_OLD_HOSTS=shop.erezer.com, www.erezer.com
+# Every old link then lands on the same page of the new address, for good, so
+# bookmarks and search results keep working. Unset, this block matches nothing
+# real (a plain-http name that no request carries, and no certificate is asked for).
+{$STOREFRONT_OLD_HOSTS:http://old-storefront.invalid} {
+	import common_headers
+	redir https://{$STOREFRONT_HOST}{uri} permanent
+}
+
 # -- API (Spring Boot) --------------------------------------------------------
 {$API_HOST} {
 	encode zstd gzip
