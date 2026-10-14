@@ -13,6 +13,8 @@
     .top td { vertical-align: top; }
     .brand { font-size: 28px; font-weight: bold; letter-spacing: 5px; color: #0c0a09; }
     .brand-sub { color: #78716c; font-size: 9px; letter-spacing: 3px; margin-top: 2px; }
+    .logo { width: 180px; height: 20px; display: block; }
+    .tagline { color: #57534e; font-size: 10px; font-style: italic; letter-spacing: 1px; margin-top: 7px; }
     .inv-title { text-align: right; }
     .inv-title .t { font-size: 26px; font-weight: bold; letter-spacing: 4px; color: #0c0a09; }
     .inv-title .n { color: #57534e; font-size: 11px; margin-top: 3px; }
@@ -71,8 +73,9 @@
     <table class="top">
       <tr>
         <td>
-          <div class="brand">EREZER</div>
-          <div class="brand-sub">APPAREL &middot; DHAKA</div>
+          <img th:if="${logo != null}" class="logo" th:src="${logo}" alt="EREZER" />
+          <div th:if="${logo == null}" class="brand">EREZER</div>
+          <div class="tagline">Ereze the Ordinary</div>
         </td>
         <td class="inv-title">
           <div class="t">INVOICE</div>

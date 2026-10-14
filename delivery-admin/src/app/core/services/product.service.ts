@@ -166,6 +166,10 @@ export class ProductService {
     // 0 takes the product's own chart away; leaving it out would keep the old one.
     if (dto.sizeChartId != null)           formData.append('sizeChartId', String(dto.sizeChartId));
     if (dto.regularFitSizeChartId != null) formData.append('regularFitSizeChartId', String(dto.regularFitSizeChartId));
+    // A chart for each fit: fitSizeChartIds[REGULAR_FIT]=3 (0 takes it away).
+    for (const [fit, chart] of Object.entries(dto.fitSizeChartIds ?? {})) {
+      formData.append(`fitSizeChartIds[${fit}]`, String(chart ?? 0));
+    }
     if (image) {
       formData.append('image', image);
     }
@@ -188,9 +192,13 @@ export class ProductService {
    * One action for the products ticked on the Products page. The answer is a
    * sentence saying what was done, ready to show.
    */
-  bulk(action: BulkProductAction, productIds: number[], categoryId?: number | null, sizeChartId?: number | null): Observable<{ changed: number; message: string }> {
+  bulk(action: BulkProductAction, productIds: number[], categoryId?: number | null, sizeChartId?: number | null,
+       charts?: { fitSizeChartIds?: Record<string, number>; keepGeneralChart?: boolean }): Observable<{ changed: number; message: string }> {
     return this.http.put<{ changed: number; message: string }>(
-      `${this.baseUrl}/admin/products/bulk`, { action, productIds, categoryId: categoryId ?? null, sizeChartId: sizeChartId ?? null });
+      `${this.baseUrl}/admin/products/bulk`, {
+        action, productIds, categoryId: categoryId ?? null, sizeChartId: sizeChartId ?? null,
+        fitSizeChartIds: charts?.fitSizeChartIds ?? null, keepGeneralChart: charts?.keepGeneralChart ?? null,
+      });
   }
 
   deleteProduct(id: number): Observable<void> {

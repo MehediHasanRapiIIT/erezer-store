@@ -14,7 +14,7 @@ import {
   ApiReview,
   ApiStockStatus,
   ApiStoreSettings,
-  ApiSizeChartEntry,
+  ApiSizeChartEntry, ApiSizeFinder, ApiSizeFinderRule,
   ApiVariant,
 } from '../core/api.models';
 import { EcommerceStore } from '../core/store/ecommerce.store';
@@ -136,6 +136,9 @@ import { RevealDirective } from '../core/reveal.directive';
                   <p class="text-xs font-semibold uppercase tracking-[0.28em] text-neutral-500 dark:text-neutral-400">{{ p.brand }}</p>
                 }
                 <h1 class="text-3xl font-semibold tracking-tight md:text-4xl">{{ p.name }}</h1>
+                @if (p.productCode) {
+                  <p class="text-xs tracking-wide text-neutral-500 dark:text-neutral-400" data-testid="product-code">Product code: {{ p.productCode }}</p>
+                }
 
                 <!-- rating -->
                 @if (ratingSummary(); as rs) {
@@ -706,8 +709,9 @@ import { RevealDirective } from '../core/reveal.directive';
                 </tbody>
               </table>
 
-              <!-- don't know your size -->
-              <button type="button" (click)="simulatorOpen.set(!simulatorOpen())"
+              <!-- don't know your size (unless the admin switched it off for this fit) -->
+              @if (finderOn()) {
+              <button type="button" (click)="simulatorOpen.set(!simulatorOpen())" data-testid="size-finder-toggle"
                 class="mt-5 flex w-full items-center justify-center gap-2 rounded-full border border-neutral-200 px-4 py-3 text-sm font-semibold transition hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800">
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M12 17h.008v.008H12V17z"/><circle cx="12" cy="12" r="9"/></svg>
                 {{ simulatorOpen() ? 'Hide size finder' : "Don't know your size? CLICK HERE" }}
@@ -715,7 +719,7 @@ import { RevealDirective } from '../core/reveal.directive';
 
               <!-- ── sizing simulator ─────────────────────────────────────────── -->
               @if (simulatorOpen()) {
-                <div class="mt-6 border-t border-neutral-200 pt-6 dark:border-neutral-800">
+                <div data-testid="size-finder" class="mt-6 border-t border-neutral-200 pt-6 dark:border-neutral-800">
                   <h4 class="text-center text-lg font-bold tracking-tight">Sizing Simulator</h4>
                   <p class="mt-1 text-center text-xs font-semibold uppercase tracking-[0.2em] text-red-500">Proportional rule</p>
 
@@ -748,9 +752,9 @@ import { RevealDirective } from '../core/reveal.directive';
 
                   <!-- recommendation row -->
                   <div class="mt-5 grid grid-cols-3 gap-2 border-y border-neutral-200 py-4 text-center dark:border-neutral-800">
-                    <div><p class="text-xs text-neutral-400">Height Size</p><p class="mt-1 text-lg font-bold">{{ heightSize() }}</p></div>
-                    <div><p class="text-xs text-neutral-400">Weight Size</p><p class="mt-1 text-lg font-bold">{{ weightSize() }}</p></div>
-                    <div><p class="text-xs text-red-500">Recommended</p><p class="mt-1 text-lg font-bold text-red-600">{{ recommendedSize() }}</p></div>
+                    <div><p class="text-xs text-neutral-400">Height Size</p><p class="mt-1 text-lg font-bold" data-testid="finder-height-size">{{ heightSize() }}</p></div>
+                    <div><p class="text-xs text-neutral-400">Weight Size</p><p class="mt-1 text-lg font-bold" data-testid="finder-weight-size">{{ weightSize() }}</p></div>
+                    <div><p class="text-xs text-red-500">Recommended</p><p class="mt-1 text-lg font-bold text-red-600" data-testid="finder-recommended">{{ recommendedSize() }}</p></div>
                   </div>
 
                   <!-- inputs -->
@@ -780,6 +784,7 @@ import { RevealDirective } from '../core/reveal.directive';
                     </div>
                   </div>
                 </div>
+              }
               }
             </div>
           </div>
@@ -860,6 +865,8 @@ export class ProductDetailPage implements OnInit {
   protected readonly simHeightFt   = signal(5);
   protected readonly simHeightIn   = signal(8);
   protected readonly simWeightKg   = signal(70);
+  /** The admin's size finder rules; until they load (or if they can't), the standard ones. */
+  protected readonly sizeFinder    = signal<ApiSizeFinder | null>(null);
 
   // ── related ───────────────────────────────────────────────────────────────
   protected readonly related = signal<ApiProduct[]>([]);
@@ -901,7 +908,6 @@ export class ProductDetailPage implements OnInit {
 
   // ── computed: variant state ────────────────────────────────────────────────
 
-  private static readonly FIT_ORDER = ['DROP_SHOULDER', 'REGULAR_FIT'];
   private static readonly FIT_LABELS: Record<string, string> = { DROP_SHOULDER: 'Drop Shoulder', REGULAR_FIT: 'Regular Fit' };
 
   /** The fits this product comes in, Drop Shoulder first; empty when it has none. */
@@ -946,10 +952,9 @@ export class ProductDetailPage implements OnInit {
     if (first) this.selectedImageId.set(first.id);
   }
 
-  protected readonly availableFits = computed(() => {
-    const fits = new Set(this.optionVariants().map((v) => v.fit).filter((f): f is string => !!f));
-    return [...fits].sort((a, b) => ProductDetailPage.FIT_ORDER.indexOf(a) - ProductDetailPage.FIT_ORDER.indexOf(b));
-  });
+  /** The fits on offer, in the shop's order of fits (the server lists sizes in that order). */
+  protected readonly availableFits = computed(() =>
+    [...new Set(this.optionVariants().map((v) => v.fit).filter((f): f is string => !!f))]);
 
   /** The sizes on offer right now: those of the picked fit, or all of them when there are no fits. */
   protected readonly fitVariants = computed(() => {
@@ -961,15 +966,14 @@ export class ProductDetailPage implements OnInit {
   private readonly sizeCharts = signal<ApiSizeChartEntry[]>([]);
 
   /**
-   * This product's chart from the library: the one for Regular Fit while that
-   * fit is picked, otherwise the product's. The server has already worked out
-   * which that is - the product's own, its category's, or the default. Null
-   * when the library has nothing for it (or has not arrived).
+   * This product's chart from the library: the picked fit's chart while a fit
+   * is picked, otherwise the product's. The server has already worked out which
+   * that is - the product's own for the fit, the fit's, the product's own, its
+   * category's, or the default. Null when the library has nothing for it (or
+   * has not arrived).
    */
   private readonly libraryChart = computed(() => {
-    const p = this.product();
-    if (!p) return null;
-    const id = this.selectedFit() === 'REGULAR_FIT' ? p.effectiveRegularFitSizeChartId : p.effectiveSizeChartId;
+    const id = this.chartIdFor(this.selectedFit());
     const chart = id == null ? null : this.sizeCharts().find((c) => c.id === id)?.chart ?? null;
     return chart && chart.rows?.length > 0 ? chart : null;
   });
@@ -996,15 +1000,26 @@ export class ProductDetailPage implements OnInit {
   protected readonly sizeChartFit = computed(() => {
     const fit = this.selectedFit();
     if (this.libraryChart()) {
-      // Named only when the two fits really show different charts.
-      const p = this.product();
-      const differs = p != null && p.effectiveRegularFitSizeChartId != null
-        && p.effectiveRegularFitSizeChartId !== p.effectiveSizeChartId;
-      return fit && differs ? this.fitLabelOf(fit) : '';
+      // Named when the picked fit's chart is its own: not the same as the product's, or another fit's.
+      const mine = this.chartIdFor(fit);
+      const others = [this.product()?.effectiveSizeChartId ?? null,
+        ...this.availableFits().filter((f) => f !== fit).map((f) => this.chartIdFor(f))];
+      return fit && others.some((id) => id !== mine) ? this.fitLabelOf(fit) : '';
     }
     const own = fit ? this.settings()?.fitSizeCharts?.[fit] : null;
     return fit && own && own.rows?.length > 0 ? this.fitLabelOf(fit) : '';
   });
+
+  /** The library chart id a fit shows on this product (null for none); the product's chart when no fit is given. */
+  private chartIdFor(fit: string | null): number | null {
+    const p = this.product();
+    if (!p) return null;
+    if (!fit) return p.effectiveSizeChartId ?? null;
+    const byFit = p.effectiveFitSizeChartIds?.[fit];
+    if (byFit != null) return byFit;
+    // A server from before the fit list: only Regular Fit had a chart of its own.
+    return (fit === 'REGULAR_FIT' ? p.effectiveRegularFitSizeChartId : null) ?? p.effectiveSizeChartId ?? null;
+  }
 
   protected fitLabelOf(fit: string | null): string {
     if (!fit) return '';
@@ -1071,52 +1086,49 @@ export class ProductDetailPage implements OnInit {
     this.selectedSize.set(null);
   }
 
-  // ── sizing simulator (proportional rule) ────────────────────────────────────
-  private static readonly SIM_ORDER = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', 'XXXL'];
+  // ── size finder: the admin's table for the picked fit ─────────────────────
+  /** The rules the shop started with, used until the admin's load (or if they can't). */
+  private static readonly STANDARD_RULES: ApiSizeFinderRule[] = [
+    { size: 'S', heightUpToIn: 64, weightUpToKg: 54 },
+    { size: 'M', heightUpToIn: 67, weightUpToKg: 64 },
+    { size: 'L', heightUpToIn: 70, weightUpToKg: 77 },
+    { size: 'XL', heightUpToIn: 72, weightUpToKg: 89 },
+    { size: 'XXL', heightUpToIn: 75, weightUpToKg: 104 },
+    { size: '3XL', heightUpToIn: null, weightUpToKg: null },
+  ];
 
-  /** Sizes available from the (global) size chart, in conventional order. */
-  protected readonly simSizes = computed<string[]>(() => {
-    const rows = this.sizeChart()?.rows ?? [];
-    const sizes = rows.map((r) => r.size);
-    return sizes.length > 0 ? sizes : ['S', 'M', 'L', 'XL', 'XXL', '3XL'];
+  /** The table for the fit the customer picked, or the "no fit" table for a product without fits. */
+  private readonly finderTable = computed(() => {
+    const f = this.sizeFinder();
+    if (!f) return { enabled: true, rules: ProductDetailPage.STANDARD_RULES };
+    const fit = this.availableFits().length > 0 ? this.selectedFit() : null;
+    return (fit && f.fits[fit]) || f.general;
   });
 
-  private rank(size: string): number {
-    const i = ProductDetailPage.SIM_ORDER.indexOf(size.toUpperCase());
-    return i >= 0 ? i : ProductDetailPage.SIM_ORDER.indexOf('L');
-  }
+  /** Whether "Don't know your size?" is offered: on for the shop and for this fit. */
+  protected readonly finderOn = computed(() => (this.sizeFinder()?.enabled ?? true) && this.finderTable().enabled && this.finderTable().rules.length > 0);
 
-  /** Clamp a target rank to the nearest available chart size. */
-  private nearestSize(targetRank: number): string {
-    const sizes = this.simSizes();
-    let best = sizes[0];
-    let bestDelta = Infinity;
-    for (const s of sizes) {
-      const d = Math.abs(this.rank(s) - targetRank);
-      if (d < bestDelta) { bestDelta = d; best = s; }
-    }
-    return best;
+  /** The first size whose "up to" covers the value; the largest size when none does. */
+  private sizeFor(value: number, limit: (r: ApiSizeFinderRule) => number | null): number {
+    const rules = this.finderTable().rules;
+    const i = rules.findIndex((r) => limit(r) == null || value <= limit(r)!);
+    return i >= 0 ? i : rules.length - 1;
   }
 
   protected readonly simHeightCm = computed(() => Math.round((this.simHeightFt() * 12 + this.simHeightIn()) * 2.54));
 
-  /** Heuristic height → size (independent of garment chart; standard apparel bands). */
-  protected readonly heightSize = computed(() => {
-    const cm = this.simHeightCm();
-    const band = cm < 165 ? 'S' : cm < 172 ? 'M' : cm < 179 ? 'L' : cm < 185 ? 'XL' : cm < 192 ? 'XXL' : '3XL';
-    return this.nearestSize(this.rank(band));
-  });
+  private readonly heightIndex = computed(() => this.sizeFor(this.simHeightFt() * 12 + this.simHeightIn(), (r) => r.heightUpToIn));
+  private readonly weightIndex = computed(() => this.sizeFor(this.simWeightKg(), (r) => r.weightUpToKg));
 
-  /** Heuristic weight → size. */
-  protected readonly weightSize = computed(() => {
-    const kg = this.simWeightKg();
-    const band = kg < 55 ? 'S' : kg < 65 ? 'M' : kg < 78 ? 'L' : kg < 90 ? 'XL' : kg < 105 ? 'XXL' : '3XL';
-    return this.nearestSize(this.rank(band));
-  });
+  /** The size the customer's height gives. */
+  protected readonly heightSize = computed(() => this.finderTable().rules[this.heightIndex()]?.size ?? '—');
 
-  /** Recommended size = the larger of the height/weight suggestions. */
+  /** The size the customer's weight gives. */
+  protected readonly weightSize = computed(() => this.finderTable().rules[this.weightIndex()]?.size ?? '—');
+
+  /** Recommended size = the larger of the two. */
   protected readonly recommendedSize = computed(() =>
-    this.rank(this.weightSize()) >= this.rank(this.heightSize()) ? this.weightSize() : this.heightSize());
+    this.finderTable().rules[Math.max(this.heightIndex(), this.weightIndex())]?.size ?? '—');
 
   /** Chest/Length (inch) of the recommended size from the chart, for the silhouette. */
   protected readonly simMeasurements = computed<{ label: string; value: number | null }[]>(() => {
@@ -1236,6 +1248,7 @@ export class ProductDetailPage implements OnInit {
 
   ngOnInit(): void {
     this.api.getSizeCharts().pipe(catchError(() => of([] as ApiSizeChartEntry[]))).subscribe((charts) => this.sizeCharts.set(charts));
+    this.api.getSizeFinder().pipe(catchError(() => of(null))).subscribe((f) => this.sizeFinder.set(f));
     // Store settings + active discounts are product-independent — load once.
     this.api.getStoreSettings().pipe(catchError(() => of(null)))
       .subscribe((s) => this.settings.set(s));
@@ -1293,6 +1306,8 @@ export class ProductDetailPage implements OnInit {
         this.loadRelated(p.id);
         this.pixel.viewContent(p.id, p.name, this.effectivePrice(p));
         this.applySeo(p);
+        // From the "delivered" email's "review on our website" link: go to the reviews once they're drawn.
+        if (this.route.snapshot.fragment === 'reviews') setTimeout(() => this.scrollTo('reviews'), 500);
       }
     });
   }

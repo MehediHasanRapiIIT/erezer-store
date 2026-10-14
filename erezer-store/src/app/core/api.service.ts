@@ -28,6 +28,8 @@ import {
   ApiStoreSettings,
   ApiContentPage,
   ApiSizeChartEntry,
+  ApiSizeFinder,
+  ApiSizeFinderRule,
   ApiVariant,
   AuthTokenResponse,
   BkashPaymentResponse,
@@ -194,6 +196,11 @@ export class ApiService {
   /** The shop's size charts; a product says which one it shows by id. */
   getSizeCharts(): Observable<ApiSizeChartEntry[]> {
     return this.http.get<ApiSizeChartEntry[]>(`${BASE}/api/size-charts`);
+  }
+
+  /** The size finder's rules, set by the admin on the Size Charts page. */
+  getSizeFinder(): Observable<ApiSizeFinder> {
+    return this.http.get<ApiSizeFinder>(`${BASE}/api/size-finder`);
   }
 
   getActiveDiscounts(): Observable<ApiActiveDiscount[]> {

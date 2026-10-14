@@ -52,6 +52,8 @@ public class CategoryResponseDTO {
     private BigDecimal shippingCharge;
     /** The size chart this category names for its products; null for none of its own. */
     private Long sizeChartId;
+    /** The category's own chart for each fit that has one, by fit. */
+    private java.util.Map<String, Long> fitSizeChartIds;
     /** The chart its products get from it: its own, else that of the nearest category above that names one. */
     private Long effectiveSizeChartId;
 }

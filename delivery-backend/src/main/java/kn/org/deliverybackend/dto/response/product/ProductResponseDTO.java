@@ -84,12 +84,16 @@ public class ProductResponseDTO {
 
     /** The product's own size chart, for the edit form; null when it follows its category or the default. */
     private Long sizeChartId;
-    /** Its own chart for Regular Fit; null when Regular Fit shows the same chart. */
+    /** Its own chart for Regular Fit; null when Regular Fit shows the fit's chart. Kept for older screens; see {@link #fitSizeChartIds}. */
     private Long regularFitSizeChartId;
     /** The chart the product page shows, with the category and the default already taken into account. Null when the shop has no chart. */
     private Long effectiveSizeChartId;
-    /** The chart the product page shows for Regular Fit. */
+    /** The chart the product page shows for Regular Fit. Kept for older screens; see {@link #effectiveFitSizeChartIds}. */
     private Long effectiveRegularFitSizeChartId;
+    /** The product's own chart for a fit, by fit, where it has one. */
+    private java.util.Map<String, Long> fitSizeChartIds;
+    /** The chart each fit shows on the product page, by fit: its own, else the fit's, else the product's chart. */
+    private java.util.Map<String, Long> effectiveFitSizeChartIds;
 
     /**
      * True when the sale discount was given as an amount in taka, not a

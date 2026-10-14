@@ -90,7 +90,13 @@ public class ProductRequestDTO {
      * (it follows its category, then the default). Null leaves it unchanged.
      */
     private Long sizeChartId;
-    /** A different chart for Regular Fit, for a product in two fits. 0 means the same chart. Null leaves it unchanged. */
+    /**
+     * The product's own chart for a fit, by fit (DROP_SHOULDER → chart id), when
+     * it should differ from the fit's chart. 0 for a fit takes its own chart away.
+     * Null leaves every fit as it is; a fit left out of the map is left as it is.
+     */
+    private java.util.Map<String, Long> fitSizeChartIds;
+    /** Older forms: the same as {@code fitSizeChartIds} with only REGULAR_FIT. */
     private Long regularFitSizeChartId;
 
     /**

@@ -1,3 +1,5 @@
+import { FitSizeChartsComponent } from '../../products/shared/fit-size-charts.component';
+import { FITS } from '../../products/shared/fit-sizes.component';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { SizeChartPickerComponent } from '../../../shared/size-chart-picker/size-chart-picker.component';
 import { ActivatedRoute, RouterLink, Router } from '@angular/router';
@@ -15,7 +17,7 @@ import { CategoryResponse } from '../../../core/models/api.models';
 @Component({
   selector: 'app-add-category',
   standalone: true,
-  imports: [RouterLink, FormsModule, SidebarComponent, KeyValuePipe, SizeChartPickerComponent],
+  imports: [RouterLink, FormsModule, SidebarComponent, KeyValuePipe, SizeChartPickerComponent, FitSizeChartsComponent],
   templateUrl: './add-category.component.html',
 })
 export class AddCategoryComponent implements OnInit {
@@ -33,6 +35,10 @@ export class AddCategoryComponent implements OnInit {
   parentId = signal<number | null>(null);
   /** The size chart for the products in and under this category; 0 for none of its own. */
   sizeChartId = signal(0);
+  /** The category's chart for each fit, by fit; 0 for none of its own. */
+  fitSizeChartIds = signal<Record<string, number>>({});
+  /** A line for every fit offered in the shop. */
+  protected readonly categoryFits = FITS.map((f) => f.value);
   /** Every category it could sit inside, as a tree. (Named from when only main categories could hold one.) */
   mainCategories = signal<CategoryResponse[]>([]);
   /** It has subcategories of its own, which move with it. */
@@ -114,6 +120,8 @@ export class AddCategoryComponent implements OnInit {
       homeSortOrder: this.homeSortOrder(),
       parentId: this.parentId(),
       sizeChartId: this.sizeChartId(),
+      // Every fit's line is sent, so one taken back to "same as above" (0) is cleared.
+      fitSizeChartIds: { ...this.fitSizeChartIds() },
     }).subscribe({
       next: () => {
         this.isLoading.set(false);

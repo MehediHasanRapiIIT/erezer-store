@@ -16,13 +16,14 @@ import {
 } from '../shared/discount-input.component';
 import { PicturePickerComponent } from '../shared/picture-picker.component';
 import {
-  FitSizes, FitSizesComponent, countFitSizes, emptyFitSizes, fitSizesProblem, fitVariants,
+  FitSizes, FitSizesComponent, countFitSizes, emptyFitSizes, fitSizesProblem, fitVariants, pickedFits,
 } from '../shared/fit-sizes.component';
+import { FitSizeChartsComponent } from '../shared/fit-size-charts.component';
 
 @Component({
   selector: 'app-add-product',
   standalone: true,
-  imports: [RouterLink, FormsModule, SidebarComponent, DiscountInputComponent, PicturePickerComponent, FitSizesComponent, SizeChartPickerComponent, OptionsEditorComponent],
+  imports: [RouterLink, FormsModule, SidebarComponent, DiscountInputComponent, PicturePickerComponent, FitSizesComponent, SizeChartPickerComponent, OptionsEditorComponent, FitSizeChartsComponent],
   templateUrl: './add-product.component.html',
 })
 export class AddProductComponent implements OnInit {
@@ -60,7 +61,17 @@ export class AddProductComponent implements OnInit {
   /** The options the new product comes in beyond size and fit. */
   options = signal<ProductOption[]>([]);
   /** A different chart for Regular Fit; 0 for the same chart. */
-  regularFitSizeChartId = signal(0);
+  /** The product's own chart for a fit, by fit; 0 for the fit's chart. */
+  fitSizeChartIds = signal<Record<string, number>>({});
+  /** The fits ticked on this form, for "Chart for …". */
+  readonly productFits = computed(() => pickedFits(this.fitSizes()));
+
+  /** The chart chosen for each ticked fit (0: the fit's own chart), for the request. Null when none is chosen. */
+  private fitChartsToSend(): Record<string, number> | undefined {
+    const picked = new Set(this.productFits());
+    const chosen = Object.entries(this.fitSizeChartIds()).filter(([fit, chart]) => picked.has(fit) && chart > 0);
+    return chosen.length ? Object.fromEntries(chosen) : undefined;
+  }
   protected readonly stockDisplayOptions: { value: StockDisplay; label: string }[] = [
     { value: 'CATEGORY', label: 'Same as category' },
     { value: 'QUANTITY', label: 'Show quantity' },
@@ -169,7 +180,7 @@ export class AddProductComponent implements OnInit {
       discountExcluded: this.discountExcluded(),
       stockDisplay: this.stockDisplay(),
       sizeChartId: this.sizeChartId(),
-      regularFitSizeChartId: this.regularFitSizeChartId(),
+      fitSizeChartIds: this.fitChartsToSend(),
       options: this.perms.can('products.variants') ? cleanOptions(this.options()) : [],
     };
 

@@ -9,7 +9,7 @@ import { parseApiError } from '../../core/utils/api-error.util';
 import { addDays, businessToday } from '../../core/utils/business-date.util';
 
 const ALL_STATUSES: OrderStatus[] = [
-  'PLACED', 'ACCEPTED', 'IN_PRODUCTION', 'PROCESSING', 'SHIPPED',
+  'PLACED', 'ACCEPTED', 'PROCESSING', 'SHIPPED',
   'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED', 'RETURNED',
 ];
 

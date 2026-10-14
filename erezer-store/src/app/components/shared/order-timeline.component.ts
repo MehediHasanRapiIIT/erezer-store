@@ -6,7 +6,6 @@ import { TranslatePipe } from '../../core/i18n/translate.pipe';
 export const ORDER_STEPS: { status: string; key: string }[] = [
   { status: 'PLACED',           key: 'timeline.placed' },
   { status: 'ACCEPTED',         key: 'timeline.accepted' },
-  { status: 'IN_PRODUCTION',    key: 'timeline.in_production' },
   { status: 'PROCESSING',       key: 'timeline.processing' },
   { status: 'SHIPPED',          key: 'timeline.shipped' },
   { status: 'OUT_FOR_DELIVERY', key: 'timeline.out_for_delivery' },

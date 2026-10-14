@@ -61,6 +61,10 @@ public class Order extends AbstractBaseEntity<UUID> {
     @Column(name = "tracking_number")
     private String trackingNumber;
 
+    /** The parcel's tracking page at the courier, given when the order is shipped; linked from the "shipped" email. */
+    @Column(name = "tracking_url", length = 500)
+    private String trackingUrl;
+
     /** What the customer sees and tracks by, e.g. EZ-482915. Unique. */
     @Column(name = "order_number", length = 20, unique = true)
     private String orderNumber;

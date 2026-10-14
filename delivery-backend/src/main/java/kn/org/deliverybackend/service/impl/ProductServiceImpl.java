@@ -291,7 +291,6 @@ public class ProductServiceImpl implements ProductService {
         Product product = productMapper.toEntity(productRequestDTO);
         // A chart the form names has to exist; 0 and nothing both mean "none of its own".
         product.setSizeChartId(sizeCharts.checked(productRequestDTO.getSizeChartId()));
-        product.setRegularFitSizeChartId(sizeCharts.checked(productRequestDTO.getRegularFitSizeChartId()));
 
         if (image != null && !image.isEmpty()) {
             String imageUrl = fileStorageService.uploadFile(image);
@@ -311,7 +310,10 @@ public class ProductServiceImpl implements ProductService {
         inventory.setUnit(productRequestDTO.getUnit());
         inventoryRepository.save(inventory);
 
-        return toEnrichedResponseDTO(saved);
+        ProductResponseDTO made = toEnrichedResponseDTO(saved);
+        sizeCharts.setOwnFitCharts(made.getId(), fitChartsOf(productRequestDTO));
+        // Read again, so the answer carries the fit charts just saved.
+        return made.getId() == null ? made : productRepository.findById(made.getId()).map(this::toEnrichedResponseDTO).orElse(made);
     }
 
     @Override
@@ -365,11 +367,17 @@ public class ProductServiceImpl implements ProductService {
         if (productRequestDTO.getSizeChartId() != null) {
             product.setSizeChartId(sizeCharts.checked(productRequestDTO.getSizeChartId()));
         }
-        if (productRequestDTO.getRegularFitSizeChartId() != null) {
-            product.setRegularFitSizeChartId(sizeCharts.checked(productRequestDTO.getRegularFitSizeChartId()));
-        }
+        Product saved = productRepository.save(product);
+        sizeCharts.setOwnFitCharts(saved.getId(), fitChartsOf(productRequestDTO));
+        return toEnrichedResponseDTO(saved);
+    }
 
-        return toEnrichedResponseDTO(productRepository.save(product));
+    /** The fit charts a form sends: the map, with an older form's Regular Fit chart folded in. Null when it names none. */
+    private static java.util.Map<String, Long> fitChartsOf(ProductRequestDTO request) {
+        java.util.Map<String, Long> charts = request.getFitSizeChartIds() == null
+                ? new java.util.LinkedHashMap<>() : new java.util.LinkedHashMap<>(request.getFitSizeChartIds());
+        if (request.getRegularFitSizeChartId() != null) charts.putIfAbsent("REGULAR_FIT", request.getRegularFitSizeChartId());
+        return charts.isEmpty() ? null : charts;
     }
 
     private ProductResponseDTO toEnrichedResponseDTO(Product product) {
@@ -383,9 +391,13 @@ public class ProductServiceImpl implements ProductService {
         dto.setCategoryDiscountExcluded(false);
         dto.setOptions(ProductOptions.parse(product.getOptionsJson()));
         dto.setSizeChartId(product.getSizeChartId());
-        dto.setRegularFitSizeChartId(product.getRegularFitSizeChartId());
+        java.util.Map<String, Long> ownFitCharts = sizeCharts.ownFitCharts(product.getId());
+        dto.setFitSizeChartIds(ownFitCharts);
+        dto.setRegularFitSizeChartId(ownFitCharts.get("REGULAR_FIT"));
         dto.setEffectiveSizeChartId(sizeCharts.effectiveFor(product));
-        dto.setEffectiveRegularFitSizeChartId(sizeCharts.effectiveRegularFitFor(product));
+        java.util.Map<String, Long> effectiveFitCharts = sizeCharts.effectiveFitCharts(product);
+        dto.setEffectiveFitSizeChartIds(effectiveFitCharts);
+        dto.setEffectiveRegularFitSizeChartId(effectiveFitCharts.get("REGULAR_FIT"));
         dto.setShowStockQuantity(StockDisplay.showsQuantity(product.getStockDisplay(), null));
         if (product.getCategoryId() != null) {
             categoryRepository.findById(product.getCategoryId()).ifPresent(cat -> {

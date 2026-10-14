@@ -8,6 +8,7 @@ import { authInterceptor } from './core/interceptors/auth.interceptor';
 import { KeycloakService } from './core/services/keycloak.service';
 import { PermissionService } from './core/services/permission.service';
 import { initSentry, sentryProviders } from './core/sentry';
+import { FitService } from './core/services/fit.service';
 
 // Initialise Sentry before Angular bootstraps so very early errors are caught.
 initSentry();
@@ -32,6 +33,13 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes),
     provideHttpClient(withInterceptors([authInterceptor])),
     ...sentryProviders(),
+    {
+      // The shop's fits, so every form offers the same list from the first page on.
+      provide: APP_INITIALIZER,
+      useFactory: (fits: FitService) => () => fits.load(),
+      deps: [FitService],
+      multi: true,
+    },
     {
       provide: APP_INITIALIZER,
       useFactory: initKeycloak,

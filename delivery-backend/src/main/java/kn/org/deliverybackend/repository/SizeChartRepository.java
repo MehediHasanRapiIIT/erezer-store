@@ -26,7 +26,7 @@ public interface SizeChartRepository extends JpaRepository<SizeChart, Long> {
     // How many products and categories name a chart, and letting go of one that is deleted.
 
     @Query("SELECT COUNT(p) FROM Product p WHERE (p.deleted = false OR p.deleted IS NULL) "
-            + "AND (p.sizeChartId = :id OR p.regularFitSizeChartId = :id)")
+            + "AND p.sizeChartId = :id")
     long countProductsUsing(@Param("id") Long id);
 
     @Query("SELECT COUNT(c) FROM Category c WHERE (c.deleted = false OR c.deleted IS NULL) AND c.sizeChartId = :id")
@@ -35,10 +35,6 @@ public interface SizeChartRepository extends JpaRepository<SizeChart, Long> {
     @Modifying
     @Query("UPDATE Product p SET p.sizeChartId = NULL WHERE p.sizeChartId = :id")
     int clearFromProducts(@Param("id") Long id);
-
-    @Modifying
-    @Query("UPDATE Product p SET p.regularFitSizeChartId = NULL WHERE p.regularFitSizeChartId = :id")
-    int clearRegularFitFromProducts(@Param("id") Long id);
 
     @Modifying
     @Query("UPDATE Category c SET c.sizeChartId = NULL WHERE c.sizeChartId = :id")

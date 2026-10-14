@@ -5,8 +5,11 @@ import kn.org.deliverybackend.dto.OrderDTO;
 import kn.org.deliverybackend.dto.OrderItemDTO;
 import kn.org.deliverybackend.dto.invoice.InvoiceSendResultDTO;
 import kn.org.deliverybackend.entity.Order;
+import kn.org.deliverybackend.entity.OrderStatusHistory;
+import kn.org.deliverybackend.enumeration.OrderStatus;
 import kn.org.deliverybackend.exception.ResourceNotFoundException;
 import kn.org.deliverybackend.repository.OrderRepository;
+import kn.org.deliverybackend.repository.OrderStatusHistoryRepository;
 import kn.org.deliverybackend.service.EmailAttachment;
 import kn.org.deliverybackend.service.EmailService;
 import kn.org.deliverybackend.service.InvoiceService;
@@ -16,18 +19,23 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.thymeleaf.context.Context;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -44,8 +52,12 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final SpringTemplateEngine templateEngine;
     private final EmailService emailService;
     private final SmsService smsService;
+    private final OrderStatusHistoryRepository statusHistory;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm");
+
+    /** The Erezer wordmark at the top of the invoice, as a data URI (the PDF has no web address to load it from). */
+    private static final String LOGO = loadLogo();
 
     // ── PDF ─────────────────────────────────────────────────────────────────────
 
@@ -82,7 +94,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
 
         byte[] pdf = generateInvoicePdf(orderId);
-        String ref = invoiceNumber(order.getId());
+        String ref = invoiceNumber(order);
 
         boolean emailSent = false;
         String email = order.getCustomerEmail();
@@ -145,10 +157,10 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         Context ctx = new Context();
         Map<String, Object> m = new HashMap<>();
-        m.put("invoiceNumber", invoiceNumber(order.getId()));
-        m.put("invoiceDate", LocalDateTime.now().format(DATE_FMT));
-        m.put("orderDate", order.getCreatedAt() == null ? "—" :
-                LocalDateTime.ofInstant(order.getCreatedAt().toInstant(), ZoneId.systemDefault()).format(DATE_FMT));
+        m.put("logo", LOGO);
+        m.put("invoiceNumber", invoiceNumber(order));
+        m.put("invoiceDate", acceptedDate(order));
+        m.put("orderDate", format(order.getCreatedAt()));
         m.put("itemCount", itemCount);
         m.put("status", order.getOrderStatus());
         m.put("customerName", dto.getCustomerName() != null ? dto.getCustomerName() : order.getCustomerName());
@@ -166,8 +178,42 @@ public class InvoiceServiceImpl implements InvoiceService {
         return ctx;
     }
 
-    private String invoiceNumber(UUID id) {
-        return "INV-" + id.toString().substring(0, 8).toUpperCase(Locale.ROOT);
+    /** INV- and the number the customer knows the order by (EZ-583882 → INV-583882). */
+    static String invoiceNumber(Order order) {
+        String number = order.getOrderNumber();
+        if (number != null && !number.isBlank()) {
+            return "INV-" + number.trim().replaceFirst("(?i)^EZ-", "").toUpperCase(Locale.ROOT);
+        }
+        return "INV-" + order.getId().toString().substring(0, 8).toUpperCase(Locale.ROOT);
+    }
+
+    /**
+     * When the order was accepted: its first move to Accepted, or, for an order
+     * taken straight past Accepted, its first move out of Placed (not to Cancelled).
+     */
+    private String acceptedDate(Order order) {
+        List<OrderStatusHistory> history = statusHistory.findByOrderIdOrderByCreatedAtAsc(order.getId());
+        Date accepted = history.stream()
+                .filter(h -> OrderStatus.ACCEPTED.name().equals(h.getToStatus()))
+                .map(OrderStatusHistory::getCreatedAt).findFirst()
+                .orElseGet(() -> history.stream()
+                        .filter(h -> h.getToStatus() != null
+                                && !List.of("PLACED", "PENDING", "CANCELLED").contains(h.getToStatus()))
+                        .map(OrderStatusHistory::getCreatedAt).findFirst().orElse(null));
+        return accepted == null ? "Not accepted yet" : format(accepted);
+    }
+
+    private static String format(Date date) {
+        return date == null ? "—" : LocalDateTime.ofInstant(date.toInstant(), ZoneId.systemDefault()).format(DATE_FMT);
+    }
+
+    private static String loadLogo() {
+        try (InputStream in = new ClassPathResource("invoice/logo-wordmark.png").getInputStream()) {
+            return "data:image/png;base64," + Base64.getEncoder().encodeToString(in.readAllBytes());
+        } catch (IOException e) {
+            log.warn("Invoice logo missing; the invoice shows the name in text instead.");
+            return null;
+        }
     }
 
     /** Formats an amount with thousands grouping. Uses "Tk" to stay ASCII-safe for the PDF font. */

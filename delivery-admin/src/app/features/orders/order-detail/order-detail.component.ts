@@ -17,11 +17,11 @@ import { PermissionService } from '../../../core/services/permission.service';
 import { NoticeService } from '../../../core/services/notice.service';
 import { OrderNotesComponent } from '../order-notes/order-notes.component';
 
-// Display order for the lifecycle timeline (PENDING omitted — it's a legacy alias).
+// Display order for the lifecycle timeline (PENDING omitted — it's a legacy alias;
+// "In production" is no longer a step).
 const TIMELINE: OrderStatus[] = [
   'PLACED',
   'ACCEPTED',
-  'IN_PRODUCTION',
   'PROCESSING',
   'SHIPPED',
   'OUT_FOR_DELIVERY',
@@ -63,6 +63,8 @@ export class OrderDetailComponent implements OnInit {
   private invoiceObjectUrl: string | null = null;
 
   readonly trackingNumber = signal('');
+  /** The courier's tracking page, linked from the customer's "shipped" email. */
+  readonly trackingUrl = signal('');
 
   readonly isUpdating = signal(false);
   readonly updateError = signal('');
@@ -224,7 +226,10 @@ export class OrderDetailComponent implements OnInit {
   downloadInvoice(): void {
     if (!this.invoiceObjectUrl) return;
     const order = this.order();
-    const ref = order ? 'INV-' + order.id.slice(0, 8).toUpperCase() : 'invoice';
+    // Same as the number printed on the invoice: EZ-583882 → INV-583882.
+    const ref = !order ? 'invoice'
+      : order.orderNumber ? 'INV-' + order.orderNumber.trim().replace(/^EZ-/i, '').toUpperCase()
+      : 'INV-' + order.id.slice(0, 8).toUpperCase();
     const a = document.createElement('a');
     a.href = this.invoiceObjectUrl;
     a.download = `${ref}.pdf`;
@@ -284,7 +289,13 @@ export class OrderDetailComponent implements OnInit {
   private defaultSelection(): OrderStatus {
     const current = this.currentStatus();
     if (current === 'DELIVERED') return current;
-    return this.permittedNext()[0] ?? current;
+    // The next step forward, never Cancelled as the ready-made choice.
+    return this.permittedNext().find((s) => s !== 'CANCELLED') ?? this.permittedNext()[0] ?? current;
+  }
+
+  /** Whether moving to this status emails the customer: only these four steps do. */
+  protected emailsCustomer(status: OrderStatus): boolean {
+    return status === 'ACCEPTED' || status === 'SHIPPED' || status === 'DELIVERED' || status === 'CANCELLED';
   }
 
   private mayMoveTo(status: OrderStatus): boolean {
@@ -309,6 +320,7 @@ export class OrderDetailComponent implements OnInit {
       note: this.statusNote().trim() || undefined,
       courierName: this.courierName().trim() || undefined,
       trackingNumber: this.trackingNumber().trim() || undefined,
+      trackingUrl: this.trackingUrl().trim() || undefined,
     }).subscribe({
       next: (updated) => {
         this.order.set(updated);

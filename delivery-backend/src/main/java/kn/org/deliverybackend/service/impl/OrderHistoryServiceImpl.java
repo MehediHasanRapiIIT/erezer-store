@@ -220,6 +220,7 @@ public class OrderHistoryServiceImpl implements OrderHistoryService {
             if (request.getTrackingNumber() != null && !request.getTrackingNumber().isBlank()) {
                 order.setTrackingNumber(request.getTrackingNumber().trim());
             }
+            order.setTrackingUrl(trackingLink(request.getTrackingUrl()));
         }
         if (target == OrderStatus.CANCELLED) {
             order.setCancellationReason(request.getNote());
@@ -266,6 +267,22 @@ public class OrderHistoryServiceImpl implements OrderHistoryService {
         return toOrderDTOWithItems(saved);
     }
 
+    /** The courier's tracking page as the customer's email links to it: https only, or none. */
+    static String trackingLink(String value) {
+        if (value == null || value.isBlank()) return null;
+        String v = value.trim();
+        if (!v.toLowerCase(java.util.Locale.ROOT).startsWith("http")) v = "https://" + v;
+        try {
+            java.net.URI uri = java.net.URI.create(v);
+            if ("https".equalsIgnoreCase(uri.getScheme()) && uri.getHost() != null && uri.getHost().contains(".") && v.length() <= 500) {
+                return v;
+            }
+        } catch (IllegalArgumentException ignored) {
+            // falls through to the message below
+        }
+        throw new InvalidStockOperationException("The tracking link has to be a web address that starts with https://");
+    }
+
     @Override
     @Deprecated
     public OrderDTO updateOrderStatus(UUID orderId, String status) {
@@ -283,7 +300,7 @@ public class OrderHistoryServiceImpl implements OrderHistoryService {
             OrderStatus s = OrderStatus.parse(o.getOrderStatus()).orElse(null);
             return s != null && (s.normalize() == OrderStatus.PLACED
                     || s == OrderStatus.ACCEPTED
-                    || s == OrderStatus.IN_PRODUCTION
+                    || s == OrderStatus.IN_PRODUCTION // older orders, before the step was dropped
                     || s == OrderStatus.PROCESSING);
         }).count();
         long inTransit = all.stream().filter(o -> {

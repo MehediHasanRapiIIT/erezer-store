@@ -45,7 +45,17 @@ class SizeChartLibraryTest {
 
     private final SizeChartRepository charts = mock(SizeChartRepository.class);
     private final CategoryRepository categories = mock(CategoryRepository.class);
-    private final SizeChartLibraryService service = new SizeChartLibraryService(charts, categories);
+    private final kn.org.deliverybackend.repository.ProductFitSizeChartRepository fitCharts =
+            mock(kn.org.deliverybackend.repository.ProductFitSizeChartRepository.class);
+    private final kn.org.deliverybackend.repository.FitTypeRepository fitTypes =
+            mock(kn.org.deliverybackend.repository.FitTypeRepository.class);
+    private final kn.org.deliverybackend.repository.CategoryFitSizeChartRepository categoryFitCharts =
+            mock(kn.org.deliverybackend.repository.CategoryFitSizeChartRepository.class);
+    private final SizeChartLibraryService service = new SizeChartLibraryService(charts, categories, fitCharts, fitTypes, categoryFitCharts);
+    /** Each category's chart for a fit, as the category_fit_size_chart table would hold it. */
+    private final List<kn.org.deliverybackend.entity.CategoryFitSizeChart> categoryCharts = new ArrayList<>();
+    /** Each product's own chart for a fit, as the product_fit_size_chart table would hold it. */
+    private final List<kn.org.deliverybackend.entity.ProductFitSizeChart> ownFitCharts = new ArrayList<>();
     private final Map<Long, SizeChart> chartsById = new HashMap<>();
     private final Map<Long, Category> categoriesById = new HashMap<>();
     private long nextId = 50;
@@ -101,13 +111,67 @@ class SizeChartLibraryTest {
     }
 
     @Test
-    void regularFitShowsItsOwnChartWhenTheProductNamesOneAndTheProductsChartOtherwise() {
+    void aCategoryCanGiveEachFitItsOwnChartForEverythingInAndUnderIt() {
+        when(fitCharts.findByProductId(org.mockito.ArgumentMatchers.anyLong())).thenAnswer(inv -> ownFitCharts.stream()
+                .filter(c -> c.getProductId().equals(inv.getArgument(0))).toList());
+        when(categoryFitCharts.findByCategoryId(org.mockito.ArgumentMatchers.anyLong())).thenAnswer(inv -> categoryCharts.stream()
+                .filter(c -> c.getCategoryId().equals(inv.getArgument(0))).toList());
+        try {
+            // The fits' own charts: Drop Shoulder → Men's T-Shirt, Regular Fit → Regular Fit.
+            kn.org.deliverybackend.enumeration.Fit.install(List.of(
+                    new kn.org.deliverybackend.enumeration.Fit("DROP_SHOULDER", "Drop Shoulder", "DS", 0, MENS_TEE, false),
+                    new kn.org.deliverybackend.enumeration.Fit("REGULAR_FIT", "Regular Fit", "RF", 0, REGULAR, false)));
+            // "Men" gives Drop Shoulder the Kids chart and Regular Fit the General chart.
+            categoryCharts.add(new kn.org.deliverybackend.entity.CategoryFitSizeChart(MEN, "DROP_SHOULDER", KIDS));
+            categoryCharts.add(new kn.org.deliverybackend.entity.CategoryFitSizeChart(MEN, "REGULAR_FIT", GENERAL));
+
+            Product deep = product(DROP, null, null);   // two levels under Men
+            assertEquals(KIDS, service.effectiveForFit(deep, "DROP_SHOULDER"), "a category's chart for a fit reaches everything under it");
+            assertEquals(GENERAL, service.effectiveForFit(deep, "REGULAR_FIT"));
+            assertEquals(MENS_TEE, service.effectiveForFit(product(CAPS, null, null), "DROP_SHOULDER"), "another branch shows the fit's own chart");
+
+            Product own = product(DROP, null, REGULAR);
+            assertEquals(REGULAR, service.effectiveForFit(own, "REGULAR_FIT"), "a product's own chart for a fit wins over its category's");
+            assertEquals(Map.of("DROP_SHOULDER", KIDS, "REGULAR_FIT", GENERAL), service.ownCategoryFitCharts(MEN));
+            assertEquals(Map.of(), service.ownCategoryFitCharts(TEES), "only Men has charts of its own");
+        } finally {
+            kn.org.deliverybackend.enumeration.Fit.install(List.of(
+                    kn.org.deliverybackend.enumeration.Fit.DROP_SHOULDER, kn.org.deliverybackend.enumeration.Fit.REGULAR_FIT));
+        }
+    }
+
+    @Test
+    void aFitShowsTheProductsOwnChartForItThenTheFitsChartThenTheProductsChart() {
         categoriesById.get(MEN).setSizeChartId(MENS_TEE);
-        assertEquals(MENS_TEE, service.effectiveRegularFitFor(product(DROP, null, null)));
-        assertEquals(KIDS, service.effectiveRegularFitFor(product(DROP, KIDS, null)));
-        Product both = product(DROP, KIDS, REGULAR);
-        assertEquals(REGULAR, service.effectiveRegularFitFor(both));
-        assertEquals(KIDS, service.effectiveFor(both), "and the rest of the product keeps its own chart");
+        when(fitCharts.findByProductId(org.mockito.ArgumentMatchers.anyLong())).thenAnswer(inv -> ownFitCharts.stream()
+                .filter(c -> c.getProductId().equals(inv.getArgument(0))).toList());
+        try {
+            // No fit has a chart of its own: every fit shows the product's chart, as before.
+            kn.org.deliverybackend.enumeration.Fit.install(List.of(
+                    kn.org.deliverybackend.enumeration.Fit.DROP_SHOULDER, kn.org.deliverybackend.enumeration.Fit.REGULAR_FIT));
+            assertEquals(MENS_TEE, service.effectiveRegularFitFor(product(DROP, null, null)));
+            assertEquals(KIDS, service.effectiveRegularFitFor(product(DROP, KIDS, null)));
+
+            // Regular Fit gets the Regular Fit chart in the Fits list, and a new fit, Oversized, the Kids chart.
+            kn.org.deliverybackend.enumeration.Fit.install(List.of(
+                    kn.org.deliverybackend.enumeration.Fit.DROP_SHOULDER,
+                    new kn.org.deliverybackend.enumeration.Fit("REGULAR_FIT", "Regular Fit", "RF", 0, REGULAR, false),
+                    new kn.org.deliverybackend.enumeration.Fit("OVERSIZED", "Oversized", "OV", 0, KIDS, false)));
+            Product tee = product(DROP, null, null);
+            assertEquals(REGULAR, service.effectiveForFit(tee, "REGULAR_FIT"), "a fit with a chart shows it");
+            assertEquals(KIDS, service.effectiveForFit(tee, "OVERSIZED"));
+            assertEquals(MENS_TEE, service.effectiveForFit(tee, "DROP_SHOULDER"), "a fit with no chart follows the product");
+            assertEquals(Map.of("DROP_SHOULDER", MENS_TEE, "REGULAR_FIT", REGULAR, "OVERSIZED", KIDS), service.effectiveFitCharts(tee));
+
+            // The product's own chart for a fit wins over the fit's.
+            Product own = product(DROP, null, GENERAL);
+            assertEquals(GENERAL, service.effectiveRegularFitFor(own));
+            assertEquals(KIDS, service.effectiveForFit(own, "OVERSIZED"));
+            assertEquals(MENS_TEE, service.effectiveFor(own), "the rest of the product keeps its chart");
+        } finally {
+            kn.org.deliverybackend.enumeration.Fit.install(List.of(
+                    kn.org.deliverybackend.enumeration.Fit.DROP_SHOULDER, kn.org.deliverybackend.enumeration.Fit.REGULAR_FIT));
+        }
     }
 
     @Test
@@ -173,7 +237,9 @@ class SizeChartLibraryTest {
         assertEquals(7, service.delete(MENS_TEE));
 
         verify(charts).clearFromProducts(MENS_TEE);
-        verify(charts).clearRegularFitFromProducts(MENS_TEE);
+        verify(fitCharts).clearChart(MENS_TEE);
+        verify(categoryFitCharts).clearChart(MENS_TEE);
+        verify(fitTypes).clearChart(MENS_TEE);
         verify(charts).clearFromCategories(MENS_TEE);
         assertTrue(chartsById.get(MENS_TEE).getDeleted());
         assertFalse(service.list().stream().anyMatch(c -> c.getName().equals("Men's T-Shirt")));
@@ -222,11 +288,14 @@ class SizeChartLibraryTest {
         categoriesById.put(id, c);
     }
 
-    private static Product product(Long categoryId, Long chartId, Long regularFitChartId) {
+    private Product product(Long categoryId, Long chartId, Long regularFitChartId) {
         Product p = new Product();
+        p.setId(nextId++);
         p.setCategoryId(categoryId);
         p.setSizeChartId(chartId);
-        p.setRegularFitSizeChartId(regularFitChartId);
+        if (regularFitChartId != null) {
+            ownFitCharts.add(new kn.org.deliverybackend.entity.ProductFitSizeChart(p.getId(), "REGULAR_FIT", regularFitChartId));
+        }
         return p;
     }
 

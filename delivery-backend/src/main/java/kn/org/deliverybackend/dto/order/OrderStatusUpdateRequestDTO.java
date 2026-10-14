@@ -25,4 +25,8 @@ public class OrderStatusUpdateRequestDTO {
     /** Required when transitioning to SHIPPED — courier-issued tracking number. */
     @jakarta.validation.constraints.Size(max = 255)
     private String trackingNumber;
+
+    /** Optional when transitioning to SHIPPED — the parcel's tracking page at the courier (https). */
+    @jakarta.validation.constraints.Size(max = 500)
+    private String trackingUrl;
 }

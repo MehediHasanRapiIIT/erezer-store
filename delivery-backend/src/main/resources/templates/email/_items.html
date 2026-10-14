@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<!-- The order's items and totals, shared by the order emails. -->
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<table th:fragment="items" role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;margin:0 0 20px;font-size:14px;">
+  <tr th:each="item : ${items}">
+    <td style="padding:10px 0;border-bottom:1px solid #f0efee;">
+      <div style="font-weight:600;color:#1c1917;" th:text="${item.name}">Classic Tee</div>
+      <div th:if="${item.variant}" style="color:#78716c;font-size:13px;" th:text="${item.variant}">Black / M</div>
+    </td>
+    <td style="padding:10px 0 10px 12px;border-bottom:1px solid #f0efee;color:#57534e;white-space:nowrap;" align="right" th:text="'× ' + ${item.quantity}">× 1</td>
+    <td style="padding:10px 0 10px 16px;border-bottom:1px solid #f0efee;white-space:nowrap;" align="right" th:text="${item.lineTotal}">Tk 900</td>
+  </tr>
+  <tr>
+    <td colspan="2" style="padding:12px 0 2px;color:#57534e;">Subtotal</td>
+    <td style="padding:12px 0 2px;" align="right" th:text="${subtotal}">Tk 900</td>
+  </tr>
+  <tr th:if="${discount}">
+    <td colspan="2" style="padding:2px 0;color:#57534e;">Discount</td>
+    <td style="padding:2px 0;" align="right" th:text="${discount}">− Tk 100</td>
+  </tr>
+  <tr>
+    <td colspan="2" style="padding:2px 0;color:#57534e;">Delivery</td>
+    <td style="padding:2px 0;" align="right" th:text="${shipping}">Tk 60</td>
+  </tr>
+  <tr>
+    <td colspan="2" style="padding:8px 0 0;font-weight:700;">Total</td>
+    <td style="padding:8px 0 0;font-weight:700;" align="right" th:text="${total}">Tk 960</td>
+  </tr>
+</table>
+</body>
+</html>

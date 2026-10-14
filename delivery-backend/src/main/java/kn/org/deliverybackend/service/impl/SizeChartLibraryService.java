@@ -35,6 +35,9 @@ public class SizeChartLibraryService {
 
     private final SizeChartRepository sizeChartRepository;
     private final CategoryRepository categoryRepository;
+    private final kn.org.deliverybackend.repository.ProductFitSizeChartRepository productFitCharts;
+    private final kn.org.deliverybackend.repository.FitTypeRepository fitTypes;
+    private final kn.org.deliverybackend.repository.CategoryFitSizeChartRepository categoryFitCharts;
 
     // ── the library ──────────────────────────────────────────────────────────
 
@@ -80,10 +83,13 @@ public class SizeChartLibraryService {
     @Transactional
     public long delete(Long id) {
         SizeChart chart = live(id);
-        long using = sizeChartRepository.countProductsUsing(id) + sizeChartRepository.countCategoriesUsing(id);
+        long using = sizeChartRepository.countProductsUsing(id) + productFitCharts.countProductsUsing(id)
+                + sizeChartRepository.countCategoriesUsing(id) + categoryFitCharts.countCategoriesUsing(id) + fitTypes.countUsingChart(id);
         sizeChartRepository.clearFromProducts(id);
-        sizeChartRepository.clearRegularFitFromProducts(id);
+        productFitCharts.clearChart(id);
+        categoryFitCharts.clearChart(id);
         sizeChartRepository.clearFromCategories(id);
+        fitTypes.clearChart(id);
         chart.setDeleted(true);
         chart.setDeletedAt(new java.util.Date());
         boolean wasDefault = Boolean.TRUE.equals(chart.getIsDefault());
@@ -135,8 +141,11 @@ public class SizeChartLibraryService {
                 .name(chart.getName())
                 .chart(read(chart.getChartJson()))
                 .isDefault(Boolean.TRUE.equals(chart.getIsDefault()))
-                .productCount(chart.getId() == null ? 0 : sizeChartRepository.countProductsUsing(chart.getId()))
-                .categoryCount(chart.getId() == null ? 0 : sizeChartRepository.countCategoriesUsing(chart.getId()))
+                .productCount(chart.getId() == null ? 0
+                        : sizeChartRepository.countProductsUsing(chart.getId()) + productFitCharts.countProductsUsing(chart.getId()))
+                .fitCount(chart.getId() == null ? 0 : fitTypes.countUsingChart(chart.getId()))
+                .categoryCount(chart.getId() == null ? 0
+                        : sizeChartRepository.countCategoriesUsing(chart.getId()) + categoryFitCharts.countCategoriesUsing(chart.getId()))
                 .build();
     }
 
@@ -180,12 +189,132 @@ public class SizeChartLibraryService {
         return defaultId();
     }
 
-    /** The chart Regular Fit shows on this product: the one named for it, else the product's chart. */
+    /** The chart Regular Fit shows on this product. */
     @Transactional(readOnly = true)
     public Long effectiveRegularFitFor(Product product) {
+        return effectiveForFit(product, "REGULAR_FIT");
+    }
+
+    /**
+     * The chart a fit's sizes show on this product: the product's own chart for
+     * that fit, else its category's chart for that fit (or that of the nearest
+     * category above with one), else the fit's chart (from the Fits list), else
+     * the product's chart.
+     */
+    @Transactional(readOnly = true)
+    public Long effectiveForFit(Product product, String fitCode) {
         if (product == null) return null;
-        Long own = liveOrNull(product.getRegularFitSizeChartId());
-        return own != null ? own : effectiveFor(product);
+        if (product.getId() != null && fitCode != null) {
+            for (kn.org.deliverybackend.entity.ProductFitSizeChart own : productFitCharts.findByProductId(product.getId())) {
+                if (fitCode.equals(own.getFitCode())) {
+                    Long live = liveOrNull(own.getSizeChartId());
+                    if (live != null) return live;
+                }
+            }
+        }
+        if (fitCode != null && product.getCategoryId() != null) {
+            Category category = categoryRepository.findById(product.getCategoryId())
+                    .filter(c -> !Boolean.TRUE.equals(c.getDeleted())).orElse(null);
+            Long fromCategory = forCategoryFit(category, fitCode);
+            if (fromCategory != null) return fromCategory;
+        }
+        if (fitCode != null) {
+            for (kn.org.deliverybackend.enumeration.Fit fit : kn.org.deliverybackend.enumeration.Fit.values()) {
+                if (fit.name().equals(fitCode)) {
+                    Long fitsOwn = liveOrNull(fit.sizeChartId());
+                    if (fitsOwn != null) return fitsOwn;
+                }
+            }
+        }
+        return effectiveFor(product);
+    }
+
+    /** The chart every fit shows on this product, by fit, in the shop's order of fits. */
+    @Transactional(readOnly = true)
+    public java.util.Map<String, Long> effectiveFitCharts(Product product) {
+        java.util.Map<String, Long> out = new java.util.LinkedHashMap<>();
+        for (kn.org.deliverybackend.enumeration.Fit fit : kn.org.deliverybackend.enumeration.Fit.values()) {
+            out.put(fit.name(), effectiveForFit(product, fit.name()));
+        }
+        return out;
+    }
+
+    /** The product's own chart for each fit that has one, by fit. */
+    @Transactional(readOnly = true)
+    public java.util.Map<String, Long> ownFitCharts(Long productId) {
+        java.util.Map<String, Long> out = new java.util.LinkedHashMap<>();
+        if (productId == null) return out;
+        for (kn.org.deliverybackend.entity.ProductFitSizeChart own : productFitCharts.findByProductId(productId)) {
+            if (liveOrNull(own.getSizeChartId()) != null) out.put(own.getFitCode(), own.getSizeChartId());
+        }
+        return out;
+    }
+
+    /**
+     * Saves a product's own charts for its fits: a chart id gives a fit its own
+     * chart, 0 takes it away. Fits not in the map are left as they are.
+     */
+    @Transactional
+    public void setOwnFitCharts(Long productId, java.util.Map<String, Long> charts) {
+        if (productId == null || charts == null) return;
+        for (java.util.Map.Entry<String, Long> entry : charts.entrySet()) {
+            kn.org.deliverybackend.enumeration.Fit fit = kn.org.deliverybackend.enumeration.Fit.parse(entry.getKey());
+            if (fit == null) continue;
+            Long chart = checked(entry.getValue());
+            if (chart == null) {
+                productFitCharts.deleteOne(productId, fit.name());
+            } else {
+                productFitCharts.save(new kn.org.deliverybackend.entity.ProductFitSizeChart(productId, fit.name(), chart));
+            }
+        }
+    }
+
+    /** A category's chart for a fit: its own for it, else that of the nearest category above with one. Null for none. */
+    @Transactional(readOnly = true)
+    public Long forCategoryFit(Category category, String fitCode) {
+        if (category == null || fitCode == null) return null;
+        Long own = ownForCategoryFit(category.getId(), fitCode);
+        if (own != null) return own;
+        for (Category above : CategoryTree.ancestors(categoryRepository, category)) {
+            Long theirs = ownForCategoryFit(above.getId(), fitCode);
+            if (theirs != null) return theirs;
+        }
+        return null;
+    }
+
+    private Long ownForCategoryFit(Long categoryId, String fitCode) {
+        if (categoryId == null) return null;
+        for (kn.org.deliverybackend.entity.CategoryFitSizeChart own : categoryFitCharts.findByCategoryId(categoryId)) {
+            if (fitCode.equals(own.getFitCode())) return liveOrNull(own.getSizeChartId());
+        }
+        return null;
+    }
+
+    /** The category's own chart for each fit that has one, by fit. */
+    @Transactional(readOnly = true)
+    public java.util.Map<String, Long> ownCategoryFitCharts(Long categoryId) {
+        java.util.Map<String, Long> out = new java.util.LinkedHashMap<>();
+        if (categoryId == null) return out;
+        for (kn.org.deliverybackend.entity.CategoryFitSizeChart own : categoryFitCharts.findByCategoryId(categoryId)) {
+            if (liveOrNull(own.getSizeChartId()) != null) out.put(own.getFitCode(), own.getSizeChartId());
+        }
+        return out;
+    }
+
+    /** Saves a category's charts for the fits: a chart id sets one, 0 takes it away; fits left out are left as they are. */
+    @Transactional
+    public void setCategoryFitCharts(Long categoryId, java.util.Map<String, Long> charts) {
+        if (categoryId == null || charts == null) return;
+        for (java.util.Map.Entry<String, Long> entry : charts.entrySet()) {
+            kn.org.deliverybackend.enumeration.Fit fit = kn.org.deliverybackend.enumeration.Fit.parse(entry.getKey());
+            if (fit == null) continue;
+            Long chart = checked(entry.getValue());
+            if (chart == null) {
+                categoryFitCharts.deleteOne(categoryId, fit.name());
+            } else {
+                categoryFitCharts.save(new kn.org.deliverybackend.entity.CategoryFitSizeChart(categoryId, fit.name(), chart));
+            }
+        }
     }
 
     /** The chart a category gives its products: its own, else that of the nearest category above that names one. Null for none. */

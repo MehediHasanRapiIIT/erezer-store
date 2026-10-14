@@ -15,6 +15,8 @@ export interface SizeChartEntry {
   productCount: number;
   /** Categories that name this chart. */
   categoryCount: number;
+  /** How many fits use it as their chart. */
+  fitCount?: number;
 }
 
 /**

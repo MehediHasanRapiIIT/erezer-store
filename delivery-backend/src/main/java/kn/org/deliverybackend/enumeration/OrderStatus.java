@@ -33,7 +33,9 @@ public enum OrderStatus {
     private static final Map<OrderStatus, Set<OrderStatus>> ALLOWED_TRANSITIONS = Map.of(
             PLACED,           EnumSet.of(ACCEPTED, CANCELLED),
             PENDING,          EnumSet.of(ACCEPTED, CANCELLED),
-            ACCEPTED,         EnumSet.of(IN_PRODUCTION, CANCELLED),
+            // "In production" is no longer a step (2026-10-15); an order still
+            // standing there from before can only move on to Processing.
+            ACCEPTED,         EnumSet.of(PROCESSING, CANCELLED),
             IN_PRODUCTION,    EnumSet.of(PROCESSING, CANCELLED),
             PROCESSING,       EnumSet.of(SHIPPED, CANCELLED),
             SHIPPED,          EnumSet.of(OUT_FOR_DELIVERY, DELIVERED, RETURNED),

@@ -23,6 +23,7 @@ import java.util.UUID;
 public class NewsletterCampaignServiceImpl implements NewsletterCampaignService {
 
     private final NewsletterCampaignRepository repository;
+    private final CustomerEmailSettingsService customerEmails;
     private final NewsletterCampaignDispatcher dispatcher;
 
     @Override
@@ -62,6 +63,10 @@ public class NewsletterCampaignServiceImpl implements NewsletterCampaignService 
     @Override
     @Transactional
     public NewsletterCampaignDTO send(UUID id, String sentByIdentity) {
+        if (!customerEmails.newsletterEnabled()) {
+            throw new InvalidStockOperationException("Newsletter emails are switched off, so the shop's mailbox is kept for order emails. "
+                    + "Switch them on under Settings → Customer emails to send this campaign.");
+        }
         NewsletterCampaign c = mustFind(id);
         if (!CampaignStatus.DRAFT.name().equals(c.getStatus())
                 && !CampaignStatus.FAILED.name().equals(c.getStatus())) {

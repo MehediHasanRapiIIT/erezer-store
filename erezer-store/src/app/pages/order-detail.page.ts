@@ -15,7 +15,6 @@ import { FINAL_ORDER_STATUSES, OrderTimelineComponent } from '../components/shar
 const TIMELINE_STEPS: { status: OrderStatus; label: string }[] = [
   { status: 'PLACED',           label: 'Placed' },
   { status: 'ACCEPTED',         label: 'Accepted' },
-  { status: 'IN_PRODUCTION',    label: 'In production' },
   { status: 'PROCESSING',       label: 'Processing' },
   { status: 'SHIPPED',          label: 'Shipped' },
   { status: 'OUT_FOR_DELIVERY', label: 'Out for delivery' },

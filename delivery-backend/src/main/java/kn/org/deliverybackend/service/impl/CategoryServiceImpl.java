@@ -196,6 +196,7 @@ public class CategoryServiceImpl implements CategoryService {
         category.setSizeChartId(sizeCharts.checked(categoryRequestDTO.getSizeChartId()));
         applyHomeSectionFields(category, categoryRequestDTO, null);
         Category saved = categoryRepository.save(category);
+        sizeCharts.setCategoryFitCharts(saved.getId(), categoryRequestDTO.getFitSizeChartIds());
         return toEnrichedDTO(saved);
     }
 
@@ -212,7 +213,9 @@ public class CategoryServiceImpl implements CategoryService {
             category.setSizeChartId(sizeCharts.checked(categoryRequestDTO.getSizeChartId()));
         }
         applyHomeSectionFields(category, categoryRequestDTO, id);
-        return toEnrichedDTO(categoryRepository.save(category));
+        Category saved = categoryRepository.save(category);
+        sizeCharts.setCategoryFitCharts(saved.getId(), categoryRequestDTO.getFitSizeChartIds());
+        return toEnrichedDTO(saved);
     }
 
     @Override
@@ -308,6 +311,7 @@ public class CategoryServiceImpl implements CategoryService {
         kn.org.deliverybackend.service.CategoryTree.parentOf(categoryRepository, category)
                 .ifPresent(parent -> dto.setParentName(parent.getName()));
         dto.setSizeChartId(category.getSizeChartId());
+        dto.setFitSizeChartIds(sizeCharts.ownCategoryFitCharts(category.getId()));
         dto.setEffectiveSizeChartId(sizeCharts.forCategory(category));
         dto.setDepth(kn.org.deliverybackend.service.CategoryTree.depth(categoryRepository, category));
         dto.setPath(kn.org.deliverybackend.service.CategoryTree.path(categoryRepository, category));

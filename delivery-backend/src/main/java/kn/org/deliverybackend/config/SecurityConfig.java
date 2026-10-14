@@ -138,6 +138,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/store-settings").permitAll()
                         // The size chart library: shown to customers, and listed in admin forms.
                         .requestMatchers(HttpMethod.GET, "/api/size-charts").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/fits").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/size-finder").permitAll()
                         // The shop's own pages ("Our Mission", "Our Values"), read by customers.
                         .requestMatchers(HttpMethod.GET, "/api/pages", "/api/pages/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/discounts/active").permitAll()

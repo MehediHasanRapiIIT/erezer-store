@@ -147,6 +147,10 @@
             <app-size-chart-picker [(value)]="sizeChartId" label="Size chart for this category" fieldId="category-size-chart" testId="category-size-chart-select"
               help="Every product in this category, and in the categories under it, shows this chart unless the product has its own."
               [noneLabel]="isSub() ? 'Same as the category above it (or the default chart)' : 'None of its own (the default chart)'" />
+            <p class="mt-1 text-xs text-gray-400">This one is for products with no fit (caps, bags). Products in a fit show the chart for that fit, below.</p>
+            <div class="mt-3">
+              <app-fit-size-charts [fits]="categoryFits" [forCategory]="true" [(value)]="fitSizeChartIds" />
+            </div>
           </div>
 
           <!-- Category image -->

@@ -105,6 +105,8 @@ export interface ApiProduct {
   /** Category name, resolved by the backend; absent on very old rows. */
   categoryName?: string | null;
   name: string;
+  /** The shop's product code (TS-1006), shown under the name on the product page. */
+  productCode?: string | null;
   description: string;
   price: number;
   discountPrice: number;
@@ -144,6 +146,8 @@ export interface ApiProduct {
   effectiveSizeChartId?: number | null;
   /** The chart shown for Regular Fit; the same id when the product names no other. */
   effectiveRegularFitSizeChartId?: number | null;
+  /** The chart each fit shows, by fit (DROP_SHOULDER → id): the product's own for it, else the fit's, else the product's. */
+  effectiveFitSizeChartIds?: Record<string, number | null> | null;
 
   // Custom (made-to-order) sizing
   customSizeEnabled?: boolean | null;
@@ -762,6 +766,25 @@ export interface ApiContentPage {
 }
 
 /** One chart of the shop's size chart library. */
+/** One size of a size finder table: the tallest height (inches) and heaviest weight (kg) it suits; null for "anything above". */
+export interface ApiSizeFinderRule {
+  size: string;
+  heightUpToIn: number | null;
+  weightUpToKg: number | null;
+}
+
+export interface ApiSizeFinderTable {
+  enabled: boolean;
+  rules: ApiSizeFinderRule[];
+}
+
+/** The admin's size finder ("Don't know your size?"): a shop-wide switch, a table for products with no fit, one per fit. */
+export interface ApiSizeFinder {
+  enabled: boolean;
+  general: ApiSizeFinderTable;
+  fits: Record<string, ApiSizeFinderTable>;
+}
+
 export interface ApiSizeChartEntry {
   id: number;
   name: string;

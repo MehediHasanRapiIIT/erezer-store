@@ -1,3 +1,5 @@
+import { FitSizeChartsComponent } from '../../products/shared/fit-size-charts.component';
+import { FITS } from '../../products/shared/fit-sizes.component';
 import { Component, signal, OnInit, inject, computed } from '@angular/core';
 import { SizeChartPickerComponent } from '../../../shared/size-chart-picker/size-chart-picker.component';
 import { RouterLink, Router, ActivatedRoute } from '@angular/router';
@@ -14,7 +16,7 @@ import { NoticeService } from '../../../core/services/notice.service';
 @Component({
   selector: 'app-edit-category',
   standalone: true,
-  imports: [RouterLink, FormsModule, SidebarComponent, SizeChartPickerComponent],
+  imports: [RouterLink, FormsModule, SidebarComponent, SizeChartPickerComponent, FitSizeChartsComponent],
   templateUrl: './edit-category.component.html',
 })
 export class EditCategoryComponent implements OnInit {
@@ -29,6 +31,10 @@ export class EditCategoryComponent implements OnInit {
   parentId = signal<number | null>(null);
   /** The size chart for the products in and under this category; 0 for none of its own. */
   sizeChartId = signal(0);
+  /** The category's chart for each fit, by fit; 0 for none of its own. */
+  fitSizeChartIds = signal<Record<string, number>>({});
+  /** A line for every fit offered in the shop. */
+  protected readonly categoryFits = FITS.map((f) => f.value);
   /** Every category it could sit inside, as a tree. (Named from when only main categories could hold one.) */
   mainCategories = signal<CategoryResponse[]>([]);
   /** It has subcategories of its own, which move with it. */
@@ -105,6 +111,7 @@ export class EditCategoryComponent implements OnInit {
         this.homeSortOrder.set(cat.homeSortOrder ?? 0);
         this.parentId.set(cat.parentId ?? null);
         this.sizeChartId.set(cat.sizeChartId ?? 0);
+        this.fitSizeChartIds.set({ ...(cat.fitSizeChartIds ?? {}) });
         this.isSub.set(cat.parentId != null);
         this.hasSubcategories.set((cat.subcategoryCount ?? 0) > 0);
         this.isFetching.set(false);
@@ -137,6 +144,8 @@ export class EditCategoryComponent implements OnInit {
       homeSortOrder: this.homeSortOrder(),
       parentId: this.parentId(),
       sizeChartId: this.sizeChartId(),
+      // Every fit's line is sent, so one taken back to "same as above" (0) is cleared.
+      fitSizeChartIds: { ...this.fitSizeChartIds() },
     }).subscribe({
       next: () => {
         this.isLoading.set(false);

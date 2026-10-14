@@ -1,5 +1,7 @@
 import { Component, signal, computed, OnInit, inject } from '@angular/core';
 import { SizeChartPickerComponent } from '../../../shared/size-chart-picker/size-chart-picker.component';
+import { FitSizeChartsComponent } from '../shared/fit-size-charts.component';
+import { VariantService } from '../../../core/services/variant.service';
 import { RouterLink, Router, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { SidebarComponent } from '../../../shared/sidebar/sidebar.component';
@@ -26,6 +28,7 @@ import { NoticeService } from '../../../core/services/notice.service';
     ImageGalleryEditorComponent,
     DiscountInputComponent,
     SizeChartPickerComponent,
+    FitSizeChartsComponent,
   ],
   templateUrl: './edit-product.component.html',
 })
@@ -33,6 +36,7 @@ export class EditProductComponent implements OnInit {
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private productService = inject(ProductService);
+  private variantService = inject(VariantService);
   private readonly notices = inject(NoticeService);
   private categoryService = inject(CategoryService);
   protected readonly perms = inject(PermissionService);
@@ -62,7 +66,10 @@ export class EditProductComponent implements OnInit {
   /** Counts saves of the product's options, so the pictures section reads the choices again. */
   optionsVersion = signal(0);
   /** A different chart for Regular Fit; 0 for the same chart. */
-  regularFitSizeChartId = signal(0);
+  /** The product's own chart for a fit, by fit; 0 for the fit's chart. */
+  fitSizeChartIds = signal<Record<string, number>>({});
+  /** The fits this product comes in, for "Chart for …"; read from its sizes. */
+  readonly productFits = signal<string[]>([]);
   protected readonly stockDisplayOptions: { value: StockDisplay; label: string }[] = [
     { value: 'CATEGORY', label: 'Same as category' },
     { value: 'QUANTITY', label: 'Show quantity' },
@@ -119,7 +126,11 @@ export class EditProductComponent implements OnInit {
         this.discountExcluded.set(!!p.discountExcluded);
         this.stockDisplay.set(p.stockDisplay ?? 'CATEGORY');
         this.sizeChartId.set(p.sizeChartId ?? 0);
-        this.regularFitSizeChartId.set(p.regularFitSizeChartId ?? 0);
+        this.fitSizeChartIds.set({ ...(p.fitSizeChartIds ?? {}) });
+        this.variantService.list(p.id).subscribe({
+          next: (sizes) => this.productFits.set([...new Set((sizes ?? []).map((s) => s.fit).filter((f): f is string => !!f))]),
+          error: () => {},
+        });
         this.unit.set(p.unit ?? '');
         this.lowStockThreshold.set(p.lowStockThreshold ?? null);
         this.brand.set(p.brand ?? '');
@@ -183,7 +194,8 @@ export class EditProductComponent implements OnInit {
       discountExcluded: this.discountExcluded(),
       stockDisplay: this.stockDisplay(),
       sizeChartId: this.sizeChartId(),
-      regularFitSizeChartId: this.regularFitSizeChartId(),
+      // Every fit's choice is sent, so one taken back to "the fit's chart" (0) is cleared.
+      fitSizeChartIds: { ...this.fitSizeChartIds() },
       unit: this.unit().trim() || undefined,
       lowStockThreshold: this.lowStockThreshold() ?? undefined,
       brand: this.brand().trim() || undefined,

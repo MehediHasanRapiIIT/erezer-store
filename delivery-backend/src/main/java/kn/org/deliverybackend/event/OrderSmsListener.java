@@ -27,6 +27,22 @@ public class OrderSmsListener {
     private static final Set<OrderStatus> SMS_STATUSES = Set.of(
             OrderStatus.SHIPPED, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED);
 
+    /** A text when the order is placed, in place of an email (the mailbox is kept for the later steps). */
+    @org.springframework.transaction.event.TransactionalEventListener(phase = org.springframework.transaction.event.TransactionPhase.AFTER_COMMIT)
+    public void onOrderPlaced(OrderPlacedEvent event) {
+        Order order = orderRepository.findById(event.getOrderId()).orElse(null);
+        if (order == null) {
+            return;
+        }
+        String phone = phoneOf(order);
+        if (phone == null || phone.isBlank()) {
+            return;
+        }
+        String number = order.getOrderNumber() != null ? order.getOrderNumber() : order.getId().toString().substring(0, 8);
+        smsService.send(phone, "Erezer: thank you! We received your order " + number
+                + ". We'll confirm it soon. Track: " + trackUrl(order));
+    }
+
     private final SmsService smsService;
     private final OrderRepository orderRepository;
     private final UsersRepository usersRepository;
@@ -44,14 +60,24 @@ public class OrderSmsListener {
         if (order == null) {
             return;
         }
-        // Account holders by their profile number; guests by the phone they gave at checkout.
-        String phone = order.getClientId() != null
-                ? usersRepository.findById(order.getClientId()).map(u -> u.getPhoneNumber()).orElse(order.getCustomerPhone())
-                : order.getCustomerPhone();
+        String phone = phoneOf(order);
         if (phone == null || phone.isBlank()) {
             return;
         }
         smsService.send(phone, messageFor(to, event, order));
+    }
+
+    /** Account holders by their profile number; guests by the phone they gave at checkout. */
+    private String phoneOf(Order order) {
+        return order.getClientId() != null
+                ? usersRepository.findById(order.getClientId()).map(u -> u.getPhoneNumber()).orElse(order.getCustomerPhone())
+                : order.getCustomerPhone();
+    }
+
+    private String trackUrl(Order order) {
+        return order.getClientId() == null && order.getOrderNumber() != null
+                ? storeUrl + "/track-order?number=" + order.getOrderNumber()
+                : storeUrl + "/orders/" + order.getId();
     }
 
     private String messageFor(OrderStatus to, OrderStatusChangedEvent event, Order order) {

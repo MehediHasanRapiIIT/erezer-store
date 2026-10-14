@@ -29,4 +29,6 @@ public class SizeChartLibraryDTO {
     private long productCount;
     /** Categories that name this chart. */
     private long categoryCount;
+    /** How many fits use it as their chart. */
+    private long fitCount;
 }

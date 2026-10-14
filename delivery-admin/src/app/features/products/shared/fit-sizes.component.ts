@@ -3,16 +3,48 @@ import { FormsModule } from '@angular/forms';
 import { VariantRequest } from '../../../core/services/variant.service';
 import { SizeGridComponent, SizeRow, emptySizeRows, pickedSizes } from './size-grid.component';
 
-/** The cut a garment comes in. A product may have one, both, or neither. */
-export type Fit = 'DROP_SHOULDER' | 'REGULAR_FIT';
+/**
+ * The cut a garment comes in, as a size stores it: DROP_SHOULDER, REGULAR_FIT,
+ * or a fit the shop added on the Size Charts page (OVERSIZED). A product may
+ * come in any number of them, or none.
+ */
+export type Fit = string;
 
-export const FITS: { value: Fit; label: string }[] = [
+/** One fit of the shop's list. */
+export interface FitInfo {
+  value: Fit;
+  label: string;
+  /** Kept for products that have it, not offered for new ones. */
+  hidden?: boolean;
+  /** The library chart this fit's sizes show, and its name; null to follow the product's chart. */
+  sizeChartId?: number | null;
+  sizeChartName?: string | null;
+}
+
+/**
+ * Every fit the shop has, hidden ones too, in the shop's order. Starts as the
+ * two the shop has always had and is replaced by the real list when the panel
+ * starts (FitService), and after every change on the Size Charts page.
+ */
+export const ALL_FITS: FitInfo[] = [
   { value: 'DROP_SHOULDER', label: 'Drop Shoulder' },
   { value: 'REGULAR_FIT', label: 'Regular Fit' },
 ];
 
+/** The fits offered for products: the list without the hidden ones. Kept in step with ALL_FITS. */
+export const FITS: FitInfo[] = [...ALL_FITS];
+
+/** Puts the shop's list in place, changing the arrays in place so every screen sees it. */
+export function setFits(list: FitInfo[]): void {
+  ALL_FITS.splice(0, ALL_FITS.length, ...list);
+  FITS.splice(0, FITS.length, ...list.filter((f) => !f.hidden));
+}
+
 export function fitLabel(fit: string | null | undefined): string {
-  return FITS.find((f) => f.value === fit)?.label ?? '';
+  if (!fit) return '';
+  return ALL_FITS.find((f) => f.value === fit)?.label
+    // A fit this panel has not heard of yet: OVERSIZED reads "Oversized".
+    ?? fit.toLowerCase().split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
 /**
@@ -59,17 +91,19 @@ export interface FitSizes {
   plain: SizeRow[];
 }
 
-/** A new product starts as Drop Shoulder; untick it for a cap or a bag. */
+/** A new product starts in the first fit of the list (Drop Shoulder); untick it for a cap or a bag. */
 export function emptyFitSizes(): FitSizes {
-  return {
-    fits: { DROP_SHOULDER: { picked: true, price: null }, REGULAR_FIT: { picked: false, price: null } },
-    rows: { DROP_SHOULDER: emptySizeRows(), REGULAR_FIT: emptySizeRows() },
-    plain: emptySizeRows(),
-  };
+  const fits: Record<Fit, FitChoice> = {};
+  const rows: Record<Fit, SizeRow[]> = {};
+  FITS.forEach((f, i) => {
+    fits[f.value] = { picked: i === 0, price: null };
+    rows[f.value] = emptySizeRows();
+  });
+  return { fits, rows, plain: emptySizeRows() };
 }
 
 export function pickedFits(value: FitSizes): Fit[] {
-  return FITS.map((f) => f.value).filter((f) => value.fits[f].picked);
+  return FITS.map((f) => f.value).filter((f) => value.fits[f]?.picked);
 }
 
 /**

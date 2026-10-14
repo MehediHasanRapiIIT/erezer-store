@@ -159,12 +159,8 @@
 
               @if (canBulkEdit()) {
                 <div class="flex items-center gap-1.5" data-testid="bulk-chart">
-                  <div class="w-52">
-                    <app-size-chart-picker [(value)]="bulkChartId" [compact]="true" label="Size chart for the ticked products"
-                      fieldId="bulk-size-chart" testId="bulk-size-chart" noneLabel="Size chart: same as category" />
-                  </div>
-                  <button type="button" (click)="bulkSetChart()" [disabled]="bulkSaving()" data-testid="bulk-chart-apply"
-                    class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-40">Set chart</button>
+                  <button type="button" (click)="bulkChartsOpen.set(!bulkChartsOpen())" [disabled]="bulkSaving()" data-testid="bulk-charts-open"
+                    class="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-40">Size charts…</button>
                 </div>
               }
 
@@ -175,6 +171,9 @@
 
               <button type="button" (click)="clearPicks()" class="ml-auto text-sm font-medium text-blue-700 hover:underline" data-testid="bulk-clear">Clear selection</button>
             </div>
+            @if (bulkChartsOpen() && canBulkEdit()) {
+              <app-bulk-charts [count]="pickedCount()" [busy]="bulkSaving()" (chosen)="bulkSetCharts($event)" (closed)="bulkChartsOpen.set(false)" />
+            }
             <p class="mt-2 text-xs text-blue-700">
               @if (pickedCount() > bulkLimit) {
                 <span class="font-semibold text-red-600">Up to {{ bulkLimit }} products at a time. Untick some first.</span>

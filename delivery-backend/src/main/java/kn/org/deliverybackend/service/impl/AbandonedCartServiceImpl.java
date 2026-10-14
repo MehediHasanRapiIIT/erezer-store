@@ -33,6 +33,7 @@ public class AbandonedCartServiceImpl implements AbandonedCartService {
     private final CartRepository cartRepository;
     private final UsersRepository usersRepository;
     private final EmailService emailService;
+    private final CustomerEmailSettingsService customerEmails;
 
     @Value("${app.cart.abandon.idle-hours:24}")
     private int idleHours;
@@ -47,6 +48,11 @@ public class AbandonedCartServiceImpl implements AbandonedCartService {
     @Scheduled(cron = "${app.cart.abandon.cron:0 0 9 * * *}")
     @Override
     public int sweepOnce() {
+        if (!customerEmails.cartReminderEnabled()) {
+            // Switched off on the Settings page ("Customer emails").
+            log.info("Abandoned-cart sweep skipped: cart reminder emails are switched off");
+            return 0;
+        }
         Date idleBefore = Date.from(
                 LocalDateTime.now().minusHours(idleHours).atZone(ZoneId.systemDefault()).toInstant());
 

@@ -14,7 +14,7 @@ import { NoticeService } from '../../../core/services/notice.service';
 import {
   SIZE_OPTIONS, SizeGridComponent, SizeRow, emptySizeRows, pickedSizes,
 } from '../shared/size-grid.component';
-import { FITS, Fit, fitLabel } from '../shared/fit-sizes.component';
+import { ALL_FITS, FITS, Fit, fitLabel } from '../shared/fit-sizes.component';
 import { OptionsEditorComponent, cleanOptions, combinationCount, optionsProblem } from '../shared/options-editor.component';
 
 /** One fit in the "Fit" box: offered or not, its price, and whether the price was touched. */
@@ -111,7 +111,7 @@ const EMPTY_FORM: VariantForm = {
             Tick the fits this product comes in: one, both, or neither. Customers pick the fit, then the size. Each fit has its own stock.
           </p>
           <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            @for (f of fits; track f.value) {
+            @for (f of fits(); track f.value) {
               <div class="rounded-lg border p-3"
                 [class.border-blue-500]="fitDraft()[f.value].picked" [class.bg-blue-50]="fitDraft()[f.value].picked"
                 [class.border-gray-200]="!fitDraft()[f.value].picked">
@@ -372,7 +372,8 @@ export class VariantManagerComponent implements OnChanges {
   readonly error     = signal<string>('');
 
   protected readonly sizeOptions = SIZE_OPTIONS;
-  protected readonly fits = FITS;
+  /** The fits the Fit box offers: the shop's offered fits, and any hidden one this product still has. */
+  protected readonly fits = computed(() => ALL_FITS.filter((f) => !f.hidden || this.currentFits().includes(f.value)));
 
   // ── options: colour, and anything else the shop defines ───────────────────
   /** The options as saved. */
@@ -516,11 +517,11 @@ export class VariantManagerComponent implements OnChanges {
 
   /** The fits the product comes in right now, Drop Shoulder first; empty when it has none. */
   readonly currentFits = computed(() =>
-    FITS.map((f) => f.value).filter((f) => this.variants().some((v) => v.fit === f)));
+    ALL_FITS.map((f) => f.value).filter((f) => this.variants().some((v) => v.fit === f)));
   readonly hasFits = computed(() => this.currentFits().length > 0);
   /** The "Fit" box as it is being edited; saved with "Save fits". */
   readonly fitDraft = signal<Record<Fit, FitDraft>>(blankFitDraft());
-  readonly fitsChanged = computed(() => FITS.some((f) => {
+  readonly fitsChanged = computed(() => this.fits().some((f) => {
     const draft = this.fitDraft()[f.value];
     return draft.picked !== this.currentFits().includes(f.value) || (draft.picked && draft.priceTouched);
   }));
@@ -549,7 +550,7 @@ export class VariantManagerComponent implements OnChanges {
   /** Puts the "Fit" box back to what the product has. */
   resetFitDraft(): void {
     const draft = blankFitDraft();
-    for (const f of FITS) {
+    for (const f of this.fits()) {
       draft[f.value] = { picked: this.currentFits().includes(f.value), price: this.sharedPrice(f.value), priceTouched: false };
     }
     this.fitDraft.set(draft);
@@ -569,7 +570,7 @@ export class VariantManagerComponent implements OnChanges {
   /** Saves the "Fit" box, asking first when stock would be removed or merged. */
   async saveFits(): Promise<void> {
     const draft = this.fitDraft();
-    const chosen = FITS.map((f) => f.value).filter((f) => draft[f].picked);
+    const chosen = this.fits().map((f) => f.value).filter((f) => draft[f]?.picked);
     const leaving = this.currentFits().filter((f) => !chosen.includes(f));
     for (const f of chosen) {
       const price = draft[f].price;
@@ -618,8 +619,8 @@ export class VariantManagerComponent implements OnChanges {
     };
     // Drop Shoulder's sizes, then Regular Fit's.
     const fitRank = (fit: string | null | undefined) => {
-      const i = FITS.findIndex((f) => f.value === fit);
-      return i < 0 ? FITS.length : i;
+      const i = ALL_FITS.findIndex((f) => f.value === fit);
+      return i < 0 ? ALL_FITS.length : i;
     };
     // Each combination of options in turn, in the order the options list them.
     const combos = this.comboOrder();
@@ -822,8 +823,7 @@ export class VariantManagerComponent implements OnChanges {
 }
 
 function blankFitDraft(): Record<Fit, FitDraft> {
-  return {
-    DROP_SHOULDER: { picked: false, price: null, priceTouched: false },
-    REGULAR_FIT: { picked: false, price: null, priceTouched: false },
-  };
+  const draft: Record<Fit, FitDraft> = {};
+  for (const f of ALL_FITS) draft[f.value] = { picked: false, price: null, priceTouched: false };
+  return draft;
 }

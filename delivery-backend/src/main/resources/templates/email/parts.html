@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<!--
+  The frame every customer email shares: the logo at the top, the message, and
+  the shop's address and contacts at the bottom. A template uses it with
+    <html th:replace="~{email/parts :: page(~{::#content}, 'order')}">
+  and puts its message in <div id="content">. The second value says why the
+  customer got the email: 'order', 'account' or 'support'.
+-->
+<html xmlns:th="http://www.thymeleaf.org" lang="en" th:fragment="page(content, reason)">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title th:text="${subject}">Erezer</title>
+</head>
+<body style="margin:0;padding:0;background:#f5f5f4;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1c1917;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f5f5f4;padding:28px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background:#ffffff;border:1px solid #e7e5e4;border-radius:12px;">
+          <tr>
+            <td style="padding:26px 32px 18px;border-bottom:1px solid #f0efee;">
+              <a th:href="${brandStoreUrl}" href="#" style="text-decoration:none;color:#0c0a09;">
+                <img th:src="${brandLogoUrl}" src="" width="150" height="17" alt="EREZER"
+                     style="display:block;width:150px;height:auto;border:0;font-size:20px;font-weight:700;letter-spacing:4px;color:#0c0a09;" />
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px 32px 32px;font-size:15px;line-height:1.6;">
+              <div th:replace="${content}">The message.</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:20px 32px 24px;border-top:1px solid #e7e5e4;background:#fafaf9;border-radius:0 0 12px 12px;color:#78716c;font-size:12px;line-height:1.7;">
+              <div style="color:#44403c;font-weight:600;">Erezer</div>
+              <div th:if="${brandAddress}" th:text="${brandAddress}">House 1, Road 1, Dhaka</div>
+              <div>
+                <a th:href="${brandStoreUrl}" href="#" style="color:#78716c;text-decoration:underline;" th:text="${brandSite}">erezer.com</a>
+                <span th:if="${brandSupportEmail}"> &middot; <a th:href="'mailto:' + ${brandSupportEmail}" href="#" style="color:#78716c;text-decoration:underline;" th:text="${brandSupportEmail}">support@erezer.com</a></span>
+                <span th:if="${brandSupportPhone}"> &middot; <span th:text="${brandSupportPhone}">+880</span></span>
+              </div>
+              <div style="margin-top:10px;">
+                <span th:if="${reason == 'order'}">You are receiving this email because you placed an order at <span th:text="${brandSite}">erezer.com</span>.</span>
+                <span th:if="${reason == 'account'}">You are receiving this email because of your account at <span th:text="${brandSite}">erezer.com</span>.</span>
+                <span th:if="${reason == 'support'}">You are receiving this email because you contacted us at <span th:text="${brandSite}">erezer.com</span>.</span>
+                Questions? Reply to this email and our team will answer.
+              </div>
+              <div style="margin-top:6px;">&copy; <span th:text="${brandYear}">2026</span> Erezer</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

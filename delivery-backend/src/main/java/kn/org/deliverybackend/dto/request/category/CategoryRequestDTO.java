@@ -45,6 +45,8 @@ public class CategoryRequestDTO {
      * charts can't take one away.
      */
     private Long sizeChartId;
+    /** The category's chart for each fit, by fit (DROP_SHOULDER → chart id); 0 takes one away. Null, or a fit left out: unchanged. */
+    private java.util.Map<String, Long> fitSizeChartIds;
 
     /** True: product pages in this category show the stock quantity. Null leaves it unchanged. */
     private Boolean showStockQuantity;

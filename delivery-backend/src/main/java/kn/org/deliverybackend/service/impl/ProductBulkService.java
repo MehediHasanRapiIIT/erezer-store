@@ -77,10 +77,19 @@ public class ProductBulkService {
             case STOCK_SHOW_QUANTITY -> each(products, p -> p.setStockDisplay(StockDisplay.QUANTITY), these + " now show the stock quantity.");
             case STOCK_SHOW_LABELS -> each(products, p -> p.setStockDisplay(StockDisplay.LABEL), these + " now show stock labels.");
             case SET_SIZE_CHART -> {
+                java.util.Map<String, Long> byFit = request.getFitSizeChartIds();
+                boolean fitsToo = byFit != null && !byFit.isEmpty();
+                if (fitsToo) {
+                    for (Product p : products) sizeCharts.setOwnFitCharts(p.getId(), byFit);
+                }
+                if (Boolean.TRUE.equals(request.getKeepGeneralChart())) {
+                    yield new Result(n, these + (n == 1 ? " now shows" : " now show") + " the chosen chart for each fit.");
+                }
                 Long chartId = sizeCharts.checked(request.getSizeChartId());
-                yield each(products, p -> p.setSizeChartId(chartId), chartId == null
-                        ? these + (n == 1 ? " now follows its" : " now follow their") + " category's size chart."
-                        : these + (n == 1 ? " now uses" : " now use") + " the chosen size chart.");
+                String general = chartId == null
+                        ? these + (n == 1 ? " now follows its" : " now follow their") + " category's size chart"
+                        : these + (n == 1 ? " now uses" : " now use") + " the chosen size chart";
+                yield each(products, p -> p.setSizeChartId(chartId), general + (fitsToo ? ", and the chosen chart for each fit." : "."));
             }
         };
     }

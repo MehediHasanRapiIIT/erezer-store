@@ -1,3 +1,4 @@
+import { BulkChartsComponent, BulkChartChoice, LEAVE } from './bulk-charts.component';
 import { Component, signal, computed, inject, OnInit, OnDestroy } from '@angular/core';
 import { SizeChartPickerComponent } from '../../../shared/size-chart-picker/size-chart-picker.component';
 import { RouterLink, Router, ActivatedRoute } from '@angular/router';
@@ -24,7 +25,7 @@ import { FITS, groupByFit } from '../shared/fit-sizes.component';
 @Component({
   selector: 'app-products-list',
   standalone: true,
-  imports: [RouterLink, FormsModule, SidebarComponent, SizeChartPickerComponent],
+  imports: [RouterLink, FormsModule, SidebarComponent, SizeChartPickerComponent, BulkChartsComponent],
   templateUrl: './products-list.component.html',
 })
 export class ProductsListComponent implements OnInit, OnDestroy {
@@ -397,6 +398,8 @@ export class ProductsListComponent implements OnInit, OnDestroy {
   bulkSaving = signal(false);
   /** The size chart chosen in the bar for the ticked products; 0 for none of their own. */
   bulkChartId = signal(0);
+  /** The size charts panel under the blue bar. */
+  bulkChartsOpen = signal(false);
 
   canBulk(): boolean {
     return this.canBulkEdit() || this.canBulkDelete() || this.allowedSwitches().length > 0;
@@ -455,6 +458,20 @@ export class ProductsListComponent implements OnInit, OnDestroy {
     if (ok) this.runBulk('SET_SIZE_CHART', undefined, this.bulkChartId());
   }
 
+  /** Sets the ticked products' charts: the general one and each fit's, leaving lines left on "Leave as it is". */
+  async bulkSetCharts(choice: BulkChartChoice): Promise<void> {
+    const byFit = Object.fromEntries(Object.entries(choice.byFit).filter(([, v]) => v !== LEAVE));
+    const ok = await this.confirmer.ask({
+      title: `Set the size charts of ${this.tickedWords()}?`,
+      message: 'Customers will see, for each fit, the chart chosen here. Lines left on "Leave as it is" are not changed.',
+      confirmLabel: 'Yes, do it',
+    });
+    if (!ok) return;
+    this.bulkChartsOpen.set(false);
+    this.runBulk('SET_SIZE_CHART', undefined, choice.general === LEAVE ? undefined : choice.general,
+      { fitSizeChartIds: byFit, keepGeneralChart: choice.general === LEAVE });
+  }
+
   async bulkDelete(): Promise<void> {
     const ok = await this.confirmer.ask({
       title: `Delete ${this.tickedWords()}?`,
@@ -465,14 +482,15 @@ export class ProductsListComponent implements OnInit, OnDestroy {
     if (ok) this.runBulk('DELETE');
   }
 
-  private runBulk(action: BulkProductAction, categoryId?: number, sizeChartId?: number): void {
+  private runBulk(action: BulkProductAction, categoryId?: number, sizeChartId?: number,
+                  charts?: { fitSizeChartIds?: Record<string, number>; keepGeneralChart?: boolean }): void {
     if (this.pickedCount() > this.bulkLimit) {
       this.errorMessage.set(`Up to ${this.bulkLimit} products at a time. Untick some and try again.`);
       return;
     }
     this.bulkSaving.set(true);
     this.errorMessage.set('');
-    this.productService.bulk(action, [...this.picks()], categoryId, sizeChartId).subscribe({
+    this.productService.bulk(action, [...this.picks()], categoryId, sizeChartId, charts).subscribe({
       next: (result) => {
         this.bulkSaving.set(false);
         this.notices.success(result.message);

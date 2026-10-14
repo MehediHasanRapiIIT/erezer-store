@@ -143,12 +143,7 @@ public class Product extends AbstractBaseEntity<Long> {
     @Column(name = "options_json", columnDefinition = "text")
     private String optionsJson;
 
-    /**
-     * For a product that comes in two fits: a different chart for Regular Fit.
-     * Null: Regular Fit shows the same chart as the rest of the product.
-     */
-    @Column(name = "regular_fit_size_chart_id")
-    private Long regularFitSizeChartId;
+    // A product's own chart for one of its fits lives in product_fit_size_chart (ProductFitSizeChart).
 
     /** Spaces at either end of the product code are never kept. */
     @PrePersist

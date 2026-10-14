@@ -1,6 +1,8 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
+import { FitsSectionComponent } from './fits-section.component';
+import { SizeFinderSectionComponent } from './size-finder-section.component';
 import { SizeChart } from '../../core/services/store-settings.service';
 import { SizeChartEntry, SizeChartService } from '../../core/services/size-chart.service';
 import { PermissionService } from '../../core/services/permission.service';
@@ -18,7 +20,7 @@ const NEW_CHART: SizeChart = { columns: ['Chest', 'Length'], rows: [] };
 @Component({
   selector: 'app-size-charts',
   standalone: true,
-  imports: [FormsModule, SidebarComponent],
+  imports: [FormsModule, SidebarComponent, FitsSectionComponent, SizeFinderSectionComponent],
   template: `
     <div class="flex h-screen bg-gray-50 overflow-hidden">
       <app-sidebar />
@@ -133,6 +135,12 @@ const NEW_CHART: SizeChart = { columns: ['Chest', 'Length'], rows: [] };
             </section>
           }
 
+          <!-- ── the fits, each with its chart ─────────────────────────────── -->
+          <app-fits-section [charts]="charts()" [canEdit]="canEdit()" (changed)="reload()" />
+
+          <!-- ── the size finder, a table per fit ────────────────────────────── -->
+          <app-size-finder-section [canEdit]="canEdit()" />
+
           <!-- ── the library ────────────────────────────────────────────────── -->
           @if (loading()) {
             <p class="py-10 text-center text-sm text-gray-400">Loading…</p>
@@ -221,6 +229,11 @@ export class SizeChartsComponent implements OnInit {
     return this.perms.can('settings.sizechart');
   }
 
+  /** After a fit's chart changes: the cards say again where each chart is used. */
+  reload(): void {
+    this.load();
+  }
+
   private load(): void {
     this.service.list().subscribe({
       next: (all) => { this.charts.set(all); this.loading.set(false); },
@@ -233,6 +246,7 @@ export class SizeChartsComponent implements OnInit {
     const parts: string[] = [];
     if (c.productCount) parts.push(`${c.productCount} product${c.productCount === 1 ? '' : 's'}`);
     if (c.categoryCount) parts.push(`${c.categoryCount} categor${c.categoryCount === 1 ? 'y' : 'ies'}`);
+    if (c.fitCount) parts.push(`${c.fitCount} fit${c.fitCount === 1 ? '' : 's'}`);
     const chosen = parts.length ? `Chosen on ${parts.join(' and ')}` : 'Not chosen on any product or category';
     return c.isDefault ? `${chosen}. Shown wherever no other chart is chosen.` : `${chosen}.`;
   }

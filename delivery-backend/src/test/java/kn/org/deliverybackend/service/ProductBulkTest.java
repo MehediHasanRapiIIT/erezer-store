@@ -164,6 +164,22 @@ class ProductBulkTest {
     }
 
     @Test
+    void givesTheTickedProductsAChartForEachFitLeavingTheirGeneralChartWhenAsked() {
+        byId.get(10L).setSizeChartId(5L);
+        java.util.Map<String, Long> byFit = java.util.Map.of("DROP_SHOULDER", 2L, "REGULAR_FIT", 3L);
+        ProductBulkService.Result set = service.apply(new BulkProductActionDTO(BulkProductAction.SET_SIZE_CHART, List.of(10L, 11L), null, null, byFit, true));
+        org.mockito.Mockito.verify(sizeCharts).setOwnFitCharts(10L, byFit);
+        org.mockito.Mockito.verify(sizeCharts).setOwnFitCharts(11L, byFit);
+        assertEquals(5L, byId.get(10L).getSizeChartId(), "the general chart is left as it is");
+        assertEquals("2 products now show the chosen chart for each fit.", set.message());
+
+        when(sizeCharts.checked(7L)).thenReturn(7L);
+        ProductBulkService.Result both = service.apply(new BulkProductActionDTO(BulkProductAction.SET_SIZE_CHART, List.of(10L), null, 7L, byFit, false));
+        assertEquals(7L, byId.get(10L).getSizeChartId());
+        assertEquals("1 product now uses the chosen size chart, and the chosen chart for each fit.", both.message());
+    }
+
+    @Test
     void needsAtLeastOneProductAndCountsATickOnce() {
         assertThrows(InvalidRequestException.class, () -> service.apply(new BulkProductActionDTO(BulkProductAction.HIDE, List.of(), null)));
         assertThrows(InvalidRequestException.class, () -> service.apply(new BulkProductActionDTO(BulkProductAction.HIDE, null, null)));

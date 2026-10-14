@@ -56,6 +56,8 @@ export interface ProductRequest {
   sizeChartId?: number;
   /** A different chart for Regular Fit; 0 for the same chart. Left out: unchanged. */
   regularFitSizeChartId?: number;
+  /** The product's own chart for a fit, by fit; 0 takes it away. Left out: unchanged. */
+  fitSizeChartIds?: Record<string, number>;
 }
 
 export interface ProductResponse {
@@ -102,6 +104,10 @@ export interface ProductResponse {
   /** The product's own size chart; null when it follows its category or the default. */
   sizeChartId?: number | null;
   regularFitSizeChartId?: number | null;
+  /** The product's own chart for each fit that has one, by fit. */
+  fitSizeChartIds?: Record<string, number> | null;
+  /** The chart each fit shows on the product page, by fit. */
+  effectiveFitSizeChartIds?: Record<string, number | null> | null;
   /** The chart its page shows, with the category and the default taken into account. */
   effectiveSizeChartId?: number | null;
   showStockQuantity?: boolean | null;
@@ -218,6 +224,8 @@ export interface CategoryRequest {
   parentId?: number | null;
   /** The size chart for the products in and under it; 0 for none of its own. Left out: unchanged. */
   sizeChartId?: number;
+  /** The category's own chart for each fit, by fit. */
+  fitSizeChartIds?: Record<string, number> | null;
 }
 
 export interface CategoryResponse {
@@ -241,6 +249,8 @@ export interface CategoryResponse {
   parentName?: string | null;
   /** The size chart this category names for its products; null for none of its own. */
   sizeChartId?: number | null;
+  /** The category's own chart for each fit, by fit. */
+  fitSizeChartIds?: Record<string, number> | null;
   /** How far down it sits: 0 for a main category, 1 for its subcategory, and so on. */
   depth?: number;
   /** Its place among its siblings in the shop (1 is first); null when the admin has not arranged it. */
@@ -395,6 +405,8 @@ export interface OrderStatusUpdateRequest {
   note?: string;
   courierName?: string;
   trackingNumber?: string;
+  /** Optional, with SHIPPED: the parcel's tracking page at the courier. */
+  trackingUrl?: string;
 }
 
 export interface OrderStatusHistoryEntry {

@@ -151,7 +151,9 @@ public class AdminOrderController {
                 .filter(s -> s != OrderStatus.PENDING) // hide deprecated alias from UI
                 .map(s -> new StatusOptionDTO(
                         s.name(),
-                        s.nextStates().stream().map(Enum::name).collect(Collectors.toUnmodifiableSet())))
+                        // In the order of the steps (Cancelled last), so the list reads the same every time.
+                        s.nextStates().stream().sorted().map(Enum::name)
+                                .collect(Collectors.toCollection(java.util.LinkedHashSet::new))))
                 .collect(Collectors.toUnmodifiableList());
         return ResponseEntity.ok(options);
     }
