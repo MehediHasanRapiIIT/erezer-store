@@ -4,6 +4,7 @@ import { catchError, filter, of } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HeaderComponent } from './components/layout/header.component';
 import { FooterComponent } from './components/layout/footer.component';
+import { ToastsComponent } from './components/shared/toasts.component';
 import { ThemeService } from './core/theme.service';
 import { PixelService } from './core/pixel.service';
 import { SettingsStore } from './core/store/settings.store';
@@ -14,7 +15,7 @@ import { SeoService } from './core/seo.service';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, HeaderComponent, FooterComponent],
+  imports: [RouterOutlet, HeaderComponent, FooterComponent, ToastsComponent],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })

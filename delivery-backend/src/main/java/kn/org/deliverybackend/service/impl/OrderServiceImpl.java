@@ -598,6 +598,13 @@ public class OrderServiceImpl implements OrderService {
                     throw new InsufficientStockException(product.getId(), requested, vAvail);
                 }
             } else {
+                // A product that comes in sizes can't be ordered without one: the
+                // shop would not know what to send. (A cart filled before the
+                // shop asked for the size can still hold such a line.)
+                if (!variantRepository.findByProductId(product.getId()).isEmpty()) {
+                    throw new InvalidStockOperationException("Please choose a size for \"" + product.getName()
+                            + "\" in your order summary before placing the order.");
+                }
                 int available = inventoryService.getAvailableStock(item.getProductId());
                 if (available < requested) {
                     throw new InsufficientStockException(product.getId(), requested, available);

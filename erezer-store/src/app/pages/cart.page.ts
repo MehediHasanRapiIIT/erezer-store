@@ -1,19 +1,21 @@
 import { CurrencyPipe } from '@angular/common';
 import { Component, computed, effect, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { catchError, of } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { CouponValidateResponse } from '../core/api.models';
 import { EcommerceStore } from '../core/store/ecommerce.store';
 import { SettingsStore } from '../core/store/settings.store';
 import { CartActionsService } from '../core/cart-actions.service';
+import { CartSizePickerComponent } from '../components/shared/cart-size-picker.component';
+import { ToastService } from '../core/toast.service';
 import { AuthService } from '../core/auth.service';
 import { RevealDirective } from '../core/reveal.directive';
 
 @Component({
   standalone: true,
-  imports: [CurrencyPipe, RouterLink, FormsModule, RevealDirective],
+  imports: [CurrencyPipe, RouterLink, FormsModule, RevealDirective, CartSizePickerComponent],
   template: `
     <!-- ── Header ────────────────────────────────────────────────────────── -->
     <div class="mb-8" appReveal>
@@ -80,7 +82,12 @@ import { RevealDirective } from '../core/reveal.directive';
                   <div class="min-w-0">
                     <a [routerLink]="['/product', item.product.id]"
                       class="font-medium underline-offset-4 hover:underline">{{ item.product.name }}</a>
-                    <p class="mt-1 text-xs uppercase tracking-wider app-muted">Size: {{ item.customMeasurements ? 'Custom' : item.size }}</p>
+                    @if (cartActions.needsSize(item)) {
+                      <p class="mt-1 text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">Size: not chosen yet</p>
+                    } @else {
+                      <p class="mt-1 text-xs uppercase tracking-wider app-muted">Size: {{ item.customMeasurements ? 'Custom' : item.size }}</p>
+                    }
+                    <app-cart-size-picker [line]="item" />
                     @if (item.customMeasurements) {
                       <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
                         ✂ {{ customText(item.customMeasurements) }}
@@ -191,7 +198,10 @@ import { RevealDirective } from '../core/reveal.directive';
           }
 
           @if (auth.isAuthenticated()) {
-            <a routerLink="/checkout" class="btn-primary mt-5 w-full !rounded-full">Continue to checkout</a>
+            @if (cartActions.linesNeedingSize().length > 0) {
+              <p class="mt-4 text-xs font-medium text-amber-700 dark:text-amber-300" data-testid="size-needed">Choose a size for each item to place your order.</p>
+            }
+            <a href="/checkout" (click)="toCheckout($event)" class="btn-primary mt-5 w-full !rounded-full">Continue to checkout</a>
           } @else {
             <a routerLink="/account" [queryParams]="{ redirect: '/checkout' }" class="btn-primary mt-5 w-full !rounded-full">Sign in to checkout</a>
           }
@@ -283,7 +293,20 @@ export class CartPage implements OnInit {
   protected readonly estimatedTotal = computed(() => this.goodsTotal());
 
   /** Quantity, remove and the server copy of a signed-in customer's cart, shared with the cart panel. */
-  private readonly cartActions = inject(CartActionsService);
+  protected readonly cartActions = inject(CartActionsService);
+  private readonly toasts = inject(ToastService);
+  private readonly router = inject(Router);
+
+  /** "Continue to checkout": not while an item still has no size. */
+  protected toCheckout(event: Event): void {
+    event.preventDefault();
+    if (this.cartActions.linesNeedingSize().length === 0) {
+      void this.router.navigate(['/checkout']);
+      return;
+    }
+    this.toasts.warn('Please select a size for each item before placing your order.');
+    document.querySelector('main [data-testid="cart-size-picker"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 
   ngOnInit(): void {
     // Rehydrate previously-applied promo code so the customer doesn't lose state on refresh.

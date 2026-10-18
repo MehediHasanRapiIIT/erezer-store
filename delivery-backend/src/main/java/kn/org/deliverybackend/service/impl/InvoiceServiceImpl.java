@@ -54,7 +54,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final SmsService smsService;
     private final OrderStatusHistoryRepository statusHistory;
 
-    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm");
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd MMM yyyy, h:mm a", Locale.ENGLISH);
 
     /** The Erezer wordmark at the top of the invoice, as a data URI (the PDF has no web address to load it from). */
     private static final String LOGO = loadLogo();

@@ -9,6 +9,8 @@ import { baseProductPrice, effectiveUnitPrice, isDiscountExcluded } from '../../
 import { EcommerceStore } from '../../core/store/ecommerce.store';
 import { DiscountsStore } from '../../core/store/discounts.store';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { CartSizePickerComponent } from '../shared/cart-size-picker.component';
+import { ToastService } from '../../core/toast.service';
 
 /**
  * The cart as a side panel, opened from the header's cart icon: lines with
@@ -18,7 +20,7 @@ import { TranslatePipe } from '../../core/i18n/translate.pipe';
 @Component({
   selector: 'app-cart-panel',
   standalone: true,
-  imports: [CurrencyPipe, RouterLink, TranslatePipe],
+  imports: [CurrencyPipe, RouterLink, TranslatePipe, CartSizePickerComponent],
   template: `
     @if (open()) {
       <div class="animate-overlay-in fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px]" (click)="close()" aria-hidden="true"></div>
@@ -61,6 +63,7 @@ import { TranslatePipe } from '../../core/i18n/translate.pipe';
                     @if (sizeLabel(line.size); as size) {
                       <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ size }}</p>
                     }
+                    <app-cart-size-picker [line]="line" />
                     <div class="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
                       <div class="inline-flex items-center rounded-full border border-neutral-300 dark:border-neutral-700">
                         <button type="button" (click)="cart.decrease(line.productId, line.variantId, line.size, line.quantity)"
@@ -153,7 +156,10 @@ import { TranslatePipe } from '../../core/i18n/translate.pipe';
               <span class="text-lg font-semibold tabular-nums" data-testid="cart-panel-total">{{ store.cartSubtotal() | currency:'BDT':'৳' }}</span>
             </div>
             <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ 'cart_panel.shipping_note' | t }}</p>
-            <a routerLink="/checkout" (click)="close()" class="btn-primary flex w-full justify-center !rounded-full uppercase tracking-[0.12em]">{{ 'cart_panel.checkout' | t }}</a>
+            @if (cart.linesNeedingSize().length > 0) {
+              <p class="text-xs font-medium text-amber-700 dark:text-amber-300" data-testid="size-needed">Choose a size for each item above to order.</p>
+            }
+            <a href="/checkout" (click)="toCheckout($event)" class="btn-primary flex w-full justify-center !rounded-full uppercase tracking-[0.12em]">{{ 'cart_panel.checkout' | t }}</a>
             <a routerLink="/cart" (click)="close()" class="block text-center text-xs text-neutral-600 underline underline-offset-4 hover:text-black dark:text-neutral-300 dark:hover:text-white">{{ 'cart_panel.view_cart' | t }}</a>
           </div>
         }
@@ -167,6 +173,7 @@ export class CartPanelComponent {
   private readonly api = inject(ApiService);
   private readonly discounts = inject(DiscountsStore);
   private readonly router = inject(Router);
+  private readonly toasts = inject(ToastService);
 
   readonly open = input(false);
   readonly closed = output<void>();
@@ -302,6 +309,16 @@ export class CartPanelComponent {
 
   protected close(): void {
     this.closed.emit();
+  }
+
+  /** "Checkout": not while an item still has no size. */
+  protected toCheckout(event: Event): void {
+    if (this.cart.linesNeedingSize().length > 0) {
+      event.preventDefault();
+      this.toasts.warn('Please select a size for each item before placing your order.');
+      return;
+    }
+    this.close();
   }
 
   @HostListener('document:keydown.escape')

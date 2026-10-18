@@ -379,10 +379,10 @@ export class OrderDetailComponent implements OnInit {
 
   formatDate(dateStr: string): string {
     if (!dateStr) return '—';
-    return new Date(dateStr).toLocaleString('en-GB', {
-      day: 'numeric', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    });
+    // "07 Oct 2026, 9:43 PM": Bangladesh time, 12-hour.
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      + ', ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   }
 
   formatAmount(amount: number | string): string {

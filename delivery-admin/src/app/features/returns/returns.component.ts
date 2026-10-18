@@ -359,7 +359,8 @@ export class ReturnsComponent implements OnInit, OnDestroy {
 
   protected shortDate(iso: string): string {
     if (!iso) return '';
-    return new Date(iso).toLocaleDateString('en-GB',
-      { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+      + ', ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   }
 }

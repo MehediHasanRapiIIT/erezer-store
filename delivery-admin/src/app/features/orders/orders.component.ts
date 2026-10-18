@@ -220,7 +220,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
     if (!dateStr) return '—';
     const d = new Date(dateStr);
     return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-      + '\n' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      + '\n' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   }
 
   formatAmount(amount: number | string): string {

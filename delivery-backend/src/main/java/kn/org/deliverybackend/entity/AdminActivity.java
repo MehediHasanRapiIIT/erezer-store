@@ -10,7 +10,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.UUID;
 
 /**
@@ -69,6 +68,6 @@ public class AdminActivity {
     @PrePersist
     void onCreate() {
         if (id == null) id = UUID.randomUUID();
-        if (occurredAt == null) occurredAt = LocalDateTime.now(ZoneOffset.UTC);
+        if (occurredAt == null) occurredAt = LocalDateTime.now();
     }
 }

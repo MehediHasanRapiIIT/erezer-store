@@ -6,6 +6,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ApiFlashSale, ApiProduct } from '../core/api.models';
 import { ApiService } from '../core/api.service';
 import { EcommerceStore } from '../core/store/ecommerce.store';
+import { CartActionsService } from '../core/cart-actions.service';
 
 /**
  * Flash Sale detail page (/flash-sale/:id). Loads one campaign by id and shows
@@ -31,7 +32,7 @@ import { EcommerceStore } from '../core/store/ecommerce.store';
         </span>
         <h1 class="mt-5 text-4xl font-bold tracking-tight sm:text-6xl">{{ s.name }}</h1>
         <p class="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
-          <span class="max-sm:hidden" data-testid="result-count">{{ s.products.length }} {{ s.products.length === 1 ? 'item' : 'items' }} · </span>Ends {{ s.endsAt | date:'M/d/yyyy, h:mm:ss a' }}
+          <span class="max-sm:hidden" data-testid="result-count">{{ s.products.length }} {{ s.products.length === 1 ? 'item' : 'items' }} · </span>Ends {{ s.endsAt | date: 'dd MMM yyyy, h:mm a' }}
         </p>
 
         @if (!expired()) {
@@ -111,6 +112,7 @@ export class FlashSalePage implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(ApiService);
   private readonly ecommerce = inject(EcommerceStore);
+  private readonly cart = inject(CartActionsService);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -204,8 +206,9 @@ export class FlashSalePage implements OnInit, OnDestroy {
       : Math.max(0, p.price - s.discountValue);
   }
 
+  /** Into the bag at once; a product that comes in sizes gets its size chosen in the cart. */
   protected addToCart(p: ApiProduct): void {
     if (!p.isAvailable) return;
-    this.ecommerce.addToCart(String(p.id), 'One Size', 1, { unitPrice: this.salePrice(p) });
+    this.cart.addFromList(String(p.id)).subscribe();
   }
 }

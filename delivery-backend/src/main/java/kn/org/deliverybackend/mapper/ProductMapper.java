@@ -9,7 +9,7 @@ import org.mapstruct.Named;
 
 import java.math.BigDecimal;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = ShopClockMapping.class)
 public interface ProductMapper {
 
     @Mapping(target = "stockStatus", ignore = true)

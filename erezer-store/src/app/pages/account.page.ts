@@ -317,7 +317,7 @@ type AuthTab = 'login' | 'register' | 'forgot';
                   </span>
                 </div>
                 <div class="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm">
-                  <span class="text-neutral-500 dark:text-neutral-400">{{ order.createdAt | date: 'medium' }}</span>
+                  <span class="text-neutral-500 dark:text-neutral-400">{{ order.createdAt | date: 'dd MMM yyyy, h:mm a' }}</span>
                   <span class="font-semibold">{{ order.totalAmount | currency:'BDT':'৳' }}</span>
                 </div>
               </a>

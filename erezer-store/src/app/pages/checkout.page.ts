@@ -18,18 +18,21 @@ import { RevealDirective } from '../core/reveal.directive';
 
 type PaymentMethod = 'CASH' | 'BKASH' | 'CARD';
 
+import { CartActionsService } from '../core/cart-actions.service';
+import { CartSizePickerComponent } from '../components/shared/cart-size-picker.component';
+import { ToastService } from '../core/toast.service';
 @Component({
   standalone: true,
-  imports: [ReactiveFormsModule, CurrencyPipe, RouterLink, RevealDirective],
+  imports: [ReactiveFormsModule, CurrencyPipe, RouterLink, RevealDirective, CartSizePickerComponent],
   template: `
     <div class="mb-8" appReveal>
       <p class="text-xs font-semibold uppercase tracking-[0.28em] text-neutral-500 dark:text-neutral-400">Secure checkout</p>
       <h1 class="app-section-title mt-2 text-3xl md:text-4xl">Checkout</h1>
     </div>
 
-    <section class="grid gap-8 lg:grid-cols-[2fr_1fr] lg:items-start">
+    <section class="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start">
 
-      <form [formGroup]="checkoutForm" (ngSubmit)="placeOrder()" class="space-y-6" novalidate>
+      <form [formGroup]="checkoutForm" (ngSubmit)="placeOrder()" class="min-w-0 space-y-6" novalidate>
 
         <!-- Account banners -->
         @if (!auth.isAuthenticated()) {
@@ -185,7 +188,7 @@ type PaymentMethod = 'CASH' | 'BKASH' | 'CARD';
       </form>
 
       <!-- ── Right column ───────────────────────────────────────────────── -->
-      <aside class="space-y-4 lg:sticky lg:top-24" appReveal>
+      <aside class="min-w-0 space-y-4 lg:sticky lg:top-24" appReveal>
 
         <!-- Payment -->
         <div class="app-card p-5">
@@ -235,9 +238,20 @@ type PaymentMethod = 'CASH' | 'BKASH' | 'CARD';
           }
           <div class="mb-3 space-y-2">
             @for (item of effItems(); track $index) {
-              <div class="flex justify-between gap-3 text-sm">
-                <span class="min-w-0 truncate text-neutral-600 dark:text-neutral-300">{{ item.product.name }} × {{ item.quantity }}</span>
-                <span class="shrink-0 tabular-nums">{{ item.subtotal | currency:'BDT':'৳' }}</span>
+              <div class="text-sm">
+                <!-- The whole name, then what was chosen and how many, so a phone shows it all. -->
+                <div class="flex items-start justify-between gap-3" data-testid="summary-line">
+                  <div class="min-w-0">
+                    <p class="break-words font-medium text-neutral-800 dark:text-neutral-100">{{ baseName(item.product.name) }}</p>
+                    <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                      @if (choiceOf($any(item)); as choice) { <span data-testid="summary-choice">{{ choice }}</span> · }Qty {{ item.quantity }}
+                    </p>
+                  </div>
+                  <span class="shrink-0 tabular-nums">{{ item.subtotal | currency:'BDT':'৳' }}</span>
+                </div>
+                @if (!bundleMode()) {
+                  <app-cart-size-picker [line]="$any(item)" />
+                }
               </div>
             }
           </div>
@@ -284,8 +298,13 @@ type PaymentMethod = 'CASH' | 'BKASH' | 'CARD';
             <p class="mt-2 text-xs text-amber-600">{{ quote()?.couponMessage }}</p>
           }
 
+          @if (sizesMissing()) {
+            <p class="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-200" data-testid="size-needed">
+              Choose a size for each item in your order summary to place the order.
+            </p>
+          }
           <button type="button" (click)="placeOrder()"
-            class="btn-primary mt-4 w-full !rounded-full"
+            class="btn-primary mt-4 w-full !rounded-full disabled:cursor-not-allowed disabled:opacity-50"
             [disabled]="effCount() === 0 || submitting() || needsVerification()">
             {{ submitting() ? 'Placing order…' : (needsVerification() ? 'Verify your email to order' : payButtonLabel()) }}
           </button>
@@ -335,6 +354,10 @@ export class CheckoutPage implements OnInit, OnDestroy {
   private readonly api    = inject(ApiService);
   private readonly router = inject(Router);
   private readonly pixel  = inject(PixelService);
+  private readonly cartActions = inject(CartActionsService);
+  private readonly toasts = inject(ToastService);
+  /** An item added from a list still has no size: the order can't be placed until it has. */
+  protected readonly sizesMissing = computed(() => !this.bundleMode() && this.cartActions.linesNeedingSize().length > 0);
 
   /** True when completing a Buy-X-Get-Y bundle (items come from the bundle, not the cart). */
   protected readonly bundleMode = computed(() => !!this.bundleCheckout.pending());
@@ -612,7 +635,25 @@ export class CheckoutPage implements OnInit, OnDestroy {
     });
   }
 
+  /** "Classic Cotton T-shirt — Drop Shoulder / M" → "Classic Cotton T-shirt". */
+  protected baseName(name: string): string {
+    return (name ?? '').split(' — ')[0];
+  }
+
+  /** What was chosen for a line: "Drop Shoulder / M", "Custom size", or nothing (no size yet, or none to choose). */
+  protected choiceOf(item: { size?: string; customMeasurements?: string | null }): string {
+    if (item.customMeasurements) return 'Custom size';
+    const size = (item.size ?? '').trim();
+    return !size || size === 'One Size' ? '' : size;
+  }
+
   protected placeOrder(): void {
+    // An item still without its size: say so, and show where to choose it.
+    if (this.sizesMissing()) {
+      this.toasts.warn('Please select a size for each item before placing your order.');
+      document.querySelector('main [data-testid="cart-size-picker"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     this.submitted.set(true);
     if (this.checkoutForm.invalid) {
       this.checkoutForm.markAllAsTouched();

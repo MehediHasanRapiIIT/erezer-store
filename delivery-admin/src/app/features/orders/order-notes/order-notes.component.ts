@@ -44,7 +44,7 @@ import { parseApiError } from '../../../core/utils/api-error.util';
                 }
               </div>
               <p class="mt-1 text-xs text-gray-400">
-                {{ n.author || 'admin' }} &middot; {{ n.createdAt | date: 'medium' }}
+                {{ n.author || 'admin' }} &middot; {{ n.createdAt | date: 'dd MMM yyyy, h:mm a' }}
               </p>
             </li>
           } @empty {

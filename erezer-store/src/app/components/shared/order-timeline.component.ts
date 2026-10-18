@@ -65,7 +65,7 @@ export const FINAL_ORDER_STATUSES = ['DELIVERED', 'CANCELLED', 'RETURNED'];
                 {{ step.key | t }}
               </p>
               @if (dateFor(step.status); as d) {
-                <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ d | date: 'medium' }}</p>
+                <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ d | date: 'dd MMM yyyy, h:mm a' }}</p>
               } @else if (isCurrent(i)) {
                 <p class="mt-0.5 text-xs font-medium text-emerald-600">{{ 'timeline.in_progress' | t }}</p>
               }

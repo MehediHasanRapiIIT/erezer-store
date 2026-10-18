@@ -57,7 +57,7 @@ import { RevealDirective } from '../core/reveal.directive';
                   </span>
                   <div>
                     <p class="font-medium">Order {{ order.orderNumber || '#' + order.id }}</p>
-                    <p class="text-sm text-neutral-500 dark:text-neutral-400">{{ order.createdAt | date: 'medium' }}</p>
+                    <p class="text-sm text-neutral-500 dark:text-neutral-400">{{ order.createdAt | date: 'dd MMM yyyy, h:mm a' }}</p>
                   </div>
                 </div>
                 <span class="inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold" [class]="badgeClass(order.orderStatus)">
@@ -85,7 +85,7 @@ import { RevealDirective } from '../core/reveal.directive';
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p class="font-medium">Order #{{ order.id }}</p>
-                  <p class="text-sm text-neutral-500 dark:text-neutral-400">{{ order.createdAt | date: 'medium' }}</p>
+                  <p class="text-sm text-neutral-500 dark:text-neutral-400">{{ order.createdAt | date: 'dd MMM yyyy, h:mm a' }}</p>
                 </div>
                 <div class="text-right text-sm text-neutral-500 dark:text-neutral-400">
                   <p>Payment: {{ order.payment.status }}</p>

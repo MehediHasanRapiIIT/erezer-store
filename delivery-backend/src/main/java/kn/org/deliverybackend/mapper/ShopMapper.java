@@ -4,7 +4,7 @@ import kn.org.deliverybackend.dto.ShopDTO;
 import kn.org.deliverybackend.entity.Shop;
 import org.mapstruct.Mapper;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = ShopClockMapping.class)
 public interface ShopMapper {
 
     ShopDTO toDTO(Shop shop);

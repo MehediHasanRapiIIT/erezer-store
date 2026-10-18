@@ -5,7 +5,7 @@ import kn.org.deliverybackend.entity.Cart;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = ShopClockMapping.class)
 public interface CartMapper {
 
     @Mapping(target = "cartItemId", source = "id")

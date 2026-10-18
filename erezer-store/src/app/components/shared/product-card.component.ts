@@ -3,6 +3,7 @@ import { Component, inject, input, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { Product } from '../../core/models';
 import { EcommerceStore } from '../../core/store/ecommerce.store';
+import { CartActionsService } from '../../core/cart-actions.service';
 
 @Component({
   selector: 'app-product-card',
@@ -72,7 +73,7 @@ import { EcommerceStore } from '../../core/store/ecommerce.store';
           <button
             type="button"
             (click)="quickAddToCart()"
-            [disabled]="product().inStock <= 0"
+            [disabled]="product().inStock <= 0 || adding()"
             class="w-full rounded-full bg-white px-2 py-2 text-xs font-semibold text-black sm:px-4 sm:py-2.5 sm:text-sm shadow-lg transition hover:bg-neutral-100 disabled:opacity-50 dark:bg-neutral-100"
           >
             {{ product().inStock <= 0 ? 'Sold out' : 'Add to cart' }}
@@ -127,7 +128,7 @@ import { EcommerceStore } from '../../core/store/ecommerce.store';
           <button
             type="button"
             (click)="quickAddToCart()"
-            [disabled]="product().inStock <= 0"
+            [disabled]="product().inStock <= 0 || adding()"
             data-testid="card-cart"
             class="h-9 min-w-0 flex-1 truncate rounded-full bg-neutral-900 px-2 text-xs font-semibold text-white transition active:scale-95 disabled:opacity-40 dark:bg-white dark:text-black"
           >
@@ -151,17 +152,22 @@ export class ProductCardComponent {
   /** This card's product was just put in the cart: offer the way to the checkout. */
   protected readonly added = signal(false);
 
-  private readonly router = inject(Router);
+  protected readonly adding = signal(false);
 
+  private readonly router = inject(Router);
+  private readonly cart = inject(CartActionsService);
+
+  /**
+   * Puts one in the cart straight away. A product that comes in sizes (or
+   * colours) goes in without one: the cart and the checkout ask for it.
+   */
   protected quickAddToCart(): void {
     const selected = this.product();
-    if (selected.inStock <= 0) return;
-    // A colour (or another option) has to be chosen: that is done on the product's page.
-    if (selected.hasOptions) {
-      void this.router.navigate(['/product', selected.slug]);
-      return;
-    }
-    this.store.addToCart(selected.id, selected.sizes[0], 1);
-    this.added.set(true);
+    if (selected.inStock <= 0 || this.adding()) return;
+    this.adding.set(true);
+    this.cart.addFromList(selected.id).subscribe((result) => {
+      this.adding.set(false);
+      if (result === 'added') this.added.set(true);
+    });
   }
 }

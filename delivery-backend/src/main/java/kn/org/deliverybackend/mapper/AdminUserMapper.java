@@ -4,7 +4,7 @@ import kn.org.deliverybackend.dto.AdminUserDTO;
 import kn.org.deliverybackend.entity.AdminUser;
 import org.mapstruct.Mapper;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = ShopClockMapping.class)
 public interface AdminUserMapper {
 
     AdminUserDTO toDTO(AdminUser adminUser);

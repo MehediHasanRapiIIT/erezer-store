@@ -1,5 +1,5 @@
-import { inject, Injectable } from '@angular/core';
-import { catchError, map, Observable, of, switchMap, tap } from 'rxjs';
+import { computed, inject, Injectable, signal } from '@angular/core';
+import { catchError, forkJoin, map, Observable, of, shareReplay, switchMap, tap } from 'rxjs';
 import { ApiService } from './api.service';
 import { ApiCartItem, ApiProduct, ApiVariant } from './api.models';
 import { AuthService } from './auth.service';
@@ -38,6 +38,76 @@ export class CartActionsService {
 
   /** productId|variantId → the server's cart line id, needed to change or remove it. */
   private serverIds = new Map<string, string>();
+
+  /** Each product's sizes, once looked up: to know which cart lines still need one. */
+  readonly variantsByProduct = signal<Record<string, ApiVariant[]>>({});
+  private readonly variantsLoading = new Set<string>();
+  private readonly productCache = new Map<string, Observable<ApiProduct>>();
+
+  /**
+   * The cart lines still waiting for their size: added from a list ("Add to
+   * cart" on a card) for a product that comes in sizes. The checkout asks for
+   * them before it lets the order be placed.
+   */
+  readonly linesNeedingSize = computed(() => {
+    const known = this.variantsByProduct();
+    return this.store.cart().filter((l) => this.needsSize(l, known));
+  });
+
+  /** A line with no size yet for a product that has sizes (or colours) to choose from. */
+  needsSize(line: { productId: string; variantId: number | null; customMeasurements?: string | null },
+            known = this.variantsByProduct()): boolean {
+    if (line.variantId != null || line.customMeasurements) return false;
+    return (known[line.productId] ?? []).some((v) => !!v.size || !!v.optionLabel);
+  }
+
+  /** Looks up a product's sizes once, for {@link needsSize}. */
+  ensureVariants(productId: string): void {
+    if (this.variantsByProduct()[productId] || this.variantsLoading.has(productId)) return;
+    this.variantsLoading.add(productId);
+    this.api.getProductVariants(Number(productId)).pipe(catchError(() => of([] as ApiVariant[]))).subscribe((variants) => {
+      this.variantsLoading.delete(productId);
+      this.variantsByProduct.update((all) => ({ ...all, [productId]: variants }));
+    });
+  }
+
+  private productOf(productId: string): Observable<ApiProduct> {
+    let p = this.productCache.get(productId);
+    if (!p) {
+      p = this.api.getProductById(Number(productId)).pipe(shareReplay(1));
+      this.productCache.set(productId, p);
+    }
+    return p;
+  }
+
+  /**
+   * "Add to cart" on a product card or a list: one goes into the cart at once.
+   * A product with a single size (or none) gets that size; one with a choice
+   * goes in without a size, and the cart and checkout ask for it.
+   */
+  addFromList(productId: string): Observable<QuickAddResult> {
+    return forkJoin([this.productOf(productId), this.api.getProductVariants(Number(productId)).pipe(catchError(() => of([] as ApiVariant[])))]).pipe(
+      switchMap(([p, variants]): Observable<QuickAddResult> => {
+        this.variantsByProduct.update((all) => ({ ...all, [productId]: variants }));
+        if (!p.isAvailable || (p.stockQuantity != null && p.stockQuantity <= 0)) return of('unavailable');
+        const choices = variants.filter((v) => !!v.size || !!v.optionLabel);
+        if (choices.length <= 1) return this.addSize(p, variants[0] ?? null);
+        return this.addSize(p, null);
+      }),
+      catchError(() => of<QuickAddResult>('failed')),
+    );
+  }
+
+  /** The size picked in the cart for a line that had none: the line becomes that size, same quantity. */
+  chooseSize(line: { productId: string; variantId: number | null; size: string; quantity: number }, variant: ApiVariant): Observable<QuickAddResult> {
+    return this.productOf(line.productId).pipe(
+      switchMap((p) => {
+        this.remove(line.productId, null, line.size);
+        return this.addSize(p, variant, line.quantity);
+      }),
+      catchError(() => of<QuickAddResult>('failed')),
+    );
+  }
 
   private key(productId: string | number, variantId: number | null | undefined): string {
     return String(productId) + '|' + (variantId ?? '');
@@ -99,8 +169,8 @@ export class CartActionsService {
     );
   }
 
-  /** Adds one of a product in the size given (null for a product with no sizes). */
-  addSize(p: ApiProduct, variant: ApiVariant | null): Observable<QuickAddResult> {
+  /** Adds a product in the size given (null: no size, or not chosen yet). */
+  addSize(p: ApiProduct, variant: ApiVariant | null, quantity = 1): Observable<QuickAddResult> {
     if (variant && variant.stockQuantity != null && variant.stockQuantity <= 0) return of('unavailable');
     return of(variant).pipe(
       switchMap((): Observable<QuickAddResult> => {
@@ -108,18 +178,18 @@ export class CartActionsService {
         const unitPrice = effectiveUnitPrice(base, p.id, p.categoryId, this.discounts.discountsFor(p.categoryId), isDiscountExcluded(p));
         // The whole choice, as the product page words it: "Black / Long / Drop Shoulder / M".
         const size = variantLabel(variant);
-        this.pixel.addToCart(p.id, p.name, unitPrice, 1);
+        this.pixel.addToCart(p.id, p.name, unitPrice, quantity);
 
         const userId = this.auth.userId();
         if (!userId) {
-          this.store.addToCart(String(p.id), size, 1, {
+          this.store.addToCart(String(p.id), size, quantity, {
             variantId: variant?.id ?? null, unitPrice, name: variant ? `${p.name} — ${size}` : p.name, image: p.imageUrl,
             stock: variant?.stockQuantity ?? p.stockQuantity ?? null,
           });
           return of('added');
         }
         return this.api.addToCart(userId, {
-          userId, productId: String(p.id), variantId: variant?.id ?? null, quantity: 1, deliveryInstructions: null,
+          userId, productId: String(p.id), variantId: variant?.id ?? null, quantity, deliveryInstructions: null,
         }).pipe(
           tap((item) => {
             this.store.syncApiCartItem(item);

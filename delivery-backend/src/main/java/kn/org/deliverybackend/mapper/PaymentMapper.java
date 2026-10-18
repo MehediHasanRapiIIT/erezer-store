@@ -4,7 +4,7 @@ import kn.org.deliverybackend.dto.PaymentDTO;
 import kn.org.deliverybackend.entity.Payment;
 import org.mapstruct.Mapper;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = ShopClockMapping.class)
 public interface PaymentMapper {
 
     PaymentDTO toDTO(Payment payment);

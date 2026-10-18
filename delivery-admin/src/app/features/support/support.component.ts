@@ -99,7 +99,7 @@ import { parseApiError } from '../../core/utils/api-error.util';
                     <div>
                       <h2 class="text-lg font-semibold">{{ m.subject || '(No subject)' }}</h2>
                       <p class="text-sm text-gray-500">{{ m.name }} &lt;{{ m.email }}&gt;</p>
-                      <p class="text-xs text-gray-400">{{ m.createdAt | date: 'medium' }}</p>
+                      <p class="text-xs text-gray-400">{{ m.createdAt | date: 'dd MMM yyyy, h:mm a' }}</p>
                       @if (m.orderId) {
                         <p class="text-xs text-gray-500">Re: order <span class="font-mono">{{ m.orderId }}</span></p>
                       }
@@ -117,7 +117,7 @@ import { parseApiError } from '../../core/utils/api-error.util';
                     <div class="ml-6 rounded-lg border border-emerald-100 bg-emerald-50/70 p-4" data-testid="support-reply">
                       <p class="mb-1 text-xs font-semibold text-emerald-800">
                         Replied by {{ r.sentByName || 'Staff' }}
-                        <span class="font-normal text-emerald-700">· {{ r.sentAt | date: 'medium' }} · to {{ r.sentTo }}</span>
+                        <span class="font-normal text-emerald-700">· {{ r.sentAt | date: 'dd MMM yyyy, h:mm a' }} · to {{ r.sentTo }}</span>
                       </p>
                       <p class="whitespace-pre-wrap text-sm text-gray-800">{{ r.body }}</p>
                     </div>

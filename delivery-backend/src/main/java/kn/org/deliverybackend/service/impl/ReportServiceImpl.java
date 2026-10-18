@@ -50,7 +50,7 @@ public class ReportServiceImpl implements ReportService {
     private static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
 
     private static final DateTimeFormatter BUCKET_TS  = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    private static final DateTimeFormatter HOUR_LABEL = DateTimeFormatter.ofPattern("HH:mm");
+    private static final DateTimeFormatter HOUR_LABEL = DateTimeFormatter.ofPattern("h a", Locale.ENGLISH);
     private static final DateTimeFormatter DAY_LABEL  = DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH);
     private static final DateTimeFormatter WEEK_LABEL = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH);
     private static final DateTimeFormatter MONTH_LABEL = DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH);

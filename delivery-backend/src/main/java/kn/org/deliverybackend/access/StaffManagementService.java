@@ -58,7 +58,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class StaffManagementService {
 
-    private static final DateTimeFormatter SHOWN = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private static final DateTimeFormatter SHOWN = DateTimeFormatter.ofPattern("dd MMM yyyy, h:mm a", java.util.Locale.ENGLISH);
     private static final Map<String, Perm> PERMS =
             Arrays.stream(Perm.values()).collect(Collectors.toUnmodifiableMap(Perm::key, Function.identity()));
 
@@ -404,7 +404,7 @@ public class StaffManagementService {
                 t.getCreatedBy(), shown(t.getUpdatedAt()));
     }
 
-    private String shown(LocalDateTime utc) {
-        return utc == null ? null : SHOWN.format(calendar.fromUtc(utc));
+    private String shown(LocalDateTime at) {
+        return at == null ? null : SHOWN.format(at);
     }
 }

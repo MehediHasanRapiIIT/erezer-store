@@ -37,7 +37,7 @@ const TIMELINE_STEPS: { status: OrderStatus; label: string }[] = [
             </a>
             <h1 class="app-section-title mt-2">{{ o.orderNumber || o.id }}</h1>
           </div>
-          <p class="text-sm text-neutral-500 dark:text-neutral-400">{{ o.createdAt | date: 'medium' }}</p>
+          <p class="text-sm text-neutral-500 dark:text-neutral-400">{{ o.createdAt | date: 'dd MMM yyyy, h:mm a' }}</p>
         </header>
 
         <div class="grid gap-4 md:grid-cols-3" appReveal>
@@ -110,7 +110,7 @@ const TIMELINE_STEPS: { status: OrderStatus; label: string }[] = [
                     <li>
                       <p>
                         <span class="font-medium">{{ statusLabel(h.toStatus) }}</span>
-                        <span class="ml-2 text-xs text-neutral-500 dark:text-neutral-400">{{ h.createdAt | date: 'medium' }}</span>
+                        <span class="ml-2 text-xs text-neutral-500 dark:text-neutral-400">{{ h.createdAt | date: 'dd MMM yyyy, h:mm a' }}</span>
                       </p>
                       @if (h.note) { <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ h.note }}</p> }
                     </li>
@@ -129,7 +129,7 @@ const TIMELINE_STEPS: { status: OrderStatus; label: string }[] = [
               <span class="inline-block rounded-full px-2 py-0.5 text-xs font-medium"
                 [class]="returnBadgeClass(r.status)">{{ returnStatusLabel(r.status) }}</span>
               <span class="ml-2 text-neutral-500 dark:text-neutral-400">
-                Filed {{ r.requestedAt | date: 'medium' }}
+                Filed {{ r.requestedAt | date: 'dd MMM yyyy, h:mm a' }}
               </span>
             </p>
             @if (r.refundAmount !== null) {
@@ -211,7 +211,7 @@ const TIMELINE_STEPS: { status: OrderStatus; label: string }[] = [
             </a>
             <h1 class="app-section-title mt-2">{{ lo.id }}</h1>
           </div>
-          <p class="text-sm text-neutral-500 dark:text-neutral-400">{{ lo.createdAt | date: 'medium' }}</p>
+          <p class="text-sm text-neutral-500 dark:text-neutral-400">{{ lo.createdAt | date: 'dd MMM yyyy, h:mm a' }}</p>
         </header>
 
         <div class="grid gap-4 md:grid-cols-3">

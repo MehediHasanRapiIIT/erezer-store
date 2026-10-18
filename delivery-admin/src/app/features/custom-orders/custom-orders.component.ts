@@ -116,7 +116,7 @@ const ACTIVE_FILTER_STATUSES: CustomOrderStatus[] = ['NEW', 'IN_REVIEW', 'QUOTED
                     <div>
                       <h2 class="text-lg font-semibold">{{ d.reference }}</h2>
                       <p class="text-sm text-gray-500">{{ d.firstName }} {{ d.lastName }} &lt;{{ d.email }}&gt; · {{ d.phone }}</p>
-                      <p class="text-xs text-gray-400">{{ d.createdAt | date: 'medium' }}</p>
+                      <p class="text-xs text-gray-400">{{ d.createdAt | date: 'dd MMM yyyy, h:mm a' }}</p>
                     </div>
                     <span class="inline-block rounded-full px-2.5 py-1 text-xs font-medium" [class]="badgeClass(d.status)">{{ label(d.status) }}</span>
                   </header>

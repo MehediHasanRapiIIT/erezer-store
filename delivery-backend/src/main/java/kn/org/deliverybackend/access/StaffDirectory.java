@@ -12,7 +12,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
@@ -96,7 +95,7 @@ public class StaffDirectory {
 
     private Optional<StaffView> load(Jwt jwt) {
         String subject = jwt.getSubject();
-        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        LocalDateTime now = LocalDateTime.now();
         StaffMember member = staffRepository.findByKeycloakUserId(subject).orElse(null);
 
         if (member == null) {

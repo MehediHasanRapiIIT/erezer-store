@@ -30,7 +30,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ActivityLogService {
 
-    private static final DateTimeFormatter SHOWN = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter SHOWN = DateTimeFormatter.ofPattern("dd MMM yyyy, h:mm:ss a", java.util.Locale.ENGLISH);
     private static final int MAX_PAGE_SIZE = 200;
 
     private final AdminActivityRepository repository;
@@ -44,10 +44,10 @@ public class ActivityLogService {
             if (staffId != null) where.add(cb.equal(root.get("staffId"), staffId));
             if (area != null && !area.isBlank()) where.add(cb.equal(root.get("area"), area.trim()));
             if (from != null) {
-                where.add(cb.greaterThanOrEqualTo(root.<LocalDateTime>get("occurredAt"), calendar.toUtc(from)));
+                where.add(cb.greaterThanOrEqualTo(root.<LocalDateTime>get("occurredAt"), from.atStartOfDay()));
             }
             if (to != null) {
-                where.add(cb.lessThan(root.<LocalDateTime>get("occurredAt"), calendar.toUtc(to.plusDays(1))));
+                where.add(cb.lessThan(root.<LocalDateTime>get("occurredAt"), to.plusDays(1).atStartOfDay()));
             }
             return cb.and(where.toArray(Predicate[]::new));
         };
@@ -66,7 +66,7 @@ public class ActivityLogService {
     }
 
     private ActivityEntryDTO toDTO(AdminActivity a) {
-        return new ActivityEntryDTO(a.getId(), SHOWN.format(calendar.fromUtc(a.getOccurredAt())),
+        return new ActivityEntryDTO(a.getId(), SHOWN.format(a.getOccurredAt()),
                 a.getStaffId(), a.getStaffName(), a.getStaffUsername(), a.getMethod(), a.getPath(),
                 a.getPermKey(), a.getArea(), a.getTargetId(), a.getSummary(), a.getStatus(), a.getDetails());
     }

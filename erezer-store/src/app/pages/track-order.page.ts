@@ -50,7 +50,7 @@ import { FINAL_ORDER_STATUSES, ORDER_STEPS, OrderTimelineComponent } from '../co
                   <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ 'track.order' | t }}</p>
                   <p class="text-xl font-semibold tracking-wide" data-testid="tracked-number">{{ o.orderNumber }}</p>
                   @if (o.placedAt) {
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ 'track.placed_on' | t }} {{ o.placedAt | date: 'medium' }}</p>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ 'track.placed_on' | t }} {{ o.placedAt | date: 'dd MMM yyyy, h:mm a' }}</p>
                   }
                 </div>
                 <span class="rounded-full px-3 py-1 text-xs font-semibold" data-testid="tracked-status"
