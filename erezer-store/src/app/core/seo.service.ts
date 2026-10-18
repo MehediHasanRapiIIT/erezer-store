@@ -39,7 +39,7 @@ export interface ProductJsonLd {
 
 const SITE_NAME = 'Erezer';
 /** The home page's title, and what any page without its own falls back to. Also in index.html. */
-export const SITE_TITLE = 'Erezer – Clothing & Custom T-Shirts in Bangladesh';
+export const SITE_TITLE = 'Erezer - Erase the Ordinary';
 /** Also in index.html. */
 export const SITE_DESCRIPTION =
   'Erezer is a clothing shop in Bangladesh: t-shirts, hoodies and more, plus custom t-shirts printed with your own design. Cash on delivery and bKash, delivery across Bangladesh.';
