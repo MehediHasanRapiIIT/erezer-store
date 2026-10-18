@@ -132,3 +132,10 @@
 
 	reverse_proxy minio:9000
 }
+
+# -- Other sites on this VM -----------------------------------------------------
+# Other stacks on the same VM (e.g. the EREZER admin panel at erezer.site, from the
+# ErezerOrderInvoice repo) drop their own site block into /opt/erezer/sites and
+# reload Caddy from their deploy script. They reach their containers over the
+# shared `erezer-edge` network. An empty folder matches nothing.
+import /etc/caddy/sites/*.caddy

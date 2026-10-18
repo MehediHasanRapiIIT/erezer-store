@@ -84,6 +84,11 @@ rollback() {
 
 log "Deploying ${IMAGE_REPO_OWNER}/*:${IMAGE_TAG}  (previous: ${PREVIOUS_TAG:-none})"
 
+# Shared with other stacks on this VM (see the end of deploy/Caddyfile); the
+# sites folder must exist before Caddy (or the validation below) mounts it, or Docker creates it as root.
+docker network inspect erezer-edge >/dev/null 2>&1 || docker network create erezer-edge >/dev/null
+mkdir -p "$APP_DIR/sites"
+
 # ── Caddyfile: check it before anything changes ─────────────────────────────
 # CI copies deploy/Caddyfile across, but a running Caddy never notices: it does
 # not watch its config, and a single-file bind mount keeps showing the container

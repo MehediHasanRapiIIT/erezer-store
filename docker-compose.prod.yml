@@ -199,6 +199,8 @@ services:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data      # certificates - losing this re-issues them
       - caddy-config:/config
+      # Site files written by other stacks on this VM (see the end of deploy/Caddyfile).
+      - ./sites:/etc/caddy/sites:ro
     ports:
       - "80:80"
       - "443:443"
@@ -208,7 +210,8 @@ services:
       - store
       - admin
       - keycloak
-    networks: [erezer]
+    # erezer-edge: shared with other stacks on this VM whose sites Caddy serves.
+    networks: [erezer, edge]
 
   # -- Nightly database backup ----------------------------------------------
   pg-backup:
@@ -244,6 +247,12 @@ services:
       postgres:
         condition: service_healthy
     networks: [erezer]
+
+networks:
+  # Created by deploy/deploy.sh (and by the other stacks' deploys) if missing.
+  edge:
+    name: erezer-edge
+    external: true
 
 volumes:
   caddy-data:
