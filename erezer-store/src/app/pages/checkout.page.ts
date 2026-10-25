@@ -250,7 +250,7 @@ import { ToastService } from '../core/toast.service';
                   <span class="shrink-0 tabular-nums">{{ item.subtotal | currency:'BDT':'৳' }}</span>
                 </div>
                 @if (!bundleMode()) {
-                  <app-cart-size-picker [line]="$any(item)" />
+                  <app-cart-size-picker [line]="$any(item)" [removable]="true" />
                 }
               </div>
             }

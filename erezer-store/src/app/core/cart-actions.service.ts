@@ -98,11 +98,11 @@ export class CartActionsService {
     );
   }
 
-  /** The size picked in the cart for a line that had none: the line becomes that size, same quantity. */
+  /** The size picked in the cart (first time or a change): the line becomes that size, same quantity. */
   chooseSize(line: { productId: string; variantId: number | null; size: string; quantity: number }, variant: ApiVariant): Observable<QuickAddResult> {
     return this.productOf(line.productId).pipe(
       switchMap((p) => {
-        this.remove(line.productId, null, line.size);
+        this.remove(line.productId, line.variantId, line.size);
         return this.addSize(p, variant, line.quantity);
       }),
       catchError(() => of<QuickAddResult>('failed')),
