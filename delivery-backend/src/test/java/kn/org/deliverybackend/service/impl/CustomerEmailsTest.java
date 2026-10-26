@@ -71,6 +71,14 @@ class CustomerEmailsTest {
     }
 
     @Test
+    void aMistypedSupportAddressIsLeftOutInsteadOfStoppingTheEmail() {
+        assertEquals("support@erezer.com", EmailServiceImpl.validAddress(" support@erezer.com "));
+        assertEquals(null, EmailServiceImpl.validAddress("support@.erezer.com"), "domain starts with a dot");
+        assertEquals(null, EmailServiceImpl.validAddress("support erezer"));
+        assertEquals(null, EmailServiceImpl.validAddress(""));
+    }
+
+    @Test
     void inProductionIsNoLongerAStep() {
         assertTrue(OrderStatus.ACCEPTED.canTransitionTo(OrderStatus.PROCESSING));
         assertFalse(OrderStatus.ACCEPTED.canTransitionTo(OrderStatus.IN_PRODUCTION));

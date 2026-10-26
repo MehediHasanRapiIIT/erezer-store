@@ -89,7 +89,9 @@ public class EmailServiceImpl implements EmailService {
     private MimeMessage compose(String toEmail, String subject, String templateName, Map<String, Object> variables,
                                 String replyTo, List<EmailAttachment> attachments) throws Exception {
         StoreSettings shop = storeSettings.findById(StoreSettings.SINGLETON_ID).orElse(null);
-        String supportEmail = shop == null ? null : blankToNull(shop.getSupportEmail());
+        // The support address from Settings, only when it is a real address: a typo
+        // there must never stop an order email from going out.
+        String supportEmail = shop == null ? null : validAddress(shop.getSupportEmail());
 
         Context ctx = new Context();
         ctx.setVariable("subject", subject);
@@ -108,7 +110,7 @@ public class EmailServiceImpl implements EmailService {
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
         helper.setFrom(new InternetAddress(fromAddress, fromName));
-        String answerTo = replyTo != null && !replyTo.isBlank() ? replyTo.trim() : supportEmail;
+        String answerTo = validAddress(replyTo) != null ? validAddress(replyTo) : supportEmail;
         if (answerTo != null && !answerTo.equalsIgnoreCase(fromAddress)) {
             helper.setReplyTo(answerTo);
         }
@@ -145,6 +147,19 @@ public class EmailServiceImpl implements EmailService {
             return host == null ? url : host.replaceFirst("^www\\.", "");
         } catch (Exception e) {
             return url;
+        }
+    }
+
+    /** The address trimmed when mail can be sent to it (support@erezer.com); null when blank or mistyped. */
+    static String validAddress(String address) {
+        String a = blankToNull(address);
+        if (a == null) return null;
+        try {
+            new InternetAddress(a, true).validate();
+            return a.contains("@") ? a : null;
+        } catch (jakarta.mail.internet.AddressException e) {
+            log.warn("Ignoring the email address \"{}\" (not a valid address: {})", a, e.getMessage());
+            return null;
         }
     }
 
