@@ -3,6 +3,7 @@ import { inject } from '@angular/core';
 import { from, switchMap, catchError, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../services/auth.service';
+import { SessionExpiredError } from '../services/keycloak.service';
 import { NoticeService } from '../services/notice.service';
 import { PermissionService } from '../services/permission.service';
 
@@ -19,7 +20,9 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       return next(authReq);
     }),
     catchError((error: unknown) => {
-      if (error instanceof HttpErrorResponse && error.status === 401) {
+      if (error instanceof SessionExpiredError) {
+        // Already on the way to the login page (KeycloakService.getToken).
+      } else if (error instanceof HttpErrorResponse && error.status === 401) {
         auth.login();
       } else if (error instanceof HttpErrorResponse && error.status === 403 && isRefusal(req.url)) {
         // Refused by the permission check. Say so plainly, and re-read

@@ -157,7 +157,7 @@ public class CouponServiceImpl implements CouponService {
 
     @Override
     @Transactional(readOnly = true)
-    public Coupon getActiveByCode(String code) {
+    public Coupon getUsableForOrder(String code, BigDecimal couponBase, UUID userId) {
         // Checkout pricing reaches coupons through here, so switching codes off
         // also stops a code that was applied earlier or sent straight to the API.
         if (!codesEnabled()) {
@@ -165,11 +165,10 @@ public class CouponServiceImpl implements CouponService {
         }
         Coupon c = couponRepository.findByCodeIgnoreCase(code)
                 .orElseThrow(() -> new ResourceNotFoundException("Coupon code is invalid."));
-        String reason = checkPolicy(c, BigDecimal.ZERO, null);
-        // Re-check active/window only (not min-amount or per-user — those are
-        // validated again at the order-quote stage where subtotal is known).
-        if (reason != null && !reason.toLowerCase().contains("minimum")
-                && !reason.toLowerCase().contains("per-user")) {
+        // The same rules as the checkout's quote, on the same amount, so an order
+        // sent straight to the API can't use a code the checkout would refuse.
+        String reason = checkPolicy(c, couponBase == null ? BigDecimal.ZERO : couponBase, userId);
+        if (reason != null) {
             throw new InvalidStockOperationException(reason);
         }
         return c;

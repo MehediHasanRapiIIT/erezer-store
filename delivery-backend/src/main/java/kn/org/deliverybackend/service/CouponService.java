@@ -25,6 +25,11 @@ public interface CouponService {
     // ── Internal redemption (called from OrderServiceImpl after the order is saved) ──
     void recordRedemption(Coupon coupon, UUID userId, UUID orderId, BigDecimal discountAmount);
 
-    /** Re-fetch a coupon by code, throwing if it is missing or inactive. */
-    Coupon getActiveByCode(String code);
+    /**
+     * The coupon for an order being placed, checked by every rule the checkout
+     * showed: active, dates, total uses, minimum spend (on {@code couponBase},
+     * the goods after automatic discounts) and uses per customer. Throws with
+     * the reason when it can't be used.
+     */
+    Coupon getUsableForOrder(String code, java.math.BigDecimal couponBase, UUID userId);
 }

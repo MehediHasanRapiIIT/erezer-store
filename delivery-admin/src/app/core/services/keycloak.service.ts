@@ -13,9 +13,19 @@ const clientId = runtimeConfig('KEYCLOAK_CLIENT_ID', 'delivery-admin-ui');
 /** How long to wait for the silent login check before falling back to a redirect. */
 const INIT_TIMEOUT_MS = 10_000;
 
+/** The login has run out and can't be renewed: the page is on its way to the login screen. */
+export class SessionExpiredError extends Error {
+  constructor() {
+    super('Your session has expired. Taking you to the login page.');
+    this.name = 'SessionExpiredError';
+  }
+}
+
 @Injectable({ providedIn: 'root' })
 export class KeycloakService {
   private keycloak = new Keycloak({ url, realm, clientId });
+  /** Set once the login page is on its way, so a burst of requests sends you there only once. */
+  private redirecting = false;
 
   init(): Promise<boolean> {
     // keycloak-js waits, with no time limit, for /silent-check-sso.html to report
@@ -48,12 +58,30 @@ export class KeycloakService {
     if (!this.isAuthenticated()) {
       return null;
     }
-    await this.keycloak.updateToken(30);
+    try {
+      await this.keycloak.updateToken(30);
+    } catch {
+      // The session ran out (left open overnight, or ended on the server): a
+      // fresh token can't be had. Go to the login page, which brings you back
+      // to this page once you're signed in, rather than letting every request
+      // fail until the page is reloaded.
+      this.sessionExpired();
+      throw new SessionExpiredError();
+    }
     return this.keycloak.token ?? null;
   }
 
+  /** Sends you to the login page once, however many requests notice at the same moment. */
+  sessionExpired(): void {
+    if (this.redirecting) return;
+    this.redirecting = true;
+    this.keycloak.login().catch(() => { this.redirecting = false; });
+  }
+
   login(): Promise<void> {
-    return this.keycloak.login();
+    if (this.redirecting) return Promise.resolve();
+    this.redirecting = true;
+    return this.keycloak.login().catch((e) => { this.redirecting = false; throw e; });
   }
 
   logout(): Promise<void> {

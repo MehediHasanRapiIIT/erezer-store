@@ -77,7 +77,7 @@ class CouponSwitchTest {
     void offAlsoStopsACodeAppliedEarlierOrSentStraightToCheckout() {
         switchIs(false);
         InvalidStockOperationException ex = assertThrows(InvalidStockOperationException.class,
-                () -> service.getActiveByCode("WELCOME10"));
+                () -> service.getUsableForOrder("WELCOME10", new java.math.BigDecimal("100000"), null));
         assertEquals(CouponServiceImpl.CODES_OFF, ex.getMessage());
     }
 
@@ -88,6 +88,6 @@ class CouponSwitchTest {
 
         switchIs(true);
         assertTrue(validate().isValid());
-        assertEquals("WELCOME10", service.getActiveByCode("WELCOME10").getCode());
+        assertEquals("WELCOME10", service.getUsableForOrder("WELCOME10", new java.math.BigDecimal("100000"), null).getCode());
     }
 }

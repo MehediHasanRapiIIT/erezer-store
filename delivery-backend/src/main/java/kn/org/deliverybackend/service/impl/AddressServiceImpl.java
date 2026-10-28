@@ -66,7 +66,9 @@ public class AddressServiceImpl implements AddressService {
             throw new ResourceNotFoundException("User not found with id: " + userId);
         }
 
-        Optional<Addresses> address = addressesRepository.findById(addressId);
+        // Only the customer's own address: another customer's (or a deleted one)
+        // is "not found", the same as an address that doesn't exist.
+        Optional<Addresses> address = addressesRepository.findByIdAndConsumerId(addressId, userId);
         if (address.isEmpty()) {
             throw new ResourceNotFoundException("Address not found with id: " + addressId);
         }
@@ -87,7 +89,9 @@ public class AddressServiceImpl implements AddressService {
             throw new ResourceNotFoundException("User not found with id: " + userId);
         }
 
-        Optional<Addresses> address = addressesRepository.findById(addressId);
+        // Only the customer's own address: another customer's (or a deleted one)
+        // is "not found", the same as an address that doesn't exist.
+        Optional<Addresses> address = addressesRepository.findByIdAndConsumerId(addressId, userId);
         if (address.isEmpty()) {
             throw new ResourceNotFoundException("Address not found with id: " + addressId);
         }

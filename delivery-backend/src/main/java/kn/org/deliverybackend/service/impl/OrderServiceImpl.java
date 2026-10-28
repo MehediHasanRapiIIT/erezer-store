@@ -305,7 +305,7 @@ public class OrderServiceImpl implements OrderService {
         boolean couponFreeShipping = false;
         if (couponCode != null && !couponCode.isBlank()) {
             try {
-                Coupon coupon = couponService.getActiveByCode(couponCode);
+                Coupon coupon = couponService.getUsableForOrder(couponCode, couponBase, userId);
                 CouponDiscountType type = CouponDiscountType.parse(coupon.getDiscountType())
                         .orElseThrow(() -> new InvalidStockOperationException(
                                 "Stored coupon has bad type: " + coupon.getDiscountType()));
@@ -574,6 +574,10 @@ public class OrderServiceImpl implements OrderService {
         List<Variant> lockedVariants = new ArrayList<>();
         // Aligned with items; true = made-to-order custom line (no stock reservation).
         List<Boolean> customFlags = new ArrayList<>();
+        // How many of each size (or of each product without sizes) the whole order
+        // asks for: the same size on two lines must fit the stock together, not
+        // each line on its own.
+        java.util.Map<String, Integer> wanted = new java.util.LinkedHashMap<>();
 
         for (OrderItemRequestDTO item : items) {
             Product product = inventoryService.lockAndGetProduct(item.getProductId());
@@ -594,8 +598,9 @@ public class OrderServiceImpl implements OrderService {
                             "Variant " + item.getVariantId() + " does not belong to product " + product.getId());
                 }
                 int vAvail = variant.getStockQuantity() != null ? variant.getStockQuantity() : 0;
-                if (vAvail < requested) {
-                    throw new InsufficientStockException(product.getId(), requested, vAvail);
+                int total = wanted.merge("v" + variant.getId(), requested, Integer::sum);
+                if (vAvail < total) {
+                    throw new InsufficientStockException(product.getId(), total, vAvail);
                 }
             } else {
                 // A product that comes in sizes can't be ordered without one: the
@@ -606,8 +611,9 @@ public class OrderServiceImpl implements OrderService {
                             + "\" in your order summary before placing the order.");
                 }
                 int available = inventoryService.getAvailableStock(item.getProductId());
-                if (available < requested) {
-                    throw new InsufficientStockException(product.getId(), requested, available);
+                int total = wanted.merge("p" + product.getId(), requested, Integer::sum);
+                if (available < total) {
+                    throw new InsufficientStockException(product.getId(), total, available);
                 }
             }
 
