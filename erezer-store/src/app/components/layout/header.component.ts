@@ -5,12 +5,11 @@ import { filter } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { EcommerceStore } from '../../core/store/ecommerce.store';
 import { AuthService } from '../../core/auth.service';
-import { TranslateService } from '../../core/i18n/translate.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
-import { Lang } from '../../core/i18n/dictionaries';
 import { ThemeToggleComponent } from '../shared/theme-toggle.component';
 import { CategoriesPanelComponent } from './categories-panel.component';
 import { CartPanelComponent } from './cart-panel.component';
+import { SearchPanelComponent } from './search-panel.component';
 
 interface NavLink {
   route: string;
@@ -23,7 +22,7 @@ const HERO_FADE_PX = 24;
 
 @Component({
   selector: 'app-header',
-  imports: [RouterLink, RouterLinkActive, TranslatePipe, ThemeToggleComponent, CategoriesPanelComponent, CartPanelComponent],
+  imports: [RouterLink, RouterLinkActive, TranslatePipe, ThemeToggleComponent, CategoriesPanelComponent, CartPanelComponent, SearchPanelComponent],
   template: `
     <header
       class="sticky top-0 z-40 transition-colors duration-300"
@@ -36,7 +35,7 @@ const HERO_FADE_PX = 24;
         <button
           type="button"
           (click)="openMenu()"
-          class="-ml-1 inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-700 transition hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800 lg:hidden"
+          class="-ml-1 inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-700 transition hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800 xl:hidden"
           aria-label="Open menu"
         >
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -52,8 +51,8 @@ const HERO_FADE_PX = 24;
         </a>
 
         <!-- Desktop nav -->
-        <!-- Desktop nav: every label stays on one line; below lg the menu button carries these links. -->
-        <nav class="ml-2 hidden items-center gap-0.5 text-sm lg:flex xl:gap-1">
+        <!-- Desktop nav: every label stays on one line; below xl the menu button carries these links. -->
+        <nav class="ml-2 hidden items-center gap-0.5 text-sm xl:flex">
           <button type="button" (click)="openCategories()"
             class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-1.5 text-neutral-600 transition hover:text-black dark:text-neutral-300 dark:hover:text-white xl:px-3"
             aria-haspopup="dialog" [attr.aria-expanded]="categoriesOpen()">
@@ -62,7 +61,7 @@ const HERO_FADE_PX = 24;
             </svg>
             {{ 'header.categories' | t }}
           </button>
-          @for (link of visibleLinks(); track link.route) {
+          @for (link of desktopLinks(); track link.route) {
             <a
               [routerLink]="link.route"
               routerLinkActive="bg-neutral-100 text-black dark:bg-neutral-800 dark:!text-white"
@@ -71,26 +70,20 @@ const HERO_FADE_PX = 24;
           }
         </nav>
 
-        <div class="ml-auto flex items-center gap-1 sm:gap-2">
-          <!-- Language switcher (sm+) -->
-          <div class="hidden items-center gap-1 sm:inline-flex">
-            @for (l of translate.supported; track l.id) {
-              <button
-                type="button"
-                (click)="setLang(l.id)"
-                class="rounded-full border px-2.5 py-1 text-xs font-medium transition"
-                [class.pill-solid]="translate.lang() === l.id"
-                [class.border-black]="translate.lang() === l.id"
-                [class.dark:border-white]="translate.lang() === l.id"
-                [class.bg-black]="translate.lang() === l.id"
-                [class.text-white]="translate.lang() === l.id"
-                [class.dark:bg-white]="translate.lang() === l.id"
-                [class.dark:text-black]="translate.lang() === l.id"
-                [class.border-neutral-300]="translate.lang() !== l.id"
-                [class.dark:border-neutral-700]="translate.lang() !== l.id"
-              >{{ l.native }}</button>
-            }
-          </div>
+        <!-- Search: a small box on a wide screen, an icon on a smaller one; both open the panel. -->
+        <button type="button" (click)="openSearch()" data-testid="header-search-box"
+          class="search-box ml-auto hidden h-9 w-40 min-w-0 shrink items-center gap-2 rounded-full border border-neutral-300 bg-white/70 px-3 text-left text-xs text-neutral-500 transition hover:border-neutral-500 dark:border-neutral-700 dark:bg-neutral-900/70 dark:text-neutral-400 xl:inline-flex 2xl:w-52"
+          aria-haspopup="dialog" [attr.aria-expanded]="searchOpen()">
+          <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z" /></svg>
+          <span class="truncate">Search products…</span>
+        </button>
+
+        <div class="ml-auto flex items-center gap-1 sm:gap-2 xl:ml-0">
+          <button type="button" (click)="openSearch()" aria-label="Search products" data-testid="header-search-icon"
+            class="inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-700 transition hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800 xl:hidden"
+            aria-haspopup="dialog" [attr.aria-expanded]="searchOpen()">
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z" /></svg>
+          </button>
 
           <!-- Theme toggle (sm+) -->
           <app-theme-toggle class="hidden sm:inline-flex" />
@@ -143,14 +136,14 @@ const HERO_FADE_PX = 24;
     @if (menuOpen()) {
     <!-- Backdrop -->
     <div
-      class="animate-overlay-in fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
+      class="animate-overlay-in fixed inset-0 z-40 bg-black/40 backdrop-blur-sm xl:hidden"
       (click)="closeMenu()"
       aria-hidden="true"
     ></div>
 
     <!-- Panel -->
     <aside
-      class="animate-drawer-in fixed right-0 top-0 z-50 flex h-full w-[82%] max-w-sm flex-col bg-white shadow-2xl dark:bg-neutral-950 lg:hidden"
+      class="animate-drawer-in fixed right-0 top-0 z-50 flex h-full w-[82%] max-w-sm flex-col bg-white shadow-2xl dark:bg-neutral-950 xl:hidden"
       role="dialog"
       aria-modal="true"
     >
@@ -193,25 +186,8 @@ const HERO_FADE_PX = 24;
           <a routerLink="/account" (click)="closeMenu()" class="btn-primary w-full">Sign in</a>
         }
 
-        <!-- Language + theme -->
-        <div class="flex items-center justify-between gap-3">
-          <div class="inline-flex items-center gap-1">
-            @for (l of translate.supported; track l.id) {
-              <button
-                type="button"
-                (click)="setLang(l.id)"
-                class="rounded-full border px-3 py-1.5 text-xs font-medium transition"
-                [class.border-black]="translate.lang() === l.id"
-                [class.dark:border-white]="translate.lang() === l.id"
-                [class.bg-black]="translate.lang() === l.id"
-                [class.text-white]="translate.lang() === l.id"
-                [class.dark:bg-white]="translate.lang() === l.id"
-                [class.dark:text-black]="translate.lang() === l.id"
-                [class.border-neutral-300]="translate.lang() !== l.id"
-                [class.dark:border-neutral-700]="translate.lang() !== l.id"
-              >{{ l.native }}</button>
-            }
-          </div>
+        <!-- Theme -->
+        <div class="flex items-center justify-end">
           <app-theme-toggle />
         </div>
       </div>
@@ -220,6 +196,7 @@ const HERO_FADE_PX = 24;
 
     <app-categories-panel [open]="categoriesOpen()" (closed)="categoriesOpen.set(false)" />
     <app-cart-panel [open]="cartOpen()" (closed)="cartOpen.set(false)" />
+    <app-search-panel [open]="searchOpen()" (closed)="searchOpen.set(false)" />
   `,
   styles: [`
     /*
@@ -241,6 +218,10 @@ const HERO_FADE_PX = 24;
     .header-over-hero button:not(.pill-solid):hover {
       color: #fff;
     }
+    /* The search box stays readable over a photo. */
+    .header-over-hero .search-box {
+      background: rgba(255, 255, 255, 0.14);
+    }
     /* Outlined controls need a visible edge against photography. */
     .header-over-hero .ring-1,
     .header-over-hero [class*="border-neutral"] {
@@ -256,7 +237,6 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
   protected readonly store = inject(EcommerceStore);
   protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
-  protected readonly translate = inject(TranslateService);
   private readonly document = inject(DOCUMENT);
 
   private readonly hostEl = inject(ElementRef);
@@ -265,6 +245,7 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
   protected readonly menuOpen = signal(false);
   protected readonly categoriesOpen = signal(false);
   protected readonly cartOpen = signal(false);
+  protected readonly searchOpen = signal(false);
 
   /**
    * True while the bar floats over the home page's hero photo: on "/" and
@@ -333,12 +314,19 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
     { route: '/orders', key: 'header.orders', authOnly: true },
     { route: '/account', key: 'header.account', authOnly: true },
     { route: '/track-order', key: 'header.track_order', authOnly: false },
-    { route: '/contact', key: 'header.contact', authOnly: false },
   ];
 
   protected readonly visibleLinks = computed(() =>
     this.navLinks.filter((l) => !l.authOnly || this.auth.isAuthenticated())
   );
+
+  /**
+   * The top bar on a wide screen, kept short so the search box fits: Wishlist
+   * already has its heart icon, and a signed-in customer's orders are under
+   * Orders. The phone menu keeps them all.
+   */
+  protected readonly desktopLinks = computed(() => this.visibleLinks().filter((l) =>
+    l.route !== '/wishlist' && !(l.route === '/track-order' && this.auth.isAuthenticated())));
 
   constructor() {
     // The floating-header state depends on the route, so seed it before any
@@ -356,6 +344,7 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
         this.menuOpen.set(false);
         this.categoriesOpen.set(false);
         this.cartOpen.set(false);
+        this.searchOpen.set(false);
         this.onHome.set(this.isHomeUrl(e.urlAfterRedirects));
         this.atTop.set(this.readScrollY() <= HERO_FADE_PX);
       });
@@ -364,7 +353,7 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
     effect(() => {
       const body = this.document.body;
       if (!body) return;
-      body.style.overflow = this.menuOpen() || this.categoriesOpen() || this.cartOpen() ? 'hidden' : '';
+      body.style.overflow = this.menuOpen() || this.categoriesOpen() || this.cartOpen() || this.searchOpen() ? 'hidden' : '';
     });
   }
 
@@ -388,8 +377,9 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
     this.categoriesOpen.set(true);
   }
 
-  protected setLang(lang: Lang): void {
-    this.translate.setLang(lang);
+  protected openSearch(): void {
+    this.menuOpen.set(false);
+    this.searchOpen.set(true);
   }
 
   protected logout(): void {

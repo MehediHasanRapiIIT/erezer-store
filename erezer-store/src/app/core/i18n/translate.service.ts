@@ -45,16 +45,8 @@ export class TranslateService {
   // ── internal ────────────────────────────────────────────────────────────────
 
   private loadInitialLang(): Lang {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored === 'en' || stored === 'bn') return stored;
-    } catch { /* ignore */ }
-
-    // Reasonable default from the browser. Anything starting with 'bn' → Bangla.
-    try {
-      const navLang = (navigator?.language ?? '').toLowerCase();
-      if (navLang.startsWith('bn')) return 'bn';
-    } catch { /* ignore */ }
+    // The shop is English only for now (the language switch was taken out on
+    // 2026-10-31). The Bangla words stay in the dictionary for when it returns.
     return 'en';
   }
 

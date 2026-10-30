@@ -488,6 +488,14 @@ export class ShopPage implements OnInit {
     const categoryId = categoryParam ? Number(categoryParam) : NaN;
     if (!isNaN(categoryId)) this.selectedCategoryId.set(categoryId);
 
+    // A search from the top bar: /shop?q=hoodie, also while already on this page.
+    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
+      const q = (params.get('q') ?? '').trim();
+      if (!q) return;
+      this.searchQuery.set(q);
+      this.appliedQuery.set(q);
+    });
+
     // Typing searches after a short pause.
     this.search$.pipe(
       debounceTime(350),

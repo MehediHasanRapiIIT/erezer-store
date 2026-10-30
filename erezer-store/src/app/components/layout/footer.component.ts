@@ -158,7 +158,14 @@ const FALLBACK: ApiFooter = {
 export class FooterComponent {
   private readonly settings = inject(SettingsStore);
 
-  protected readonly footer = computed<ApiFooter>(() => this.settings.settings()?.footer ?? FALLBACK);
+  /** The footer as set in Settings, always with a way to the Contact page (it left the top menu). */
+  protected readonly footer = computed<ApiFooter>(() => {
+    const f = this.settings.settings()?.footer ?? FALLBACK;
+    const columns = f.columns ?? [];
+    if (columns.length === 0 || columns.some((c) => c.links.some((l) => (l.url ?? '').replace(/\/$/, '') === '/contact'))) return f;
+    const last = columns.length - 1;
+    return { ...f, columns: columns.map((c, i) => (i === last ? { ...c, links: [...c.links, { label: 'Contact Us', url: '/contact' }] } : c)) };
+  });
 
   protected readonly promises = computed<ApiFooterPromise[]>(() => {
     const f = this.settings.settings()?.footer;
