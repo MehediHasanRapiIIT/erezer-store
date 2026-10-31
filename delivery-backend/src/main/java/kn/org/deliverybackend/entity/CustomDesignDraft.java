@@ -44,7 +44,7 @@ public class CustomDesignDraft extends AbstractBaseEntity<UUID> {
     @Column(name = "color_name", length = 80)
     private String colorName;
 
-    @Column(name = "thumbnail_url", length = 1000)
+    @Column(name = "thumbnail_url", columnDefinition = "text")
     private String thumbnailUrl;
 
     @Column(name = "design_json", columnDefinition = "text")

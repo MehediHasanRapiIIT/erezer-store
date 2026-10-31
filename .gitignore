@@ -98,3 +98,5 @@ coverage/
 application-local.properties
 application-local.yml
 application-local.yaml
+# The T-shirt model as downloaded (the site uses the smaller public/models/tshirt.glb).
+erezer-store/model-source/*.glb

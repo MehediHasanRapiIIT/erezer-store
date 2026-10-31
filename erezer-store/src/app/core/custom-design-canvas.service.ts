@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { Canvas, FabricImage, FabricObject, IText, Rect, Shadow, filters } from 'fabric';
+import { Canvas, FabricImage, FabricObject, IText, Point, Rect, Shadow, filters } from 'fabric';
 import type { CustomDesignImages, CustomDesignView } from './api.models';
 
 const VIEWS: CustomDesignView[] = ['front', 'back', 'leftSleeve', 'rightSleeve'];
@@ -27,6 +27,10 @@ export interface ActiveProps {
   shadowColor: string;
   /** Rotation in degrees (any object). */
   angle: number;
+  /** The words, for text. */
+  text: string;
+  /** How wide it is, as a percentage of the printable area. */
+  sizePercent: number;
   /** Image-only adjustments, read back off the fabric filter stack. */
   filterPreset: ImageFilterPreset;
   brightness: number;
@@ -52,6 +56,13 @@ export interface ImageAdjustments {
  * Provided at the component level (not root) so each studio instance is isolated
  * and torn down with the page.
  */
+/** Width over height of the shirt's body panel: the shape of "anywhere on the front or back". */
+const BODY_PANEL_SHAPE = 512 / 703;
+/** The same for a sleeve, which is wider than it is long, laid flat. */
+const SLEEVE_PANEL_SHAPE = 398 / 204;
+/** Where something new starts on a sleeve: the side that faces out, as fractions of the sleeve. */
+const SLEEVE_START: Partial<Record<CustomDesignView, number>> = { rightSleeve: 0.47, leftSleeve: 0.54 };
+
 @Injectable()
 export class CustomDesignCanvasService {
   private canvas: Canvas | null = null;
@@ -78,8 +89,23 @@ export class CustomDesignCanvasService {
   /** Dashed "safe zone" guide showing the printable area (visual + drag constraint). */
   private printGuide: FabricObject | null = null;
   private printArea = { left: 0, top: 0, width: 0, height: 0 };
+  /**
+   * On the 3D shirt, a design goes anywhere: the area is the whole garment picture,
+   * the shape of the piece of cloth it stands for.
+   */
+  private wholeShirt = false;
 
   /** Reactive flags the toolbar binds to. */
+  /**
+   * Each side's artwork alone (no mockup, guide or background), cut to the
+   * printable area: what the 3D shirt wears. layersVersion moves on when one changes.
+   */
+  private readonly layers = new Map<CustomDesignView, HTMLCanvasElement>();
+  readonly layersVersion = signal(0);
+  private layerQueued = false;
+  /** Set while the canvas shows something other than the current view (exporting) or is being copied. */
+  private layersPaused = false;
+
   readonly hasSelection = signal(false);
   readonly canUndo = signal(false);
   readonly canRedo = signal(false);
@@ -110,6 +136,7 @@ export class CustomDesignCanvasService {
     const sync = () => {
       this.hasSelection.set(!!this.canvas?.getActiveObject());
       this.syncActive();
+      this.layersVersion.update((n) => n + 1);
     };
     this.canvas.on('selection:created', sync);
     this.canvas.on('selection:updated', sync);
@@ -123,9 +150,214 @@ export class CustomDesignCanvasService {
     // place, so its visibility follows the object count.
     this.canvas.on('object:added', () => this.refreshGuideVisibility());
     this.canvas.on('object:removed', () => this.refreshGuideVisibility());
+    // Whatever changed on the canvas, the 3D shirt follows a moment later.
+    this.canvas.on('after:render', () => this.queueLayer());
 
     this.ensurePrintArea();
     this.canvas.renderAll();
+  }
+
+  // ── Touches on the 3D shirt ────────────────────────────────────────────────
+  // Positions come as fractions of the printable area: 0,0 its top-left, 1,1 its
+  // bottom-right. The hidden canvas stays the one true design, so undo, the
+  // panels and the order pictures all carry on as they are.
+
+  private userObjects(): FabricObject[] {
+    return this.canvas?.getObjects().filter((o) => o !== this.mockup && o !== this.printGuide) ?? [];
+  }
+
+  private objectAt(x: number, y: number): FabricObject | null {
+    const a = this.printArea;
+    const point = new Point(a.left + x * a.width, a.top + y * a.height);
+    return [...this.userObjects()].reverse().find((o) => o.containsPoint(point)) ?? null;
+  }
+
+  /** Is there artwork at this point of a side? The side need not be the one being edited. */
+  artAt(view: CustomDesignView, x: number, y: number): boolean {
+    if (view === this.currentView && this.objectAt(x, y)) return true;
+    const layer = this.layers.get(view);
+    const ctx = layer?.getContext('2d', { willReadFrequently: true });
+    if (!layer || !ctx) return false;
+    // A finger is wider than a thin letter: a small patch round the point counts.
+    const r = 14;
+    const px = Math.round(x * layer.width), py = Math.round(y * layer.height);
+    try {
+      return ctx.getImageData(Math.max(0, px - r), Math.max(0, py - r), r * 2, r * 2).data.some((v, i) => i % 4 === 3 && v > 30);
+    } catch {
+      return false;
+    }
+  }
+
+  /** Selects what's at this point of the current side; nothing there clears the selection. */
+  selectAt(x: number, y: number): boolean {
+    const c = this.canvas;
+    if (!c) return false;
+    const target = this.objectAt(x, y);
+    if (target) c.setActiveObject(target);
+    else c.discardActiveObject();
+    c.requestRenderAll();
+    return !!target;
+  }
+
+  /** Moves the selected thing by a part of the printable area, keeping it inside. */
+  moveActiveBy(dx: number, dy: number): void {
+    const c = this.canvas;
+    const o = c?.getActiveObject();
+    if (!c || !o) return;
+    const a = this.printArea;
+    o.set({ left: (o.left ?? 0) + dx * a.width, top: (o.top ?? 0) + dy * a.height });
+    o.setCoords();
+    this.clampToArea(o);
+    c.requestRenderAll();
+  }
+
+  private gesture: { scaleX: number; scaleY: number; angle: number } | null = null;
+
+  /** Fingers go down on the selected thing: pinch and twist are measured from here. */
+  beginGesture(): void {
+    const o = this.canvas?.getActiveObject();
+    this.gesture = o ? { scaleX: o.scaleX ?? 1, scaleY: o.scaleY ?? 1, angle: o.angle ?? 0 } : null;
+  }
+
+  /** Pinch and twist: never smaller than a readable size, nor larger than the printable area. */
+  transformActive(scale: number, turnDegrees: number): void {
+    const c = this.canvas;
+    const o = c?.getActiveObject();
+    const start = this.gesture;
+    if (!c || !o || !start) return;
+    const a = this.printArea;
+    const w = o.width || 1, h = o.height || 1;
+    const most = Math.min(a.width / (w * start.scaleX), a.height / (h * start.scaleY));
+    const least = (a.width * 0.04) / (w * start.scaleX);
+    const s = Math.max(Math.min(least, most), Math.min(most, scale));
+    o.set({ scaleX: start.scaleX * s, scaleY: start.scaleY * s, angle: start.angle + turnDegrees });
+    o.setCoords();
+    this.clampToArea(o);
+    c.requestRenderAll();
+  }
+
+  /** The Size slider: a percentage of the printable area's width, never past its height. */
+  setActiveSize(percent: number): void {
+    const c = this.canvas;
+    const o = c?.getActiveObject();
+    if (!c || !o) return;
+    const a = this.printArea;
+    const scale = Math.min((a.width * percent) / 100 / (o.width || 1), a.height / (o.height || 1));
+    o.set({ scaleX: scale, scaleY: scale });
+    o.setCoords();
+    this.clampToArea(o);
+    c.requestRenderAll();
+    this.layersVersion.update((n) => n + 1);
+    this.syncActive();
+    this.queueHistory();
+  }
+
+  private historyTimer?: ReturnType<typeof setTimeout>;
+
+  /** A slider sends many small changes: one Undo step once it rests. */
+  private queueHistory(): void {
+    clearTimeout(this.historyTimer);
+    this.historyTimer = setTimeout(() => this.pushHistory(), 400);
+  }
+
+  /** Fingers off: one step for Undo. */
+  endGesture(): void {
+    this.gesture = null;
+    if (!this.canvas?.getActiveObject()) return;
+    this.pushHistory();
+    this.syncActive();
+    this.layersVersion.update((n) => n + 1);
+  }
+
+  /** The selected thing's frame, as fractions of the printable area, for the shirt to outline. */
+  activeBox(view: CustomDesignView): { x: number; y: number; w: number; h: number; angle: number } | null {
+    const o = this.canvas?.getActiveObject();
+    if (!o || view !== this.currentView) return null;
+    const a = this.printArea;
+    const centre = o.getCenterPoint();
+    return {
+      x: (centre.x - a.left) / a.width, y: (centre.y - a.top) / a.height,
+      w: o.getScaledWidth() / a.width, h: o.getScaledHeight() / a.height, angle: o.angle ?? 0,
+    };
+  }
+
+  /** The words of the selected text, typed in the panel (there's no canvas to type on with the 3D shirt). */
+  setActiveText(value: string): void {
+    const c = this.canvas;
+    const o = c?.getActiveObject();
+    if (!c || !o || !this.isText(o)) return;
+    (o as unknown as IText).set({ text: value });
+    o.setCoords();
+    this.clampToArea(o);
+    c.requestRenderAll();
+    this.syncActive();
+    this.pushHistory();
+  }
+
+  /** One side's artwork for the 3D shirt; null when that side is empty. */
+  designLayer(view: CustomDesignView): HTMLCanvasElement | null {
+    return this.layers.get(view) ?? null;
+  }
+
+  private queueLayer(): void {
+    if (this.layersPaused || this.layerQueued) return;
+    this.layerQueued = true;
+    setTimeout(() => {
+      this.layerQueued = false;
+      this.captureLayer();
+    }, 80);
+  }
+
+  private captureLayer(): void {
+    const c = this.canvas;
+    if (!c || this.layersPaused) return;
+    const view = this.currentView;
+    const objects = c.getObjects().filter((o) => o !== this.mockup && o !== this.printGuide);
+    if (objects.length === 0) {
+      if (this.layers.delete(view)) this.layersVersion.update((n) => n + 1);
+      return;
+    }
+    const a = this.printArea;
+    const background = c.backgroundColor;
+    const zoomed = c.viewportTransform;
+    this.layersPaused = true;
+    try {
+      c.backgroundColor = '';
+      c.viewportTransform = [1, 0, 0, 1, 0, 0];
+      // Sharp on the cloth however small the phone's canvas is.
+      const layer = c.toCanvasElement(Math.min(4, 1100 / (a.width || 1)), {
+        left: a.left, top: a.top, width: a.width, height: a.height,
+        filter: (o) => o !== this.mockup && o !== this.printGuide,
+      });
+      this.layers.set(view, layer);
+      this.layersVersion.update((n) => n + 1);
+    } catch (e) {
+      console.warn('[custom-design] the 3D shirt could not copy this side', e);
+    } finally {
+      c.backgroundColor = background;
+      c.viewportTransform = zoomed;
+      this.layersPaused = false;
+    }
+  }
+
+  /** After a draft comes back: goes through its sides so the 3D shirt has them all. */
+  private async refreshAllLayers(): Promise<void> {
+    if (!this.canvas) return;
+    // The draft is already in objectsByView; the canvas still shows what was there before.
+    const original = this.currentView;
+    this.layers.clear();
+    for (const v of VIEWS) {
+      if (v === original || this.isViewEmpty(v)) continue;
+      this.currentView = v;
+      await this.loadObjects(this.objectsByView.get(v));
+      await this.applyBackground(v);
+      this.captureLayer();
+    }
+    this.currentView = original;
+    await this.loadObjects(this.objectsByView.get(original));
+    await this.applyBackground(original);
+    this.captureLayer();
+    this.layersVersion.update((n) => n + 1);
   }
 
   dispose(): void {
@@ -191,7 +423,25 @@ export class CustomDesignCanvasService {
 
   // ── Printable area guide ──────────────────────────────────────────────────────
 
+  /** Turns "anywhere on the shirt" on or off (the flat view keeps its print area). */
+  setWholeShirt(on: boolean): void {
+    if (on === this.wholeShirt) return;
+    this.wholeShirt = on;
+    this.computePrintAreaFromMockup();
+    this.ensurePrintArea();
+    this.canvas?.requestRenderAll();
+  }
+
+  private computeWholeArea(): void {
+    const b = this.mockup?.getBoundingRect() ?? { left: 0, top: 0, width: this.width, height: this.height };
+    const shape = SLEEVE_START[this.currentView] ? SLEEVE_PANEL_SHAPE : BODY_PANEL_SHAPE;
+    let height = b.height, width = height * shape;
+    if (width > b.width) { width = b.width; height = width / shape; }
+    this.printArea = { left: b.left + (b.width - width) / 2, top: b.top + (b.height - height) / 2, width, height };
+  }
+
   private computePrintArea(): void {
+    if (this.wholeShirt) { this.computeWholeArea(); return; }
     // Fallback used before a mockup has loaded: a centred rectangle on the
     // bare canvas.
     this.printArea = {
@@ -211,6 +461,7 @@ export class CustomDesignCanvasService {
    * chest whatever the photo's aspect ratio.
    */
   private computePrintAreaFromMockup(): void {
+    if (this.wholeShirt) { this.computeWholeArea(); return; }
     if (!this.mockup) {
       this.computePrintArea();
       return;
@@ -286,6 +537,23 @@ export class CustomDesignCanvasService {
   }
 
   /** Nudge an object back inside the printable area (called live during drag/scale). */
+  /** Starts something new in the middle of the printable area, small enough to fit inside it. */
+  private fitToArea(obj: FabricObject): void {
+    const a = this.printArea;
+    // With the whole shirt to move on, it starts at a sensible size: on the chest,
+    // or badge-sized on the outside of a sleeve.
+    const across = SLEEVE_START[this.currentView];
+    const spot = !this.wholeShirt ? { x: 0.5, y: 0.5, w: 0.96, h: 0.96 }
+      : across ? { x: across, y: 0.64, w: 0.29, h: 0.56 }
+      : { x: 0.5, y: 0.33, w: 0.45, h: 0.45 };
+    const shrink = Math.min((a.width * spot.w) / (obj.getScaledWidth() || 1), (a.height * spot.h) / (obj.getScaledHeight() || 1), 1);
+    obj.set({
+      left: a.left + a.width * spot.x, top: a.top + a.height * spot.y,
+      scaleX: (obj.scaleX ?? 1) * shrink, scaleY: (obj.scaleY ?? 1) * shrink,
+    });
+    obj.setCoords();
+  }
+
   private clampToArea(obj?: FabricObject | null): void {
     if (!obj || obj === this.mockup || obj === this.printGuide || !this.showGuide()) return;
     const a = this.printArea;
@@ -325,6 +593,7 @@ export class CustomDesignCanvasService {
 
   async setView(view: CustomDesignView): Promise<void> {
     if (!this.canvas || view === this.currentView) return;
+    this.captureLayer();
     this.stashCurrentObjects();
     this.currentView = view;
     await this.loadObjects(this.objectsByView.get(view));
@@ -358,7 +627,7 @@ export class CustomDesignCanvasService {
 
   // ── Add / edit objects ───────────────────────────────────────────────────────
 
-  addText(value: string): void {
+  addText(value: string, fill = '#111111'): void {
     if (!this.canvas || !value.trim()) return;
     const text = new IText(value.trim(), {
       left: this.width / 2,
@@ -367,8 +636,12 @@ export class CustomDesignCanvasService {
       originY: 'center',
       fontFamily: 'Inter, system-ui, sans-serif',
       fontSize: 40,
-      fill: '#111111',
+      fill,
     });
+    // Comfortable to see and touch from the start, on a phone as on a big screen.
+    const start = !this.wholeShirt ? 0.6 : SLEEVE_START[this.currentView] ? 0.25 : 0.4;
+    text.set({ fontSize: Math.round(40 * Math.min(4, (this.printArea.width * start) / (text.width || 1))) });
+    this.fitToArea(text);
     this.canvas.add(text);
     this.canvas.setActiveObject(text);
     this.canvas.requestRenderAll();
@@ -384,6 +657,7 @@ export class CustomDesignCanvasService {
       const maxDim = Math.min(this.width, this.height) * 0.5;
       const scale = Math.min(maxDim / (img.width || 1), maxDim / (img.height || 1), 1);
       img.set({ left: this.width / 2, top: this.height / 2, originX: 'center', originY: 'center', scaleX: scale, scaleY: scale });
+      this.fitToArea(img);
       this.canvas.add(img);
       this.canvas.setActiveObject(img);
       this.canvas.requestRenderAll();
@@ -407,6 +681,8 @@ export class CustomDesignCanvasService {
     const t = o as unknown as Record<string, unknown>;
     this.active.set({
       kind: this.isText(o) ? 'text' : (o.type === 'image' ? 'image' : 'other'),
+      text: (t['text'] as string) ?? '',
+      sizePercent: Math.round((o.getScaledWidth() / (this.printArea.width || 1)) * 100),
       fontFamily: (t['fontFamily'] as string) ?? 'Inter',
       fontSize: (t['fontSize'] as number) ?? 40,
       bold: t['fontWeight'] === 'bold' || t['fontWeight'] === 700,
@@ -921,7 +1197,8 @@ export class CustomDesignCanvasService {
       const objs = this.objectsByView.get(v);
       if (objs) state[v] = objs;
     }
-    return JSON.stringify(state);
+    // Positions are in this screen's canvas pixels: saved so another device can scale them.
+    return JSON.stringify({ ...state, canvasWidth: this.width });
   }
 
   /** Restores a previously serialized studio state onto the current backgrounds. */
@@ -933,11 +1210,21 @@ export class CustomDesignCanvasService {
       return;
     }
     this.objectsByView.clear();
+    const savedWidth = (state as unknown as { canvasWidth?: number }).canvasWidth;
+    const ratio = savedWidth ? this.width / savedWidth : 1;
     for (const v of VIEWS) {
-      if (state[v]) this.objectsByView.set(v, state[v]);
+      const view = state[v] as { objects?: Record<string, number>[] } | undefined;
+      if (!view) continue;
+      // Saved on a bigger or smaller screen: the design keeps its place on the shirt.
+      for (const o of view.objects ?? []) {
+        o['left'] *= ratio;
+        o['top'] *= ratio;
+        o['scaleX'] *= ratio;
+        o['scaleY'] *= ratio;
+      }
+      this.objectsByView.set(v, view);
     }
-    await this.loadObjects(this.objectsByView.get(this.currentView));
-    await this.applyBackground(this.currentView);
+    await this.refreshAllLayers();
     this.resetHistory();
   }
 
@@ -947,6 +1234,8 @@ export class CustomDesignCanvasService {
     this.stashCurrentObjects();
     const original = this.currentView;
     const out: { view: CustomDesignView; blob: Blob }[] = [];
+    // The canvas shows each side in turn here: the 3D shirt must not copy those.
+    this.layersPaused = true;
 
     for (const v of VIEWS) {
       if (this.isViewEmpty(v)) continue;
@@ -962,6 +1251,7 @@ export class CustomDesignCanvasService {
     this.currentView = original;
     await this.loadObjects(this.objectsByView.get(original));
     await this.applyBackground(original);
+    this.layersPaused = false;
     return out;
   }
 
@@ -970,7 +1260,8 @@ export class CustomDesignCanvasService {
     if (!this.canvas) return null;
     const restore = this.hideGuideForCapture();
     try {
-      return this.canvas.toDataURL({ format: 'png', multiplier: 0.5 });
+      // Only ever shown tiny in the drafts list, so a small JPEG is plenty.
+      return this.canvas.toDataURL({ format: 'jpeg', quality: 0.7, multiplier: 96 / (this.width || 96) });
     } catch {
       return null; // tainted canvas (see CORS note)
     } finally {
@@ -978,10 +1269,18 @@ export class CustomDesignCanvasService {
     }
   }
 
+  /** The shirt's colour, for the order's picture of a side that has no mockup photo. */
+  garmentColor = '#e5e7eb';
+
   private async currentCanvasBlob(): Promise<Blob | null> {
     if (!this.canvas) return null;
     const restore = this.hideGuideForCapture();
+    const background = this.canvas.backgroundColor;
     try {
+      // Without a photo the picture would be see-through, and white text on it
+      // would reach the print team as a blank image.
+      if (!this.mockup) this.canvas.backgroundColor = this.garmentColor;
+      this.canvas.renderAll();
       const dataUrl = this.canvas.toDataURL({ format: 'png', multiplier: 2 });
       const res = await fetch(dataUrl);
       return await res.blob();
@@ -989,6 +1288,7 @@ export class CustomDesignCanvasService {
       // Tainted canvas: mockup/artwork served without CORS headers. Surfaced upstream.
       return null;
     } finally {
+      this.canvas.backgroundColor = background;
       restore();
     }
   }

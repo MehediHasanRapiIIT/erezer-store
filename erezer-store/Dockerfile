@@ -34,7 +34,7 @@ server {
     index index.html;
 
     gzip on;
-    gzip_types text/plain text/css application/json application/javascript
+    gzip_types text/plain text/css application/json application/javascript application/octet-stream
                application/xml+rss application/atom+xml image/svg+xml;
     gzip_min_length 256;
 

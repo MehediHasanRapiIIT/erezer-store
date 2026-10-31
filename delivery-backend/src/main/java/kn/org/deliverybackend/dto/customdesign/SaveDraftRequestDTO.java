@@ -22,7 +22,8 @@ public class SaveDraftRequestDTO {
     @Size(max = 80)
     private String colorName;
 
-    @Size(max = 1000)
+    /** A small preview picture, as a data URL. */
+    @Size(max = 100000)
     private String thumbnailUrl;
 
     @NotBlank

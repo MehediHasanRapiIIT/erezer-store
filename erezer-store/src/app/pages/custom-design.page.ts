@@ -1,10 +1,11 @@
-import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, computed, effect, inject, signal } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, HostListener, OnDestroy, ViewChild, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { catchError, of } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { AuthService } from '../core/auth.service';
 import { CustomDesignCanvasService, ImageFilterPreset } from '../core/custom-design-canvas.service';
+import { Shirt3dComponent, ShirtDesigner } from '../components/shared/shirt-3d.component';
 import type {
   CustomDesignColor,
   CustomDesignDraft,
@@ -21,7 +22,7 @@ type StudioSheet = 'design' | 'text' | 'product' | 'edit' | 'more';
 
 @Component({
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, Shirt3dComponent],
   providers: [CustomDesignCanvasService],
   template: `
     <!-- On a phone this page is laid out like a design app: the garment at the
@@ -90,6 +91,8 @@ type StudioSheet = 'design' | 'text' | 'product' | 'edit' | 'more';
                 </span>
 
                 @if (a.kind === 'text') {
+                  <input [ngModel]="a.text" (ngModelChange)="canvas.setActiveText($event)" maxlength="120" aria-label="Your text" data-testid="active-text"
+                    class="w-full rounded-lg border border-neutral-300 px-2 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
                   <select [ngModel]="a.fontFamily.split(',')[0].trim()" (ngModelChange)="canvas.setFontFamily($event)"
                     class="w-full rounded-lg border border-neutral-300 px-2 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-900"
                     [style.font-family]="a.fontFamily">
@@ -205,7 +208,12 @@ type StudioSheet = 'design' | 'text' | 'product' | 'edit' | 'more';
                   <button type="button" (click)="canvas.resetAdjustments()" class="btn-secondary w-full py-1.5 text-xs">Reset adjustments</button>
                 }
 
-                <!-- Applies to any element, not just images. -->
+                <!-- Applies to any element, not just images. Size is how a mouse resizes on the 3D shirt. -->
+                <div class="flex items-center gap-2 text-xs">
+                  <span class="w-14 shrink-0">Size</span>
+                  <input type="range" min="4" max="100" step="1" [ngModel]="a.sizePercent" aria-label="Size of the selected design" data-testid="active-size"
+                    (ngModelChange)="canvas.setActiveSize($event)" class="flex-1" />
+                </div>
                 <div class="flex items-center gap-2 text-xs">
                   <span class="w-14 shrink-0">Rotate</span>
                   <button type="button" (click)="canvas.rotateBy(-90)" title="Rotate left" class="rounded-lg border border-neutral-300 px-2 py-1 dark:border-neutral-700">↺</button>
@@ -307,25 +315,71 @@ type StudioSheet = 'design' | 'text' | 'product' | 'edit' | 'more';
                occupying its own row above it - that row cost ~66px of height,
                which on a laptop is the difference between the whole garment
                being visible and having to scroll for it. -->
-          <div class="relative flex justify-center rounded-2xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900 max-sm:order-1 max-sm:flex-col max-sm:items-center max-sm:rounded-xl max-sm:p-1" data-testid="studio-stage">
+          <div class="relative flex justify-center self-start rounded-2xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900 max-sm:order-1 max-sm:flex-col max-sm:items-center max-sm:rounded-xl max-sm:p-1" data-testid="studio-stage">
             <div class="studio-actions pointer-events-auto absolute right-6 top-6 z-10 flex items-center gap-1 rounded-full bg-neutral-900/90 px-3 py-2 text-white shadow-lg backdrop-blur">
-              <button type="button" (click)="canvas.setZoom(canvas.zoom() + 0.1)" title="Zoom in" class="rounded-full p-2 hover:bg-white/10">＋</button>
-              <button type="button" (click)="canvas.setZoom(canvas.zoom() - 0.1)" title="Zoom out" class="rounded-full p-2 hover:bg-white/10">－</button>
+              @if (show3d()) {
+                <button type="button" (click)="openPreview()" data-testid="preview-open"
+                  class="rounded-full px-3 py-2 text-xs font-semibold hover:bg-white/10">Preview</button>
+              }
+              @if (!show3d()) {
+                <button type="button" (click)="canvas.setZoom(canvas.zoom() + 0.1)" title="Zoom in" class="rounded-full p-2 hover:bg-white/10">＋</button>
+                <button type="button" (click)="canvas.setZoom(canvas.zoom() - 0.1)" title="Zoom out" class="rounded-full p-2 hover:bg-white/10">－</button>
+              }
               <button type="button" (click)="canvas.duplicateActive()" [disabled]="!canvas.hasSelection()" title="Duplicate" class="rounded-full p-2 hover:bg-white/10 disabled:opacity-40">⧉</button>
               <button type="button" (click)="canvas.undo()" [disabled]="!canvas.canUndo()" title="Undo" class="rounded-full p-2 hover:bg-white/10 disabled:opacity-40">↶</button>
               <button type="button" (click)="canvas.redo()" [disabled]="!canvas.canRedo()" title="Redo" class="rounded-full p-2 hover:bg-white/10 disabled:opacity-40">↷</button>
               <button type="button" (click)="canvas.deleteActive()" [disabled]="!canvas.hasSelection()" title="Delete" class="rounded-full bg-red-500 p-2 hover:bg-red-600 disabled:opacity-40">🗑</button>
-              <span class="mx-1 h-5 w-px bg-white/20"></span>
-              <button type="button" (click)="canvas.toggleGuide()" title="Toggle printable area"
-                class="rounded-full px-2 py-1 text-[11px] hover:bg-white/10">
-                {{ canvas.showGuide() ? '▣ area' : '▢ area' }}
-              </button>
+              @if (!show3d()) {
+                <span class="mx-1 h-5 w-px bg-white/20"></span>
+                <button type="button" (click)="canvas.toggleGuide()" title="Toggle printable area"
+                  class="rounded-full px-2 py-1 text-[11px] hover:bg-white/10">
+                  {{ canvas.showGuide() ? '▣ area' : '▢ area' }}
+                </button>
+              }
             </div>
             <!-- IMPORTANT: no background/class styling on the canvas element itself.
                  Fabric copies the element's className + inline style onto the
                  transparent "upper canvas" it overlays for selection — any
                  background here becomes an opaque layer hiding everything drawn. -->
-            <canvas #canvasEl></canvas>
+            <div [class.invisible]="show3d()"><canvas #canvasEl></canvas></div>
+            @if (show3d()) {
+              <div [class]="preview() ? 'fixed inset-0 z-[60] bg-neutral-100 dark:bg-neutral-950' : 'absolute inset-4 bottom-12 max-sm:top-14'"
+                [attr.role]="preview() ? 'dialog' : null" [attr.aria-modal]="preview() ? 'true' : null" [attr.aria-label]="preview() ? 'Preview of your design' : null">
+                <app-shirt-3d [color]="selectedColor()?.hex ?? '#ffffff'" (failed)="noThreeD.set(true)" (sideChange)="onSideChange($event)" />
+                @if (preview()) {
+                  <div class="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between gap-3 p-4 sm:p-6" data-testid="preview">
+                    <div>
+                      <p class="text-lg font-semibold">Your design</p>
+                      <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ selectedItemName() }} · {{ selectedColorName() }}</p>
+                    </div>
+                    <button type="button" (click)="closePreview()" data-testid="preview-close"
+                      class="pointer-events-auto rounded-full bg-neutral-900 px-5 py-2.5 text-sm font-semibold text-white shadow-lg dark:bg-white dark:text-black">Close</button>
+                  </div>
+                  <div class="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 p-4 sm:p-6">
+                    <div class="pointer-events-auto flex flex-wrap justify-center gap-2.5" data-testid="preview-colours" role="group" aria-label="Shirt colour">
+                      @for (c of selectedItem()?.colors ?? []; track c.name) {
+                        <button type="button" (click)="onColorChange(c.name)" [title]="c.name" [attr.aria-label]="c.name" [attr.aria-pressed]="selectedColorName() === c.name"
+                          class="h-9 w-9 rounded-full border-2 shadow" [style.background-color]="c.hex"
+                          [class.border-black]="selectedColorName() === c.name" [class.dark:border-white]="selectedColorName() === c.name"
+                          [class.border-neutral-300]="selectedColorName() !== c.name"></button>
+                      }
+                    </div>
+                    <p class="text-center text-[10px] text-neutral-500 dark:text-neutral-400">
+                      <a href="https://skfb.ly/ozHJJ" target="_blank" rel="noopener" class="pointer-events-auto underline">"T Shirt"</a> by funlab117, licensed under
+                      <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" class="pointer-events-auto underline">CC BY 4.0</a>
+                    </p>
+                  </div>
+                }
+              </div>
+              <!-- The model's licence (CC BY 4.0) asks for this credit wherever it's shown. -->
+              <p class="pointer-events-none absolute inset-x-4 bottom-7 text-center text-[11px] font-medium text-neutral-500 dark:text-neutral-400" data-testid="shirt-hint">
+                Drag design to move · Drag a corner to resize
+              </p>
+              <p class="absolute inset-x-4 bottom-2 text-center text-[10px] text-neutral-500 dark:text-neutral-400" data-testid="model-credit">
+                <a href="https://skfb.ly/ozHJJ" target="_blank" rel="noopener" class="underline">"T Shirt"</a> by funlab117, licensed under
+                <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" class="underline">CC BY 4.0</a>
+              </p>
+            }
           </div>
 
           <!-- ── Right: views + actions ───────────────────────────────────── -->
@@ -338,17 +392,19 @@ type StudioSheet = 'design' | 'text' | 'product' | 'edit' | 'more';
                   [class.dark:border-white]="view() === tab.id"
                   [class.border-neutral-200]="view() !== tab.id"
                   [class.dark:border-neutral-700]="view() !== tab.id">
-                  <span class="flex h-16 items-center justify-center overflow-hidden max-sm:h-9">
-                    @if (viewThumb(tab.id); as thumb) {
-                      <img [src]="thumb" [alt]="tab.label" class="max-h-full max-w-full object-contain" />
-                    } @else {
-                      <!-- No mockup uploaded for this view yet; keep the tab usable. -->
-                      <span class="text-[10px] leading-tight opacity-40">no
-                        <br />mockup</span>
-                    }
-                  </span>
+                  @if (!show3d()) {
+                    <span class="flex h-16 items-center justify-center overflow-hidden max-sm:h-9">
+                      @if (viewThumb(tab.id); as thumb) {
+                        <img [src]="thumb" [alt]="tab.label" class="max-h-full max-w-full object-contain" />
+                      } @else {
+                        <!-- No mockup uploaded for this view yet; keep the tab usable. -->
+                        <span class="text-[10px] leading-tight opacity-40">no
+                          <br />mockup</span>
+                      }
+                    </span>
+                  }
                   <span class="mt-1 block truncate text-center text-[11px] font-medium lowercase max-sm:mt-0.5 max-sm:text-[10px]">{{ tab.label }}</span>
-                  @if (!canvas.isViewEmpty(tab.id)) {
+                  @if (sideHasArt(tab.id)) {
                     <span class="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-green-500"
                       title="This view has artwork"></span>
                   }
@@ -697,6 +753,44 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
     () => this.selectedItem()?.colors.find((c) => c.name === this.selectedColorName()) ?? null,
   );
 
+  // The 3D shirt is the view for T-shirts. There's one model, so other garments
+  // keep the flat view, as does a device that can't draw 3D. The flat canvas stays
+  // underneath, hidden: it holds the design and makes the order's pictures.
+  /** This device can't draw 3D. */
+  protected readonly noThreeD = signal(false);
+  /** The finished look: the shirt full screen, turning slowly, without guides. */
+  protected readonly preview = signal(false);
+  protected readonly show3d = computed(() => !this.noThreeD() && /t-?\s?shirt|\btee\b/i.test(this.selectedItem()?.name ?? ''));
+  /** What a touch on the 3D shirt's artwork does. */
+  private readonly designer: ShirtDesigner = {
+    artAt: (view, x, y) => this.canvas.artAt(view, x, y),
+    grab: (view, x, y) => void this.grabOnShirt(view, x, y),
+    moveBy: (dx, dy) => this.canvas.moveActiveBy(dx, dy),
+    hasSelection: () => this.canvas.hasSelection(),
+    beginPinch: () => this.canvas.beginGesture(),
+    pinch: (scale, turn) => this.canvas.transformActive(scale, turn),
+    sizeStep: (bigger) => this.canvas.setActiveSize(Math.max(4, (this.canvas.active()?.sizePercent ?? 40) + (bigger ? 2 : -2))),
+    release: () => this.canvas.endGesture(),
+    deselect: () => { this.canvas.selectAt(-1, -1); },
+  };
+  private readonly shirt3d = viewChild(Shirt3dComponent);
+  /** The design as it stands, on the 3D shirt. */
+  private readonly dressShirt = effect(() => {
+    this.canvas.layersVersion();
+    const shirt = this.shirt3d();
+    if (!shirt) return;
+    // In the Preview the design is only looked at: fingers spin the shirt, and no guides show.
+    const previewing = this.preview();
+    shirt.designer = previewing ? null : this.designer;
+    this.dress(shirt, !previewing);
+  });
+  /** The flat zoom would throw the shirt's touches off, so 3D always works at 100%. */
+  private readonly resetZoom = effect(() => {
+    const threeD = this.show3d();
+    if (threeD) this.canvas.setZoom(1);
+    this.canvas.setWholeShirt(threeD);
+  });
+
   // Drafts / share
   protected readonly draftId = signal<string | null>(null);
   protected readonly savingDraft = signal(false);
@@ -723,7 +817,7 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
     // A square stage, as large as the centre column allows. Fabric maps canvas
     // pixels 1:1, so the backing store must be sized here rather than stretched
     // with CSS - scaling it in CSS would desynchronise pointer coordinates.
-    const host = this.canvasRef.nativeElement.parentElement;
+    const host = this.canvasRef.nativeElement.closest<HTMLElement>('[data-testid="studio-stage"]');
     // Minus the wrapper's own padding: p-4 in the studio, less on a phone.
     const style = host ? getComputedStyle(host) : null;
     const padding = style ? parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) : 32;
@@ -753,6 +847,8 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    // Leaving the page from the Preview (the browser's back button) mustn't leave the shop unable to scroll.
+    if (this.preview()) document.body.style.overflow = '';
     this.canvas.dispose();
   }
 
@@ -812,16 +908,88 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
   }
 
   protected selectView(v: CustomDesignView): void {
+    this.shirt3d()?.face(v);
     this.view.set(v);
     void this.canvas.setView(v);
+  }
+
+  protected openPreview(): void {
+    this.preview.set(true);
+    this.shirt3d()?.showcase(true);
+    document.body.style.overflow = 'hidden';
+  }
+
+  @HostListener('document:keydown.escape')
+  protected closePreview(): void {
+    if (!this.preview()) return;
+    this.preview.set(false);
+    document.body.style.overflow = '';
+    const shirt = this.shirt3d();
+    shirt?.showcase(false);
+    // Back to the side being worked on.
+    shirt?.face(this.view());
+  }
+
+  /** Follows the design as it changes, so the green dot also shows after a draft opens. */
+  protected sideHasArt(side: CustomDesignView): boolean {
+    this.canvas.layersVersion();
+    return !this.canvas.isViewEmpty(side);
+  }
+
+  private dress(shirt: Shirt3dComponent, guides: boolean): void {
+    for (const tab of this.viewTabs) {
+      shirt.setDesign(tab.id, this.canvas.designLayer(tab.id), guides ? this.canvas.activeBox(tab.id) : null);
+    }
+  }
+
+  /**
+   * The pictures that go with the order. On the 3D shirt they are the shirt itself,
+   * so the email and the admin show the design where the customer put it. The flat
+   * picture is for garments with no 3D, or a side the shirt couldn't show.
+   */
+  private async orderPictures(): Promise<{ view: CustomDesignView; blob: Blob }[]> {
+    const shirt = this.shirt3d();
+    const sides = this.viewTabs.map((t) => t.id).filter((v) => !this.canvas.isViewEmpty(v));
+    if (this.show3d() && shirt) {
+      this.dress(shirt, false);
+      const pictures = await shirt.pictures(sides);
+      this.dress(shirt, true);
+      if (pictures.length === sides.length) return pictures;
+    }
+    return this.canvas.exportPreviews();
+  }
+
+  /** The customer spun the shirt: new artwork goes on the side now facing them. */
+  protected onSideChange(v: CustomDesignView): void {
+    this.view.set(v);
+    void this.canvas.setView(v);
+  }
+
+  /** A finger on artwork on the shirt: its side becomes the current one, and it's selected. */
+  private async grabOnShirt(view: CustomDesignView, x: number, y: number): Promise<void> {
+    if (view !== this.canvas.view) {
+      this.view.set(view);
+      await this.canvas.setView(view);
+    }
+    this.canvas.selectAt(x, y);
   }
 
   protected focusText(): void {
     this.textInputRef?.nativeElement.focus();
   }
 
+  /** A dark shirt: bright enough text starts white, or it would vanish into the cloth. */
+  private isDarkShirt(): boolean {
+    const hex = (this.selectedColor()?.hex ?? '').replace('#', '');
+    if (hex.length !== 6) return false;
+    const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    return 0.299 * r + 0.587 * g + 0.114 * b < 110;
+  }
+
   protected addText(): void {
-    this.canvas.addText(this.newText);
+    // The customer's own colour wins; the untouched default follows the shirt.
+    const chosen = this.textColor.toLowerCase() !== '#111111';
+    this.canvas.addText(this.newText, chosen ? this.textColor : this.isDarkShirt() ? '#ffffff' : '#111111');
     this.newText = '';
     // On a phone, get the panel out of the way so the new text can be seen and moved.
     this.textInputRef?.nativeElement.blur();
@@ -896,7 +1064,14 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
     this.showDrafts.set(false);
     if (d.itemName && this.items().some((i) => i.name === d.itemName)) this.onItemChange(d.itemName);
     if (d.colorName) this.onColorChange(d.colorName);
+    // The list leaves the design itself out to stay light: it's fetched on opening.
+    const userId = this.auth.userId();
     if (d.designJson) void this.canvas.load(d.designJson);
+    else if (userId) {
+      this.api.getCustomDesignDraft(userId, d.id).pipe(catchError(() => of(null))).subscribe((full) => {
+        if (full?.designJson) void this.canvas.load(full.designJson);
+      });
+    }
   }
 
   protected share(): void {
@@ -997,7 +1172,8 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
 
     this.submitting.set(true);
     this.submitError.set('');
-    this.canvas.exportPreviews().then((previews) => {
+    this.canvas.garmentColor = this.selectedColor()?.hex ?? '#e5e7eb';
+    void this.orderPictures().then((previews) => {
       if (!previews.length) {
         this.submitting.set(false);
         this.submitError.set('Could not render your design preview. If this persists, the mockup images may need CORS enabled.');
