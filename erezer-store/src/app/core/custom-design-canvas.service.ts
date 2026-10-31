@@ -1,6 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { Canvas, FabricImage, FabricObject, IText, Point, Rect, Shadow, filters } from 'fabric';
 import type { CustomDesignImages, CustomDesignView } from './api.models';
+import { REGULAR_SHIRT, type ShirtModel } from './shirt-models';
 
 const VIEWS: CustomDesignView[] = ['front', 'back', 'leftSleeve', 'rightSleeve'];
 
@@ -56,12 +57,6 @@ export interface ImageAdjustments {
  * Provided at the component level (not root) so each studio instance is isolated
  * and torn down with the page.
  */
-/** Width over height of the shirt's body panel: the shape of "anywhere on the front or back". */
-const BODY_PANEL_SHAPE = 512 / 703;
-/** The same for a sleeve, which is wider than it is long, laid flat. */
-const SLEEVE_PANEL_SHAPE = 398 / 204;
-/** Where something new starts on a sleeve: the side that faces out, as fractions of the sleeve. */
-const SLEEVE_START: Partial<Record<CustomDesignView, number>> = { rightSleeve: 0.47, leftSleeve: 0.54 };
 
 @Injectable()
 export class CustomDesignCanvasService {
@@ -93,7 +88,7 @@ export class CustomDesignCanvasService {
    * On the 3D shirt, a design goes anywhere: the area is the whole garment picture,
    * the shape of the piece of cloth it stands for.
    */
-  private wholeShirt = false;
+  private wholeShirt: ShirtModel | null = null;
 
   /** Reactive flags the toolbar binds to. */
   /**
@@ -424,17 +419,27 @@ export class CustomDesignCanvasService {
   // ── Printable area guide ──────────────────────────────────────────────────────
 
   /** Turns "anywhere on the shirt" on or off (the flat view keeps its print area). */
-  setWholeShirt(on: boolean): void {
-    if (on === this.wholeShirt) return;
-    this.wholeShirt = on;
+  setWholeShirt(model: ShirtModel | null): void {
+    if (model === this.wholeShirt) return;
+    this.wholeShirt = model;
     this.computePrintAreaFromMockup();
     this.ensurePrintArea();
     this.canvas?.requestRenderAll();
+    // What the 3D shirt holds was cut to the old shape.
+    if (this.layers.size) {
+      this.stashCurrentObjects();
+      void this.refreshAllLayers();
+    }
+  }
+
+  private get onSleeve(): boolean {
+    return this.currentView === 'leftSleeve' || this.currentView === 'rightSleeve';
   }
 
   private computeWholeArea(): void {
     const b = this.mockup?.getBoundingRect() ?? { left: 0, top: 0, width: this.width, height: this.height };
-    const shape = SLEEVE_START[this.currentView] ? SLEEVE_PANEL_SHAPE : BODY_PANEL_SHAPE;
+    const model = this.wholeShirt ?? REGULAR_SHIRT;
+    const shape = this.onSleeve ? model.sleeveShape : model.bodyShape;
     let height = b.height, width = height * shape;
     if (width > b.width) { width = b.width; height = width / shape; }
     this.printArea = { left: b.left + (b.width - width) / 2, top: b.top + (b.height - height) / 2, width, height };
@@ -542,9 +547,9 @@ export class CustomDesignCanvasService {
     const a = this.printArea;
     // With the whole shirt to move on, it starts at a sensible size: on the chest,
     // or badge-sized on the outside of a sleeve.
-    const across = SLEEVE_START[this.currentView];
+    const sleeve = this.wholeShirt?.sleeveStart;
     const spot = !this.wholeShirt ? { x: 0.5, y: 0.5, w: 0.96, h: 0.96 }
-      : across ? { x: across, y: 0.64, w: 0.29, h: 0.56 }
+      : this.onSleeve ? { x: sleeve?.[this.currentView as 'leftSleeve' | 'rightSleeve'] ?? 0.5, y: sleeve?.y ?? 0.5, w: 0.29, h: 0.56 }
       : { x: 0.5, y: 0.33, w: 0.45, h: 0.45 };
     const shrink = Math.min((a.width * spot.w) / (obj.getScaledWidth() || 1), (a.height * spot.h) / (obj.getScaledHeight() || 1), 1);
     obj.set({
@@ -639,7 +644,7 @@ export class CustomDesignCanvasService {
       fill,
     });
     // Comfortable to see and touch from the start, on a phone as on a big screen.
-    const start = !this.wholeShirt ? 0.6 : SLEEVE_START[this.currentView] ? 0.25 : 0.4;
+    const start = !this.wholeShirt ? 0.6 : this.onSleeve ? 0.25 : 0.4;
     text.set({ fontSize: Math.round(40 * Math.min(4, (this.printArea.width * start) / (text.width || 1))) });
     this.fitToArea(text);
     this.canvas.add(text);

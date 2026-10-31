@@ -23,7 +23,7 @@ import { CountUpDirective } from '../core/count-up.directive';
     <!-- ── Cinematic hero ──────────────────────────────────────────────────── -->
     <!-- On a phone the wide photo is shown whole, across the top, with the
          words under it instead of over it (styles.css, "Home hero on a phone"). -->
-    <section class="relative hero-full-bleed full-bleed mb-16 h-[88svh] min-h-[34rem] overflow-hidden bg-black" data-testid="hero">
+    <section class="relative hero-full-bleed full-bleed mb-16 h-[88svh] min-h-[34rem] overflow-hidden md:h-[min(88svh,72vw)] bg-black" data-testid="hero">
       <div class="hero-stage absolute inset-0" [style.--hero-ratio]="heroRatio()" data-testid="hero-stage">
       <!-- Slides: crossfade + Ken Burns, with a parallax layer -->
       <!-- The first slide downloads on its own so it appears as early as possible;
@@ -159,7 +159,7 @@ import { CountUpDirective } from '../core/count-up.directive';
                 @for (panel of [splitLeft(), splitRight()]; track $index) {
                   @if (panel) {
                     <a [href]="panel.ctaLink || '/shop'" (click)="onBandLink($event, panel.ctaLink || '/shop')"
-                      class="group relative block h-[70svh] min-h-[26rem] overflow-hidden bg-neutral-900">
+                      class="group relative block h-[70svh] min-h-[26rem] overflow-hidden bg-neutral-900 md:h-[min(70svh,56vw)]">
                       <img [src]="panel.imageUrl" [alt]="panel.promotionTitle || ''"
                         class="h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105" />
                       <span class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/10"></span>
@@ -196,7 +196,7 @@ import { CountUpDirective } from '../core/count-up.directive';
               <div class="grid grid-cols-2">
                 @for (tile of gridTiles(); track tile.id) {
                   <a [href]="tile.ctaLink || '/shop'" (click)="onBandLink($event, tile.ctaLink || '/shop')"
-                    class="group relative block h-[26svh] min-h-[11rem] overflow-hidden bg-neutral-900 sm:h-[42svh] sm:min-h-[16rem]">
+                    class="group relative block h-[26svh] min-h-[11rem] overflow-hidden bg-neutral-900 sm:h-[min(42svh,36vw)] sm:min-h-[16rem]">
                     <img [src]="tile.imageUrl" [alt]="tile.promotionTitle || ''"
                       class="h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105" />
                     <span class="pointer-events-none absolute inset-0 bg-black/15 transition group-hover:bg-black/30"></span>

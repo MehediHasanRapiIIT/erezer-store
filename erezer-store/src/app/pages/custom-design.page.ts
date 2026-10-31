@@ -6,6 +6,7 @@ import { ApiService } from '../core/api.service';
 import { AuthService } from '../core/auth.service';
 import { CustomDesignCanvasService, ImageFilterPreset } from '../core/custom-design-canvas.service';
 import { Shirt3dComponent, ShirtDesigner } from '../components/shared/shirt-3d.component';
+import { REGULAR_SHIRT, shirtModelFor } from '../core/shirt-models';
 import type {
   CustomDesignColor,
   CustomDesignDraft,
@@ -19,6 +20,18 @@ interface ViewTab { id: CustomDesignView; label: string; }
 
 /** The panels a phone opens from its bar of tools, one at a time. */
 type StudioSheet = 'design' | 'text' | 'product' | 'edit' | 'more';
+
+/**
+ * The skin tones in the Preview, medium South Asian first after the lightest.
+ * The tint colours the man's skin picture; the swatch is how that looks on a dot.
+ */
+const SKIN_TONES = [
+  { name: 'Light', tint: '#ffffff', swatch: '#eac6a6' },
+  { name: 'Medium', tint: '#d0ae96', swatch: '#c6946c' },
+  { name: 'Tan', tint: '#ab8870', swatch: '#9c6b49' },
+  { name: 'Brown', tint: '#806553', swatch: '#6f4a35' },
+  { name: 'Deep', tint: '#5e483b', swatch: '#4a2f22' },
+];
 
 @Component({
   standalone: true,
@@ -345,7 +358,10 @@ type StudioSheet = 'design' | 'text' | 'product' | 'edit' | 'more';
             @if (show3d()) {
               <div [class]="preview() ? 'fixed inset-0 z-[60] bg-neutral-100 dark:bg-neutral-950' : 'absolute inset-4 bottom-12 max-sm:top-14'"
                 [attr.role]="preview() ? 'dialog' : null" [attr.aria-modal]="preview() ? 'true' : null" [attr.aria-label]="preview() ? 'Preview of your design' : null">
-                <app-shirt-3d [color]="selectedColor()?.hex ?? '#ffffff'" (failed)="noThreeD.set(true)" (sideChange)="onSideChange($event)" />
+                <!-- A new one when the garment's shirt changes: each loads its own model. -->
+                @for (model of [shirtModel()]; track model.file) {
+                  <app-shirt-3d [model]="model" [color]="selectedColor()?.hex ?? '#ffffff'" [skin]="skinTone().tint" (failed)="noThreeD.set(true)" (sideChange)="onSideChange($event)" />
+                }
                 @if (preview()) {
                   <div class="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between gap-3 p-4 sm:p-6" data-testid="preview">
                     <div>
@@ -356,6 +372,26 @@ type StudioSheet = 'design' | 'text' | 'product' | 'edit' | 'more';
                       class="pointer-events-auto rounded-full bg-neutral-900 px-5 py-2.5 text-sm font-semibold text-white shadow-lg dark:bg-white dark:text-black">Close</button>
                   </div>
                   <div class="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 p-4 sm:p-6">
+                    @if (shirtModel().person) {
+                      <button type="button" (click)="togglePerson()" data-testid="preview-person" [attr.aria-pressed]="onPerson()"
+                        class="pointer-events-auto rounded-full bg-white px-4 py-2 text-xs font-semibold text-neutral-900 shadow-lg dark:bg-neutral-800 dark:text-white">
+                        {{ onPerson() ? 'Shirt only' : 'See it on a person' }}
+                      </button>
+                    }
+                    @if (personFailed()) {
+                      <p class="rounded-full bg-white px-3 py-1 text-xs text-red-600 shadow dark:bg-neutral-800" role="alert">Couldn't load this view. Please try again.</p>
+                    }
+                    @if (onPerson()) {
+                      <div class="pointer-events-auto flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 shadow dark:bg-neutral-800/90" data-testid="preview-skin" role="group" aria-label="Skin tone">
+                        <span class="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">Skin tone</span>
+                        @for (t of skinTones; track t.name) {
+                          <button type="button" (click)="skinTone.set(t)" [title]="t.name" [attr.aria-label]="t.name" [attr.aria-pressed]="skinTone() === t"
+                            class="h-8 w-8 rounded-full border-2 shadow" [style.background-color]="t.swatch"
+                            [class.border-black]="skinTone() === t" [class.dark:border-white]="skinTone() === t"
+                            [class.border-neutral-300]="skinTone() !== t"></button>
+                        }
+                      </div>
+                    }
                     <div class="pointer-events-auto flex flex-wrap justify-center gap-2.5" data-testid="preview-colours" role="group" aria-label="Shirt colour">
                       @for (c of selectedItem()?.colors ?? []; track c.name) {
                         <button type="button" (click)="onColorChange(c.name)" [title]="c.name" [attr.aria-label]="c.name" [attr.aria-pressed]="selectedColorName() === c.name"
@@ -364,8 +400,8 @@ type StudioSheet = 'design' | 'text' | 'product' | 'edit' | 'more';
                           [class.border-neutral-300]="selectedColorName() !== c.name"></button>
                       }
                     </div>
-                    <p class="text-center text-[10px] text-neutral-500 dark:text-neutral-400">
-                      <a href="https://skfb.ly/ozHJJ" target="_blank" rel="noopener" class="pointer-events-auto underline">"T Shirt"</a> by funlab117, licensed under
+                    <p class="rounded-full bg-neutral-100/80 px-2 text-center text-[10px] text-neutral-500 dark:bg-neutral-950/80 dark:text-neutral-400">
+                      Based on <a [href]="shirtModel().credit.url" target="_blank" rel="noopener" class="pointer-events-auto underline">"{{ shirtModel().credit.title }}"</a> by {{ shirtModel().credit.by }},
                       <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" class="pointer-events-auto underline">CC BY 4.0</a>
                     </p>
                   </div>
@@ -376,7 +412,7 @@ type StudioSheet = 'design' | 'text' | 'product' | 'edit' | 'more';
                 Drag design to move · Drag a corner to resize
               </p>
               <p class="absolute inset-x-4 bottom-2 text-center text-[10px] text-neutral-500 dark:text-neutral-400" data-testid="model-credit">
-                <a href="https://skfb.ly/ozHJJ" target="_blank" rel="noopener" class="underline">"T Shirt"</a> by funlab117, licensed under
+                Based on <a [href]="shirtModel().credit.url" target="_blank" rel="noopener" class="underline">"{{ shirtModel().credit.title }}"</a> by {{ shirtModel().credit.by }},
                 <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" class="underline">CC BY 4.0</a>
               </p>
             }
@@ -753,14 +789,20 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
     () => this.selectedItem()?.colors.find((c) => c.name === this.selectedColorName()) ?? null,
   );
 
-  // The 3D shirt is the view for T-shirts. There's one model, so other garments
-  // keep the flat view, as does a device that can't draw 3D. The flat canvas stays
+  // The 3D shirt is the view for T-shirts. Garments with no model of their own keep
+  // the flat view, as does a device that can't draw 3D. The flat canvas stays
   // underneath, hidden: it holds the design and makes the order's pictures.
   /** This device can't draw 3D. */
   protected readonly noThreeD = signal(false);
   /** The finished look: the shirt full screen, turning slowly, without guides. */
   protected readonly preview = signal(false);
-  protected readonly show3d = computed(() => !this.noThreeD() && /t-?\s?shirt|\btee\b/i.test(this.selectedItem()?.name ?? ''));
+  /** In the Preview: a man wearing the shirt, instead of the shirt alone. */
+  protected readonly onPerson = signal(false);
+  protected readonly personFailed = signal(false);
+  protected readonly skinTones = SKIN_TONES;
+  protected readonly skinTone = signal(SKIN_TONES[1]);
+  protected readonly shirtModel = computed(() => shirtModelFor(this.selectedItem()?.name ?? '') ?? REGULAR_SHIRT);
+  protected readonly show3d = computed(() => !this.noThreeD() && !!shirtModelFor(this.selectedItem()?.name ?? ''));
   /** What a touch on the 3D shirt's artwork does. */
   private readonly designer: ShirtDesigner = {
     artAt: (view, x, y) => this.canvas.artAt(view, x, y),
@@ -788,7 +830,7 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
   private readonly resetZoom = effect(() => {
     const threeD = this.show3d();
     if (threeD) this.canvas.setZoom(1);
-    this.canvas.setWholeShirt(threeD);
+    this.canvas.setWholeShirt(threeD ? this.shirtModel() : null);
   });
 
   // Drafts / share
@@ -919,12 +961,26 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
     document.body.style.overflow = 'hidden';
   }
 
+  protected togglePerson(): void {
+    const on = !this.onPerson();
+    this.onPerson.set(on);
+    this.personFailed.set(false);
+    void this.shirt3d()?.wear(on).then((worked) => {
+      if (worked) return;
+      this.onPerson.set(false);
+      this.personFailed.set(true);
+    });
+  }
+
   @HostListener('document:keydown.escape')
   protected closePreview(): void {
     if (!this.preview()) return;
     this.preview.set(false);
     document.body.style.overflow = '';
     const shirt = this.shirt3d();
+    this.onPerson.set(false);
+    this.personFailed.set(false);
+    void shirt?.wear(false);
     shirt?.showcase(false);
     // Back to the side being worked on.
     shirt?.face(this.view());

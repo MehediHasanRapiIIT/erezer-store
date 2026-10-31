@@ -35,7 +35,7 @@ const HERO_FADE_PX = 24;
         <button
           type="button"
           (click)="openMenu()"
-          class="-ml-1 inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-700 transition hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800 xl:hidden"
+          class="-ml-1 inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-700 transition hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800 min-[1040px]:hidden"
           aria-label="Open menu"
         >
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -51,8 +51,8 @@ const HERO_FADE_PX = 24;
         </a>
 
         <!-- Desktop nav -->
-        <!-- Desktop nav: every label stays on one line; below xl the menu button carries these links. -->
-        <nav class="ml-2 hidden items-center gap-0.5 text-sm xl:flex">
+        <!-- Desktop nav: every label stays on one line; on a narrower screen the menu button carries these links. -->
+        <nav class="ml-2 hidden items-center gap-0.5 text-sm min-[1040px]:flex">
           <button type="button" (click)="openCategories()"
             class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-1.5 text-neutral-600 transition hover:text-black dark:text-neutral-300 dark:hover:text-white xl:px-3"
             aria-haspopup="dialog" [attr.aria-expanded]="categoriesOpen()">
@@ -136,14 +136,14 @@ const HERO_FADE_PX = 24;
     @if (menuOpen()) {
     <!-- Backdrop -->
     <div
-      class="animate-overlay-in fixed inset-0 z-40 bg-black/40 backdrop-blur-sm xl:hidden"
+      class="animate-overlay-in fixed inset-0 z-40 bg-black/40 backdrop-blur-sm min-[1040px]:hidden"
       (click)="closeMenu()"
       aria-hidden="true"
     ></div>
 
     <!-- Panel -->
     <aside
-      class="animate-drawer-in fixed right-0 top-0 z-50 flex h-full w-[82%] max-w-sm flex-col bg-white shadow-2xl dark:bg-neutral-950 xl:hidden"
+      class="animate-drawer-in fixed right-0 top-0 z-50 flex h-full w-[82%] max-w-sm flex-col bg-white shadow-2xl dark:bg-neutral-950 min-[1040px]:hidden"
       role="dialog"
       aria-modal="true"
     >

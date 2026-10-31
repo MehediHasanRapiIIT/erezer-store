@@ -1,7 +1,8 @@
 import { AfterViewInit, Component, ElementRef, NgZone, OnDestroy, effect, inject, input, output, signal, viewChild } from '@angular/core';
-import type { CanvasTexture, Material, Mesh, MeshStandardMaterial, PerspectiveCamera, Raycaster, Scene, Vector2, WebGLRenderer } from 'three';
+import type { CanvasTexture, Group, Material, Mesh, MeshStandardMaterial, PerspectiveCamera, Raycaster, Scene, Texture, Vector2, WebGLRenderer } from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { CustomDesignView } from '../../core/api.models';
+import { REGULAR_SHIRT, type ShirtModel } from '../../core/shirt-models';
 
 /**
  * Where the view goes round to for each side, in radians around the shirt.
@@ -13,21 +14,6 @@ const FACING: Record<CustomDesignView, number> = {
   back: Math.PI,
   rightSleeve: -1.15,
   leftSleeve: 1.15,
-};
-
-/**
- * Where each side's artwork sits on the cloth, in the sewing-pattern coordinates
- * the model comes with (u runs to the right seen from outside,
- * v runs down, so nothing is mirrored): the part, the middle of the area across,
- * its width and its top. Each is the whole piece, so a design goes anywhere on it.
- */
-const PLACES: Record<CustomDesignView, { part: string; u: number; width: number; top: number }> = {
-  front: { part: 'front', u: 0, width: 512, top: -406 },
-  back: { part: 'back', u: 0, width: 512, top: -385 },
-  // The model's parts are named as you look at the shirt, so the wearer's right
-  // sleeve is its "sleeveLeft" part.
-  rightSleeve: { part: 'sleeveLeft', u: 0, width: 398, top: -102 },
-  leftSleeve: { part: 'sleeveRight', u: 0, width: 398, top: -102 },
 };
 
 /** Clear border round the artwork, so its edge pixels don't smear across the rest of the cloth. */
@@ -88,8 +74,12 @@ const HANDLE_SIZE = 26;
 export class Shirt3dComponent implements AfterViewInit, OnDestroy {
   private readonly zone = inject(NgZone);
 
+  /** Which shirt this is. It's chosen once: the page makes a new one to change it. */
+  readonly model = input<ShirtModel>(REGULAR_SHIRT);
   /** The shirt's colour, like #1a2b3c. */
   readonly color = input('#ffffff');
+  /** The skin colour of the man wearing it, in the Preview. */
+  readonly skin = input('#ffffff');
   /** 3D can't run on this device: the page goes back to the flat view. */
   readonly failed = output<void>();
   /** The customer spun round to another side. */
@@ -136,11 +126,23 @@ export class Shirt3dComponent implements AfterViewInit, OnDestroy {
   private boxes = new Map<CustomDesignView, ShirtBox>();
   private destroyed = false;
   private dirty = true;
+  /** The man who wears the shirt in the Preview. He loads the first time he's asked for. */
+  private person?: Group;
+  private personLoad?: Promise<boolean>;
+  private personSkin?: MeshStandardMaterial;
+  private personPictures: Texture[] = [];
+  private fabricPictures: Texture[] = [];
+  private wearing = false;
   /** Going round to a chosen side. */
   private turn: { from: number; to: number; at: number } | null = null;
 
   constructor() {
     effect(() => this.paint(this.color()));
+    effect(() => {
+      const skin = this.skin();
+      this.personSkin?.color.set(skin);
+      this.dirty = true;
+    });
   }
 
   ngAfterViewInit(): void {
@@ -159,6 +161,8 @@ export class Shirt3dComponent implements AfterViewInit, OnDestroy {
     this.resize?.disconnect();
     this.controls?.dispose();
     this.prints.forEach((p) => p.texture.dispose());
+    this.personPictures.forEach((t) => t.dispose());
+    this.fabricPictures.forEach((t) => t.dispose());
     this.scene?.traverse((o) => {
       const mesh = o as { geometry?: { dispose(): void }; material?: Material | Material[] };
       mesh.geometry?.dispose();
@@ -175,6 +179,70 @@ export class Shirt3dComponent implements AfterViewInit, OnDestroy {
     this.controls.autoRotate = on && !calm;
     this.controls.autoRotateSpeed = 2;
     this.dirty = true;
+  }
+
+  /** Puts the shirt on the man, or takes it off him. False if he couldn't be loaded. */
+  async wear(on: boolean): Promise<boolean> {
+    this.wearing = on;
+    if (on) {
+      this.personLoad ??= this.loadPerson();
+      if (!(await this.personLoad)) {
+        this.personLoad = undefined;
+        this.wearing = false;
+        return false;
+      }
+    }
+    if (this.person) this.person.visible = this.wearing;
+    this.fit();
+    return true;
+  }
+
+  private async loadPerson(): Promise<boolean> {
+    const { THREE, scene } = this;
+    if (!THREE || !scene) return false;
+    try {
+      const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
+      const pictures = new THREE.TextureLoader();
+      const [gltf, skin, bumps, eye] = await Promise.all([
+        new GLTFLoader().loadAsync('models/man.glb'),
+        pictures.loadAsync('models/man-skin.jpg'),
+        pictures.loadAsync('models/man-skin-normal.jpg'),
+        pictures.loadAsync('models/man-eye.jpg'),
+      ]);
+      this.personPictures = [skin, bumps, eye];
+      if (this.destroyed) {
+        this.personPictures.forEach((t) => t.dispose());
+        return false;
+      }
+      // The model is laid out like its own pictures, top left first.
+      for (const t of this.personPictures) t.flipY = false;
+      skin.colorSpace = THREE.SRGBColorSpace;
+      eye.colorSpace = THREE.SRGBColorSpace;
+      // Nearly matt, with the fine shape turned down: any shinier and the skin shows white patches.
+      this.personSkin = new THREE.MeshStandardMaterial({
+        map: skin, normalMap: bumps, normalScale: new THREE.Vector2(0.5, 0.5), color: this.skin(), roughness: 0.95, metalness: 0,
+      });
+      const hair = new THREE.MeshStandardMaterial({ color: '#17120f', roughness: 0.8, metalness: 0 });
+      const looks: Record<string, Material> = {
+        skin: this.personSkin,
+        trousers: new THREE.MeshStandardMaterial({ color: '#2f3239', roughness: 0.85, metalness: 0 }),
+        // Matt too: a shiny eye turns blank white whenever it faces a light.
+        eyes: new THREE.MeshStandardMaterial({ map: eye, roughness: 0.9, metalness: 0 }),
+        brows: hair,
+        hair,
+      };
+      gltf.scene.traverse((o) => {
+        const mesh = o as Mesh;
+        if (mesh.isMesh) mesh.material = looks[mesh.name.replace(/_\d+$/, '')] ?? hair;
+      });
+      this.person = gltf.scene;
+      this.person.visible = this.wearing;
+      scene.add(this.person);
+      return true;
+    } catch (e) {
+      console.warn('The man for the Preview could not load', e);
+      return false;
+    }
   }
 
   /** Goes round to one side of the shirt (the Front, Back and sleeve buttons). */
@@ -240,7 +308,8 @@ export class Shirt3dComponent implements AfterViewInit, OnDestroy {
     this.ray.setFromCamera(this.pointer, this.camera);
     const found = this.ray.intersectObjects([...this.parts.values()], false)[0];
     if (!found?.uv) return null;
-    const view = (Object.keys(PLACES) as CustomDesignView[]).find((v) => PLACES[v].part === found.object.name);
+    const places = this.model().places;
+    const view = (Object.keys(places) as CustomDesignView[]).find((v) => places[v].part === found.object.name);
     if (!view) return null;
     const area = this.areas.get(view) ?? this.defaultArea(view);
     return { view, x: (found.uv.x - area.left) / area.width, y: (found.uv.y - area.top) / area.height };
@@ -280,7 +349,7 @@ export class Shirt3dComponent implements AfterViewInit, OnDestroy {
   }
 
   private defaultArea(view: CustomDesignView): { left: number; top: number; width: number; height: number } {
-    const p = PLACES[view];
+    const p = this.model().places[view];
     return { left: p.u - p.width / 2, top: p.top, width: p.width, height: p.width };
   }
 
@@ -416,7 +485,7 @@ export class Shirt3dComponent implements AfterViewInit, OnDestroy {
       ctx.rect(4, 4, sheet.width - 8, sheet.height - 8);
       ctx.clip();
       // Never bigger than a quarter of a small design.
-      const handle = Math.min((HANDLE_SIZE / PLACES[view].width) * w, Math.min(selected.w * w, selected.h * h) * 0.25);
+      const handle = Math.min((HANDLE_SIZE / this.model().places[view].width) * w, Math.min(selected.w * w, selected.h * h) * 0.25);
       this.outline(ctx, w, h, selected, handle);
       ctx.restore();
     }
@@ -432,7 +501,7 @@ export class Shirt3dComponent implements AfterViewInit, OnDestroy {
     texture.needsUpdate = true;
 
     // From pattern coordinates to this picture: the printable area keeps its shape.
-    const place = PLACES[view];
+    const place = this.model().places[view];
     const width = place.width, height = width * (h / w);
     const left = place.u - width / 2;
     const top = place.top;
@@ -475,7 +544,7 @@ export class Shirt3dComponent implements AfterViewInit, OnDestroy {
   /** A second skin over one part of the shirt, carrying that side's artwork in its true colours. */
   private makePrint(view: CustomDesignView): { mesh: Mesh; texture: CanvasTexture; sheet: HTMLCanvasElement } | null {
     const THREE = this.THREE;
-    const part = this.parts.get(PLACES[view].part);
+    const part = this.parts.get(this.model().places[view].part);
     if (!THREE || !part) return null;
     const sheet = document.createElement('canvas');
     const texture = new THREE.CanvasTexture(sheet);
@@ -529,9 +598,27 @@ export class Shirt3dComponent implements AfterViewInit, OnDestroy {
       back.position.set(1.2, 1, -2.4);
       scene.add(back);
 
-      const gltf = await new GLTFLoader().loadAsync('models/tshirt.glb');
+      const model = this.model();
+      const gltf = await new GLTFLoader().loadAsync(model.file);
       if (this.destroyed) return;
       const cloth = new THREE.MeshStandardMaterial({ color: this.color(), roughness: 0.92, metalness: 0, side: THREE.DoubleSide });
+      if (model.fabric) {
+        const pictures = new THREE.TextureLoader();
+        const [map, bumps] = await Promise.all([pictures.loadAsync(model.fabric.map), pictures.loadAsync(model.fabric.normal)]);
+        this.fabricPictures = [map, bumps];
+        if (this.destroyed) return;
+        // These follow the file's own layout, its second UV set: the first is where designs go.
+        for (const t of this.fabricPictures) {
+          t.flipY = false;
+          t.channel = 1;
+        }
+        map.colorSpace = THREE.SRGBColorSpace;
+        cloth.map = map;
+        cloth.normalMap = bumps;
+        // Nearly matt: any shinier and dark shirts show bright streaks along the folds.
+        cloth.normalScale.set(0.6, 0.6);
+        cloth.roughness = 0.97;
+      }
       gltf.scene.traverse((o) => {
         const mesh = o as Mesh;
         if (mesh.isMesh) {
@@ -589,7 +676,9 @@ export class Shirt3dComponent implements AfterViewInit, OnDestroy {
     this.renderer.setSize(w, h);
     this.camera.aspect = w / h;
     // Far enough back that the sleeves fit on a tall, narrow screen as well as a wide one.
-    this.camera.position.setLength(Math.max(2.15, 1.9 / this.camera.aspect));
+    // The man is seen down to his upper legs, and his hands fit on a phone too.
+    const distance = this.wearing ? Math.max(4.1, 2.4 / this.camera.aspect) : Math.max(2.15, 1.9 / this.camera.aspect);
+    this.camera.position.setLength(distance);
     this.camera.updateProjectionMatrix();
     this.dirty = true;
   }
