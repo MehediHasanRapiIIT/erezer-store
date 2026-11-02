@@ -1,3 +1,6 @@
+@if (bare()) {
+  <router-outlet />
+} @else {
 <div class="min-h-screen bg-neutral-50 text-neutral-900 antialiased transition-colors dark:bg-neutral-950 dark:text-neutral-100">
   <app-header />
   <main class="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -5,4 +8,14 @@
   </main>
   <app-footer />
   <app-toasts />
+  @if (showcase.active()) {
+    <button type="button" (click)="showcase.back()" data-testid="back-to-showcase"
+      class="max-md:hidden fixed bottom-3 left-1/2 z-[70] -translate-x-1/2 rounded-full bg-black/85 px-3.5 py-1.5 text-xs font-semibold text-white shadow-lg ring-1 ring-white/50 backdrop-blur transition hover:bg-black dark:bg-white/90 dark:text-black dark:ring-black/30">
+      ← Back to showcase
+      @if (showcase.secondsLeft() !== null) {
+        <span class="ml-1 font-normal opacity-80" data-testid="back-to-showcase-count">({{ showcase.secondsLeft() }}s)</span>
+      }
+    </button>
+  }
 </div>
+}

@@ -8,6 +8,7 @@ import {
   ApiCartItem,
   ApiCartResponse,
   ApiActiveDiscount,
+  ApiShowcaseSettings,
   ApiFlashSale,
   ApiResponse,
   ApiCartValidation,
@@ -440,6 +441,12 @@ export class ApiService {
 
   getCustomDesignAssets(): Observable<CustomDesignAssets> {
     return this.http.get<CustomDesignAssets>(`${BASE}/api/custom-design/assets`);
+  }
+
+  // ─── Showcase screen ─────────────────────────────────────────────────────────
+
+  getShowcase(): Observable<ApiShowcaseSettings> {
+    return this.http.get<ApiShowcaseSettings>(`${BASE}/api/showcase`);
   }
 
   // ─── Bundle offers ───────────────────────────────────────────────────────────

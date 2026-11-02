@@ -927,6 +927,16 @@ export interface ApiAboutPage {
 export type ApiDiscountScope = 'PRODUCT' | 'CATEGORY' | 'GLOBAL';
 export type ApiDiscountType = 'PERCENT' | 'FLAT';
 
+/** The in-store showcase screen's settings (admin Settings → Showcase screen). */
+export interface ApiShowcaseSettings {
+  enabled: boolean;
+  slideSeconds: number;
+  /** NEW: new arrivals first; ALL: every product; PICKED: only productIds, in that order. */
+  productMode: 'NEW' | 'ALL' | 'PICKED';
+  productIds: number[];
+  showQr: boolean;
+}
+
 export interface ApiActiveDiscount {
   id: string;
   name: string;

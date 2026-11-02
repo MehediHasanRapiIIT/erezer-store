@@ -35,7 +35,7 @@ const HERO_FADE_PX = 24;
         <button
           type="button"
           (click)="openMenu()"
-          class="-ml-1 inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-700 transition hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800 min-[1040px]:hidden"
+          class="-ml-1 inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-700 transition hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800 min-[1060px]:hidden"
           aria-label="Open menu"
         >
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -52,7 +52,7 @@ const HERO_FADE_PX = 24;
 
         <!-- Desktop nav -->
         <!-- Desktop nav: every label stays on one line; on a narrower screen the menu button carries these links. -->
-        <nav class="ml-2 hidden items-center gap-0.5 text-sm min-[1040px]:flex">
+        <nav class="ml-2 hidden items-center gap-0.5 text-sm min-[1060px]:flex">
           <button type="button" (click)="openCategories()"
             class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-1.5 text-neutral-600 transition hover:text-black dark:text-neutral-300 dark:hover:text-white xl:px-3"
             aria-haspopup="dialog" [attr.aria-expanded]="categoriesOpen()">
@@ -62,8 +62,9 @@ const HERO_FADE_PX = 24;
             {{ 'header.categories' | t }}
           </button>
           @for (link of desktopLinks(); track link.route) {
+            <!-- Showcase is the screen icon by the search below xl, where the words don't all fit. -->
             <a
-              [routerLink]="link.route"
+              [routerLink]="link.route" [class.max-xl:hidden]="link.route === '/showcase'"
               routerLinkActive="bg-neutral-100 text-black dark:bg-neutral-800 dark:!text-white"
               class="whitespace-nowrap rounded-full px-2 py-1.5 text-neutral-600 transition hover:text-black dark:text-neutral-300 dark:hover:text-white xl:px-3"
             >{{ link.key | t }}</a>
@@ -84,6 +85,11 @@ const HERO_FADE_PX = 24;
             aria-haspopup="dialog" [attr.aria-expanded]="searchOpen()">
             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z" /></svg>
           </button>
+
+          <a routerLink="/showcase" aria-label="Showcase" title="Showcase" data-testid="header-showcase-icon"
+            class="hidden h-10 w-10 items-center justify-center rounded-full text-neutral-700 transition hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800 min-[1060px]:inline-flex xl:hidden">
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 20.25h12m-7.5-3v3m3-3v3m-10.125-3h17.25c.621 0 1.125-.504 1.125-1.125V4.875c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125z" /></svg>
+          </a>
 
           <!-- Theme toggle (sm+) -->
           <app-theme-toggle class="hidden sm:inline-flex" />
@@ -136,14 +142,14 @@ const HERO_FADE_PX = 24;
     @if (menuOpen()) {
     <!-- Backdrop -->
     <div
-      class="animate-overlay-in fixed inset-0 z-40 bg-black/40 backdrop-blur-sm min-[1040px]:hidden"
+      class="animate-overlay-in fixed inset-0 z-40 bg-black/40 backdrop-blur-sm min-[1060px]:hidden"
       (click)="closeMenu()"
       aria-hidden="true"
     ></div>
 
     <!-- Panel -->
     <aside
-      class="animate-drawer-in fixed right-0 top-0 z-50 flex h-full w-[82%] max-w-sm flex-col bg-white shadow-2xl dark:bg-neutral-950 min-[1040px]:hidden"
+      class="animate-drawer-in fixed right-0 top-0 z-50 flex h-full w-[82%] max-w-sm flex-col bg-white shadow-2xl dark:bg-neutral-950 min-[1060px]:hidden"
       role="dialog"
       aria-modal="true"
     >
@@ -314,6 +320,8 @@ export class HeaderComponent implements AfterViewInit, OnDestroy {
     { route: '/orders', key: 'header.orders', authOnly: true },
     { route: '/account', key: 'header.account', authOnly: true },
     { route: '/track-order', key: 'header.track_order', authOnly: false },
+    // The in-store advert screen, playing products and offers full screen.
+    { route: '/showcase', key: 'header.showcase', authOnly: false },
   ];
 
   protected readonly visibleLinks = computed(() =>

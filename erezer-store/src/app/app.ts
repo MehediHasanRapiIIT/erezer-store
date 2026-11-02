@@ -1,4 +1,4 @@
-import { Component, effect, inject } from '@angular/core';
+import { Component, effect, inject, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { catchError, filter, of } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -12,6 +12,7 @@ import { AuthService } from './core/auth.service';
 import { ApiService } from './core/api.service';
 import { EcommerceStore } from './core/store/ecommerce.store';
 import { SeoService } from './core/seo.service';
+import { ShowcaseVisitService } from './core/showcase-visit.service';
 
 @Component({
   selector: 'app-root',
@@ -28,6 +29,10 @@ export class App {
   private readonly store = inject(EcommerceStore);
   private readonly settings = inject(SettingsStore);
   private readonly seo = inject(SeoService);
+  /** Someone browsing from the in-store showcase screen: a way back on every page. */
+  protected readonly showcase = inject(ShowcaseVisitService);
+  /** The in-store showcase screen fills the whole screen: no header, footer or page margins. */
+  protected readonly bare = signal(typeof location !== 'undefined' && location.pathname.startsWith('/showcase'));
 
   constructor() {
     this.themeService.initializeTheme();
@@ -44,7 +49,10 @@ export class App {
     this.router.events.pipe(
       filter((e): e is NavigationEnd => e instanceof NavigationEnd),
       takeUntilDestroyed(),
-    ).subscribe(() => this.pixel.pageView());
+    ).subscribe((e) => {
+      this.bare.set(e.urlAfterRedirects.startsWith('/showcase'));
+      this.pixel.pageView();
+    });
 
     this.restoreSession();
   }

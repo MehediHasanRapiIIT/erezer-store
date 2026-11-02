@@ -57,10 +57,11 @@ const EMPTY_FOOTER: Footer = {
 const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
 
 import { CustomerEmailsSectionComponent } from './customer-emails-section.component';
+import { ShowcaseSectionComponent } from './showcase-section.component';
 @Component({
   selector: 'app-store-settings',
   standalone: true,
-  imports: [FormsModule, RouterLink, SidebarComponent, CustomerEmailsSectionComponent],
+  imports: [FormsModule, RouterLink, SidebarComponent, CustomerEmailsSectionComponent, ShowcaseSectionComponent],
   template: `
     <div class="flex h-screen bg-gray-50 overflow-hidden">
       <app-sidebar />
@@ -141,6 +142,7 @@ import { CustomerEmailsSectionComponent } from './customer-emails-section.compon
 
             <!-- Customer emails: what they show and which ones go out (saved on its own) -->
             <app-customer-emails-section [canEdit]="perms.can('settings.store')" />
+            <app-showcase-section [canEdit]="perms.can('settings.store')" />
 
             <!-- Payment methods -->
             <section class="bg-white rounded-xl border border-gray-200 p-5 space-y-3">

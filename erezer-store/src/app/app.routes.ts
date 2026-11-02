@@ -137,6 +137,13 @@ export const routes: Routes = [
   },
   // Catch-all collection page, e.g. /erezer-pink.
   //
+  {
+    // The in-store showcase screen: plays products, bundles and flash sales by itself.
+    // Not linked from the shop; opened full screen on the screen in the store.
+    path: 'showcase',
+    data: { seo: { title: 'Showcase', noindex: true } },
+    loadComponent: () => import('./pages/showcase.page').then((m) => m.ShowcasePage)
+  },
   // Registered LAST so every real route above wins: a category slugged "shop"
   // could otherwise shadow the shop page. Any slug that matches no category
   // redirects home, which is what the wildcard below used to do for these URLs.

@@ -140,6 +140,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/size-charts").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/fits").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/size-finder").permitAll()
+                        // The in-store showcase screen's settings: which products it plays and for how long.
+                        .requestMatchers(HttpMethod.GET, "/api/showcase").permitAll()
                         // The shop's own pages ("Our Mission", "Our Values"), read by customers.
                         .requestMatchers(HttpMethod.GET, "/api/pages", "/api/pages/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/discounts/active").permitAll()
