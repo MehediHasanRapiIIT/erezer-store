@@ -238,9 +238,9 @@ const PRODUCTS_PER_OFFER = 4;
     .fullscreen { position: absolute; top: 2vmin; right: 2vmin; z-index: 4; cursor: pointer; border-radius: 999px;
       background: rgba(255,255,255,.15); color: #fff; padding: .5em 1.2em; font-size: .8em; backdrop-filter: blur(8px); }
     /* Tells shoppers the screen can be touched. */
-    .tap { position: absolute; left: 50%; bottom: 3.2vmin; z-index: 3; transform: translateX(-50%); pointer-events: none;
-      padding: .45em 1.3em; border-radius: 999px; background: rgba(255,255,255,.14); backdrop-filter: blur(8px);
-      font-size: .85em; font-weight: 600; letter-spacing: .08em; white-space: nowrap; animation: breathe 2.4s ease-in-out infinite; }
+    .tap { position: absolute; left: 50%; bottom: 2vmin; z-index: 3; transform: translateX(-50%); pointer-events: none;
+      padding: .3em .9em; border-radius: 999px; background: rgba(255,255,255,.12); backdrop-filter: blur(8px);
+      font-size: clamp(10px, .6em, 16px); font-weight: 600; letter-spacing: .06em; white-space: nowrap; animation: breathe 2.4s ease-in-out infinite; }
     @keyframes breathe { 50% { transform: translateX(-50%) scale(1.06); background: rgba(255,255,255,.24); } }
 
     /* Wide screens (desktop, TV): picture beside the words. */
