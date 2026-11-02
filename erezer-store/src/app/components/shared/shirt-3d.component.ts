@@ -1,5 +1,5 @@
 import { AfterViewInit, Component, ElementRef, NgZone, OnDestroy, effect, inject, input, output, signal, viewChild } from '@angular/core';
-import type { CanvasTexture, Group, Material, Mesh, MeshStandardMaterial, PerspectiveCamera, Raycaster, Scene, Texture, Vector2, WebGLRenderer } from 'three';
+import type { CanvasTexture, Group, Material, Mesh, MeshStandardMaterial, PerspectiveCamera, Raycaster, Scene, Texture, Vector2, Vector3, WebGLRenderer } from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { CustomDesignView } from '../../core/api.models';
 import { REGULAR_SHIRT, type ShirtModel } from '../../core/shirt-models';
@@ -46,6 +46,8 @@ export interface ShirtBox {
 /** The order's pictures: the plain backdrop behind the shirt, and their size in pixels. */
 const PICTURE_BACKDROP = '#e5e7eb';
 const PICTURE_SIZE = 1200;
+/** How far the camera stands from a sleeve's design: the sleeve fills the picture, with a little of the body. */
+const SLEEVE_PICTURE_DISTANCE = 1.15;
 
 /** Fingers moving less than this (pixels) are a tap, not a drag. */
 const TAP_SLOP = 8;
@@ -204,7 +206,7 @@ export class Shirt3dComponent implements AfterViewInit, OnDestroy {
       const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
       const pictures = new THREE.TextureLoader();
       const [gltf, skin, bumps, eye] = await Promise.all([
-        new GLTFLoader().loadAsync('models/man.glb'),
+        new GLTFLoader().loadAsync(this.model().person),
         pictures.loadAsync('models/man-skin.jpg'),
         pictures.loadAsync('models/man-skin-normal.jpg'),
         pictures.loadAsync('models/man-eye.jpg'),
@@ -275,8 +277,15 @@ export class Shirt3dComponent implements AfterViewInit, OnDestroy {
     camera.aspect = 1;
     camera.updateProjectionMatrix();
     const urls = shown.map((view) => {
-      camera.position.setFromSphericalCoords(2.15, Math.PI / 2, FACING[view]);
-      camera.lookAt(controls.target);
+      // A sleeve is small and curves away, so its picture looks straight at the design.
+      const spot = view === 'leftSleeve' || view === 'rightSleeve' ? this.designSpot(view) : null;
+      if (spot) {
+        camera.position.copy(spot.point).addScaledVector(spot.normal, SLEEVE_PICTURE_DISTANCE);
+        camera.lookAt(spot.point);
+      } else {
+        camera.position.setFromSphericalCoords(2.15, Math.PI / 2, FACING[view]);
+        camera.lookAt(controls.target);
+      }
       renderer.render(scene, camera);
       return { view, url: renderer.domElement.toDataURL('image/png') };
     });
@@ -289,6 +298,51 @@ export class Shirt3dComponent implements AfterViewInit, OnDestroy {
     camera.updateProjectionMatrix();
     this.dirty = true;
     return Promise.all(urls.map(async ({ view, url }) => ({ view, blob: await (await fetch(url)).blob() })));
+  }
+
+  /** Where a side's design is on the shirt, and the way that bit of cloth faces. Null if it can't tell. */
+  private designSpot(view: CustomDesignView): { point: Vector3; normal: Vector3 } | null {
+    const THREE = this.THREE, print = this.prints.get(view), area = this.areas.get(view);
+    const part = this.parts.get(this.model().places[view].part);
+    if (!THREE || !print || !area || !part) return null;
+    // The middle of what's drawn on this side.
+    const { sheet } = print;
+    const pixels = sheet.getContext('2d')?.getImageData(0, 0, sheet.width, sheet.height).data;
+    if (!pixels) return null;
+    let left = Infinity, top = Infinity, right = -1, bottom = -1;
+    for (let y = 0; y < sheet.height; y += 2) {
+      for (let x = 0; x < sheet.width; x += 2) {
+        if (pixels[(y * sheet.width + x) * 4 + 3] < 40) continue;
+        left = Math.min(left, x); right = Math.max(right, x); top = Math.min(top, y); bottom = Math.max(bottom, y);
+      }
+    }
+    if (right < 0) return null;
+    const w = sheet.width - PAD * 2, h = sheet.height - PAD * 2;
+    const u = area.left + (((left + right) / 2 - PAD) / w) * area.width;
+    const v = area.top + (((top + bottom) / 2 - PAD) / h) * area.height;
+    // The cloth there. A shirt with an inside layer has two points in the same place of
+    // the pattern: the outside one is farther from the middle of the shirt.
+    const { uv, position, normal } = part.geometry.attributes;
+    const point = new THREE.Vector3(), best = new THREE.Vector3(), bestNormal = new THREE.Vector3();
+    let closest = Infinity;
+    for (let i = 0; i < uv.count; i++) {
+      const gap = Math.hypot(uv.getX(i) - u, uv.getY(i) - v);
+      if (gap > closest + 2) continue;
+      point.fromBufferAttribute(position, i).applyMatrix4(part.matrixWorld);
+      const better = gap < closest - 2 || Math.hypot(point.x, point.z) > Math.hypot(best.x, best.z);
+      if (!better) continue;
+      closest = Math.min(closest, gap);
+      best.copy(point);
+      bestNormal.fromBufferAttribute(normal, i);
+    }
+    if (closest === Infinity) return null;
+    bestNormal.applyMatrix3(new THREE.Matrix3().getNormalMatrix(part.matrixWorld));
+    // Mostly level, or a design near the shoulder would be seen from far above.
+    bestNormal.y *= 0.3;
+    // Out from the shirt, whichever way the file's normal points.
+    if (bestNormal.x * best.x + bestNormal.z * best.z < 0) bestNormal.negate();
+    if (bestNormal.lengthSq() < 1e-6) return null;
+    return { point: best, normal: bestNormal.normalize() };
   }
 
   /** The side facing the customer, nearest to where the view has turned. */

@@ -24,8 +24,8 @@ export interface ShirtModel {
   fabric?: { map: string; normal: string };
   /** Its licence (CC BY 4.0) asks for this wherever it's shown. */
   credit: { title: string; url: string; by: string };
-  /** The man in the Preview is fitted to this shirt. */
-  person: boolean;
+  /** The man in the Preview, fitted to this shirt (model-source/bake_man.mjs). */
+  person: string;
 }
 
 export const REGULAR_SHIRT: ShirtModel = {
@@ -40,7 +40,7 @@ export const REGULAR_SHIRT: ShirtModel = {
   sleeveShape: 398 / 204,
   sleeveStart: { rightSleeve: 0.47, leftSleeve: 0.54, y: 0.64 },
   credit: { title: 'T Shirt', url: 'https://skfb.ly/ozHJJ', by: 'funlab117' },
-  person: true,
+  person: 'models/man.glb',
 };
 
 export const DROP_SHOULDER_SHIRT: ShirtModel = {
@@ -60,7 +60,7 @@ export const DROP_SHOULDER_SHIRT: ShirtModel = {
     url: 'https://sketchfab.com/3d-models/oversized-t-shirt-4b64d0c95d2248aa9dd096c9cafe1d8d',
     by: 'tech.service.allwe',
   },
-  person: false,
+  person: 'models/man-drop.glb',
 };
 
 /** The 3D shirt for a garment, by the name the admin gave it; null means it has none. */

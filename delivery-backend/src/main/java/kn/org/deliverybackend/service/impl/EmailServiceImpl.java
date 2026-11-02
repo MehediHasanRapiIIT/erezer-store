@@ -151,7 +151,7 @@ public class EmailServiceImpl implements EmailService {
     }
 
     /** The address trimmed when mail can be sent to it (support@erezer.com); null when blank or mistyped. */
-    static String validAddress(String address) {
+    public static String validAddress(String address) {
         String a = blankToNull(address);
         if (a == null) return null;
         try {

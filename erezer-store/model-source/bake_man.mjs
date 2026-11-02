@@ -1,8 +1,10 @@
 /**
  * Makes public/models/man.glb and its pictures: the man who wears the shirt in the
- * Custom Design Preview.
+ * Custom Design Preview. Each 3D shirt has its own fitting of him, the drop shoulder
+ * one in man-drop.glb (it shares the pictures):
  *
  *   node model-source/bake_man.mjs "C:/path/to/Universal Base Characters[Standard]"
+ *   node model-source/bake_man.mjs "C:/path/to/Universal Base Characters[Standard]" drop
  *
  * The man is "Universal Base Characters" by Quaternius (CC0). The pack is not kept
  * here. This poses him for the shop's shirt (public/models/tshirt.glb) and fixes that
@@ -24,6 +26,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const store = join(here, '..');
 const pack = process.argv[2];
+const shirt = process.argv[3] ?? 'regular';
+/** His hair, from the pack's Hairstyles: one or more of SimpleParted, Buzzed, Beard. */
+const hairstyles = (process.env.HAIR ?? 'Buzzed').split(',');
 if (!pack) throw new Error('Give the folder of the Universal Base Characters pack.');
 const { chromium } = await import(process.env.PLAYWRIGHT ?? pathToFileURL('D:/erezer-new/node_modules/playwright-core/index.mjs').href);
 
@@ -47,19 +52,26 @@ const server = createServer(async (req, res) => {
   } catch { res.writeHead(404); res.end(); }
 }).listen(4412, '127.0.0.1');
 
-async function bake() {
+async function bake({ choice, hairstyles }) {
+  /** Each shirt: its file, the man's file, and the inside of its collar, where his neck goes. */
+  const SHIRTS = {
+    regular: { file: 'tshirt.glb', out: 'man.glb', collar: { z: -0.036, rx: 0.09, rz: 0.08 }, pictures: true },
+    drop: { file: 'tshirt-drop.glb', out: 'man-drop.glb', collar: { z: -0.038, rx: 0.1, rz: 0.08 }, pictures: false },
+  };
+  const fit = SHIRTS[choice];
+  if (!fit) throw new Error(`No shirt called ${choice}`);
   const THREE = await import('three');
   const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
   const { GLTFExporter } = await import('three/addons/exporters/GLTFExporter.js');
   const SCALE = 1.32, OFFSET = new THREE.Vector3(0, -1.58, -0.01);
   const HEM = -0.49, LEGS_END = -1.45;
-  const COLLAR = { z: -0.036, rx: 0.09, rz: 0.08 };
+  const COLLAR = fit.collar;
 
   const loader = new GLTFLoader();
-  const [shirt, gltf, hairFile] = await Promise.all([
-    loader.loadAsync('/models/tshirt.glb'),
+  const [shirt, gltf, hairFiles] = await Promise.all([
+    loader.loadAsync(`/models/${fit.file}`),
     loader.loadAsync('/pack/Superhero_Male_FullBody.gltf'),
-    loader.loadAsync('/hair/Hair_SimpleParted.gltf'),
+    Promise.all(hairstyles.map((h) => loader.loadAsync(`/hair/Hair_${h}.gltf`))),
   ]);
   const man = gltf.scene;
   man.scale.setScalar(SCALE);
@@ -92,8 +104,9 @@ async function bake() {
   const down = new THREE.Vector3(0, 0, 1);
 
   for (const s of ['l', 'r']) {
-    bone[`upperarm_${s}`].scale.set(0.7, 1, 0.7);
-    bone[`lowerarm_${s}`].scale.set(0.95, 1, 0.95);
+    // An everyday build, not the pack's superhero.
+    bone[`upperarm_${s}`].scale.set(0.64, 1, 0.64);
+    bone[`lowerarm_${s}`].scale.set(0.84, 1, 0.84);
     bone[`hand_${s}`].scale.set(1.08, 1, 1.08);
     bone[`thigh_${s}`].scale.set(0.9, 1, 0.9);
   }
@@ -107,7 +120,7 @@ async function bake() {
       });
     }
     aim(bone[`upperarm_${s}`], bone[`lowerarm_${s}`], ends[s]);
-    aim(bone[`lowerarm_${s}`], bone[`hand_${s}`], at(bone[`lowerarm_${s}`]).add(new THREE.Vector3(-side * 0.1, -1, 0.16)));
+    aim(bone[`lowerarm_${s}`], bone[`hand_${s}`], at(bone[`lowerarm_${s}`]).add(new THREE.Vector3(-side * 0.2, -1, 0.1)));
   }
   man.updateMatrixWorld(true);
 
@@ -202,9 +215,9 @@ async function bake() {
   for (const [name, source, keepUv] of [['eyes', parts.Eyes, true], ['brows', parts.Eyebrows, false]]) {
     out.add(piece(name, source, frozen(source), all(source), keepUv));
   }
-  man.add(hairFile.scene);
+  for (const hair of hairFiles) man.add(hair.scene);
   man.updateMatrixWorld(true);
-  hairFile.scene.traverse((o) => {
+  for (const hair of hairFiles) hair.scene.traverse((o) => {
     if (!o.isMesh) return;
     const points = [], normals = [], { position, normal } = o.geometry.attributes;
     const turnNormal = new THREE.Matrix3().getNormalMatrix(o.matrixWorld);
@@ -226,8 +239,9 @@ async function bake() {
     return canvas.toDataURL('image/jpeg', quality).split(',')[1];
   };
   const base64 = (buffer) => { let s = ''; new Uint8Array(buffer).forEach((b) => { s += String.fromCharCode(b); }); return btoa(s); };
+  if (!fit.pictures) return { [fit.out]: base64(glb) };
   return {
-    'man.glb': base64(glb),
+    [fit.out]: base64(glb),
     // Brighter than the pack's, so the lightest skin tone can be reached by tinting down.
     'man-skin.jpg': await picture('/tex/T_Superhero_Male_Ligh.png', 1024, 0.82, 'brightness(1.3)'),
     'man-skin-normal.jpg': await picture('/pack/T_Superhero_Male_Normal.png', 1024, 0.8),
@@ -240,7 +254,7 @@ try {
   const tab = await browser.newPage();
   tab.on('pageerror', (e) => console.log('page error:', String(e)));
   await tab.goto('http://127.0.0.1:4412/bake');
-  const files = await tab.evaluate(bake);
+  const files = await tab.evaluate(bake, { choice: shirt, hairstyles });
   for (const [name, data] of Object.entries(files)) {
     const bytes = Buffer.from(data, 'base64');
     await writeFile(join(store, 'public/models', name), bytes);
