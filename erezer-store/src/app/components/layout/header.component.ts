@@ -52,9 +52,11 @@ const HERO_FADE_PX = 24;
 
         <!-- Desktop nav -->
         <!-- Desktop nav: every label stays on one line; on a narrower screen the menu button carries these links. -->
-        <nav class="ml-2 hidden items-center gap-0.5 text-sm min-[1060px]:flex">
+        <!-- min-w-0 + overflow-hidden: if the words are wider than expected (another font, a zoomed browser),
+             the last link is clipped instead of pushing the cart and Sign in off the screen. -->
+        <nav class="ml-2 hidden min-w-0 items-center gap-0.5 overflow-hidden text-sm min-[1060px]:flex">
           <button type="button" (click)="openCategories()"
-            class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-1.5 text-neutral-600 transition hover:text-black dark:text-neutral-300 dark:hover:text-white xl:px-3"
+            class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-1.5 py-1.5 text-neutral-600 transition hover:text-black dark:text-neutral-300 dark:hover:text-white xl:px-3"
             aria-haspopup="dialog" [attr.aria-expanded]="categoriesOpen()">
             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
@@ -66,7 +68,7 @@ const HERO_FADE_PX = 24;
             <a
               [routerLink]="link.route" [class.max-xl:hidden]="link.route === '/showcase'"
               routerLinkActive="bg-neutral-100 text-black dark:bg-neutral-800 dark:!text-white"
-              class="whitespace-nowrap rounded-full px-2 py-1.5 text-neutral-600 transition hover:text-black dark:text-neutral-300 dark:hover:text-white xl:px-3"
+              class="whitespace-nowrap rounded-full px-1.5 py-1.5 text-neutral-600 transition hover:text-black dark:text-neutral-300 dark:hover:text-white xl:px-3"
             >{{ link.key | t }}</a>
           }
         </nav>
@@ -79,7 +81,7 @@ const HERO_FADE_PX = 24;
           <span class="truncate">Search products…</span>
         </button>
 
-        <div class="ml-auto flex items-center gap-1 sm:gap-2 xl:ml-0">
+        <div class="ml-auto flex shrink-0 items-center gap-1 sm:gap-2 min-[1060px]:max-xl:gap-0.5 xl:ml-0">
           <button type="button" (click)="openSearch()" aria-label="Search products" data-testid="header-search-icon"
             class="inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-700 transition hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800 xl:hidden"
             aria-haspopup="dialog" [attr.aria-expanded]="searchOpen()">

@@ -61,10 +61,12 @@ const SKIN_TONES = [
            loading instead of hiding it. -->
       <!-- minmax(0,1fr) on the single column too: a bare column grows to fit the
            canvas, which pushed the page wider than a phone's screen. -->
-      <div class="grid grid-cols-[minmax(0,1fr)] gap-4 max-sm:gap-2 lg:grid-cols-[240px_minmax(0,1fr)_248px]" [class.opacity-50]="loading()">
+      <!-- An upright screen (the store's 1080x1920 one, a tablet held up) gives the garment
+           the full width on top, with the tools and the sides in two columns under it. -->
+      <div class="grid grid-cols-[minmax(0,1fr)] gap-4 max-sm:gap-2 lg:grid-cols-[240px_minmax(0,1fr)_248px] sm:portrait:grid-cols-2" [class.opacity-50]="loading()">
 
           <!-- ── Left: tools ─────────────────────────────────────────────── -->
-          <aside class="space-y-3 max-sm:order-3">
+          <aside class="space-y-3 max-sm:order-3 sm:portrait:order-2">
             <div class="grid grid-cols-2 gap-3 max-sm:hidden">
               <label class="app-card flex cursor-pointer flex-col items-center gap-1 p-4 text-center text-xs font-semibold">
                 <input type="file" accept="image/*" class="hidden" (change)="onFileSelected($event)" [disabled]="uploading()" />
@@ -328,7 +330,7 @@ const SKIN_TONES = [
                occupying its own row above it - that row cost ~66px of height,
                which on a laptop is the difference between the whole garment
                being visible and having to scroll for it. -->
-          <div class="relative flex justify-center self-start rounded-2xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900 max-sm:order-1 max-sm:flex-col max-sm:items-center max-sm:rounded-xl max-sm:p-1" data-testid="studio-stage">
+          <div class="relative flex justify-center self-start rounded-2xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900 max-sm:order-1 max-sm:flex-col max-sm:items-center max-sm:rounded-xl max-sm:p-1 sm:portrait:order-1 sm:portrait:col-span-2" data-testid="studio-stage">
             <div class="studio-actions pointer-events-auto absolute right-6 top-6 z-10 flex items-center gap-1 rounded-full bg-neutral-900/90 px-3 py-2 text-white shadow-lg backdrop-blur">
               @if (show3d()) {
                 <button type="button" (click)="openPreview()" data-testid="preview-open"
@@ -419,7 +421,7 @@ const SKIN_TONES = [
           </div>
 
           <!-- ── Right: views + actions ───────────────────────────────────── -->
-          <aside class="space-y-3 max-sm:order-2 max-sm:space-y-2">
+          <aside class="space-y-3 max-sm:order-2 max-sm:space-y-2 sm:portrait:order-3">
             <div class="grid grid-cols-2 gap-2 max-sm:grid-cols-4 max-sm:gap-1.5" data-testid="studio-views">
               @for (tab of viewTabs; track tab.id) {
                 <button type="button" (click)="selectView(tab.id)"
@@ -876,7 +878,9 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
     // the strip of actions, the row of sides, the submit button and the bar of
     // tools: about 322px in all, so the whole editor fits one screen without
     // scrolling.
-    const byHeight = Math.floor(window.innerHeight - (this.isPhone() ? 322 : 185));
+    // On an upright screen the tools sit under the garment: about 560px of them.
+    const upright = !this.isPhone() && window.innerHeight > window.innerWidth;
+    const byHeight = Math.floor(window.innerHeight - (this.isPhone() ? 322 : upright ? 560 : 185));
     // Floor low enough that a narrow phone is never forced wider than its own
     // viewport - a 360px floor overflowed at 420px once padding was counted.
     const size = Math.max(240, Math.min(1040, available || 840, byHeight));
