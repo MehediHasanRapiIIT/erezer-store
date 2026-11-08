@@ -20,7 +20,9 @@ public record PublicOrderTrackingDTO(String orderNumber,
                                      BigDecimal discount,
                                      BigDecimal shipping,
                                      BigDecimal total,
-                                     String paymentMethod) {
+                                     String paymentMethod,
+                                     /* bKash orders only: PAID, FAILED or PENDING, so the page can offer to pay again. */
+                                     String paymentState) {
 
     public record Step(String status, LocalDateTime at) {
     }

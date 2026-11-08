@@ -28,6 +28,18 @@ public class OrderDTO {
 
     private String paymentMethod;
 
+    /** bKash orders only: PAID, FAILED (last try failed or cancelled) or PENDING (not paid yet). */
+    private String paymentState;
+
+    /** bKash's transaction id once paid: the customer's receipt number, and what the bKash statement shows. */
+    private String bkashTrxId;
+    /** The wallet that paid. Staff only: never sent to the customer's pages. */
+    private String bkashPayerAccount;
+    /** When bKash confirmed the payment (Bangladesh time). */
+    private java.time.LocalDateTime bkashPaidAt;
+    /** Money sent back to the customer's bKash wallet so far (completed refunds only). */
+    private java.math.BigDecimal bkashRefunded;
+
     private UUID paymentId;
 
     private String orderStatus;

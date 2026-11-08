@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 
 @Data
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class BkashPaymentResponse {
@@ -23,4 +23,8 @@ public class BkashPaymentResponse {
     private String merchantInvoiceNumber;
     /** Free-text error message when status != Initiated/Completed. */
     private String errorMessage;
+    /** The wallet that paid, once bKash says so. */
+    private String payerAccount;
+    /** Our order, so the page the customer comes back to can show it. */
+    private String orderId;
 }

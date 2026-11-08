@@ -55,6 +55,7 @@ public class OrderHistoryServiceImpl implements OrderHistoryService {
     private final UserRiderRepository userRiderRepository;
     private final ProductRepository productRepository;
     private final kn.org.deliverybackend.repository.PaymentRepository paymentRepository;
+    private final kn.org.deliverybackend.repository.PaymentRefundRepository paymentRefundRepository;
     private final VariantRepository variantRepository;
     private final ProductImageRepository productImageRepository;
     private final OrderMapper orderMapper;
@@ -107,6 +108,10 @@ public class OrderHistoryServiceImpl implements OrderHistoryService {
         OrderDTO dto = orderRepository.findByIdAndClientId(orderId, userId)
                 .map(orderMapper::toDTO)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
+        if ("BKASH".equalsIgnoreCase(dto.getPaymentMethod())) {
+            addBkash(dto, paymentRepository.findByOrderId(orderId), false);
+            addRefunded(dto, orderId);
+        }
 
         dto.setOrderItems(
                 orderItemRepository.findByOrderId(orderId)
@@ -314,8 +319,32 @@ public class OrderHistoryServiceImpl implements OrderHistoryService {
         return new OrderSummaryDTO(total, pending, inTransit, completed);
     }
 
+    /** Paid or not, and once paid bKash's transaction id and time; the paying wallet only for staff. */
+    private static void addBkash(OrderDTO dto, java.util.List<kn.org.deliverybackend.entity.Payment> payments, boolean forStaff) {
+        dto.setPaymentState(kn.org.deliverybackend.payment.bkash.BkashPaymentState.of(dto.getPaymentMethod(), payments));
+        kn.org.deliverybackend.payment.bkash.BkashPaymentState.completed(payments).ifPresent(p -> {
+            dto.setBkashTrxId(p.getProviderTrxId());
+            if (forStaff) dto.setBkashPayerAccount(p.getPayerAccount());
+            java.util.Date at = p.getUpdatedAt() != null ? p.getUpdatedAt() : p.getCreatedAt();
+            if (at != null) dto.setBkashPaidAt(java.time.LocalDateTime.ofInstant(at.toInstant(), java.time.ZoneId.systemDefault()));
+        });
+    }
+
+    private void addRefunded(OrderDTO dto, UUID orderId) {
+        java.math.BigDecimal back = paymentRefundRepository.findByOrderIdOrderByCreatedAtAsc(orderId).stream()
+                .filter(r -> kn.org.deliverybackend.entity.PaymentRefund.COMPLETED.equals(r.getStatus()))
+                .map(kn.org.deliverybackend.entity.PaymentRefund::getAmount)
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+        if (back.signum() > 0) dto.setBkashRefunded(back);
+    }
+
     private OrderDTO toOrderDTOWithItems(Order order) {
         OrderDTO dto = orderMapper.toDTO(order);
+        if ("BKASH".equalsIgnoreCase(order.getPaymentMethod())) {
+            // Staff see the wallet that paid; the customer's own page leaves it out.
+            addBkash(dto, paymentRepository.findByOrderId(order.getId()), true);
+            addRefunded(dto, order.getId());
+        }
         dto.setOrderItems(
                 orderItemRepository.findByOrderId(order.getId())
                         .stream()

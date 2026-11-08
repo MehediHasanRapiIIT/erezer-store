@@ -359,6 +359,12 @@ export interface OrderResponse {
   deliveryAddress: string;
   totalAmount: number;
   paymentMethod: string;
+  /** bKash orders only: PAID, FAILED (last try failed or cancelled) or PENDING (not paid yet). */
+  paymentState?: 'PAID' | 'FAILED' | 'PENDING' | null;
+  /** bKash's transaction id, the paying wallet and when it was paid (bKash orders, once paid). */
+  bkashTrxId?: string | null;
+  bkashPayerAccount?: string | null;
+  bkashPaidAt?: string | null;
   paymentId: string | null;
   orderStatus: string;
   shopId: number;

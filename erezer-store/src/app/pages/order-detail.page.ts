@@ -10,6 +10,7 @@ import { AuthService } from '../core/auth.service';
 import { EcommerceStore } from '../core/store/ecommerce.store';
 import { RevealDirective } from '../core/reveal.directive';
 import { FINAL_ORDER_STATUSES, OrderTimelineComponent } from '../components/shared/order-timeline.component';
+import { BkashPayAgainComponent } from '../components/shared/bkash-pay-again.component';
 
 /** Display order for the storefront timeline. */
 const TIMELINE_STEPS: { status: OrderStatus; label: string }[] = [
@@ -23,7 +24,7 @@ const TIMELINE_STEPS: { status: OrderStatus; label: string }[] = [
 
 @Component({
   standalone: true,
-  imports: [CurrencyPipe, DatePipe, RouterLink, FormsModule, RevealDirective, OrderTimelineComponent],
+  imports: [CurrencyPipe, DatePipe, RouterLink, FormsModule, RevealDirective, OrderTimelineComponent, BkashPayAgainComponent],
   template: `
     @if (loading()) {
       <p class="app-muted">Loading order…</p>
@@ -40,10 +41,28 @@ const TIMELINE_STEPS: { status: OrderStatus; label: string }[] = [
           <p class="text-sm text-neutral-500 dark:text-neutral-400">{{ o.createdAt | date: 'dd MMM yyyy, h:mm a' }}</p>
         </header>
 
+        <app-bkash-pay-again [orderId]="o.id" [paymentState]="o.paymentState" [orderStatus]="currentStatus()" />
+
         <div class="grid gap-4 md:grid-cols-3" appReveal>
           <article class="app-card p-4">
             <p class="text-sm text-neutral-500 dark:text-neutral-400">Payment</p>
             <p class="font-medium">{{ o.paymentMethod }}</p>
+            @if (o.paymentState === 'PAID') {
+              <p class="text-xs font-medium text-emerald-600" data-testid="payment-paid">Paid with bKash</p>
+              @if (o.bkashTrxId) {
+                <p class="text-xs text-neutral-500 dark:text-neutral-400" data-testid="payment-trx">
+                  Transaction <span class="font-mono font-semibold text-neutral-800 select-all dark:text-neutral-200">{{ o.bkashTrxId }}</span>
+                  @if (o.bkashPaidAt) { · {{ o.bkashPaidAt | date: 'dd MMM yyyy, h:mm a' }} }
+                </p>
+              }
+              @if (o.bkashRefunded) {
+                <p class="text-xs font-medium text-sky-600" data-testid="payment-refunded">
+                  Refunded {{ o.bkashRefunded | currency:'BDT':'৳' }} to your bKash
+                </p>
+              }
+            } @else if (o.paymentState) {
+              <p class="text-xs font-medium text-amber-600" data-testid="payment-unpaid">Not paid yet</p>
+            }
             @if (o.paymentId) {
               <p class="text-xs text-neutral-500 dark:text-neutral-400">ID: {{ o.paymentId }}</p>
             }

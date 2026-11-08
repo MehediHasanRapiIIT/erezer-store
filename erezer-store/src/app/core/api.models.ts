@@ -634,6 +634,13 @@ export interface ApiOrder {
   deliveryAddress: string;
   totalAmount: number;
   paymentMethod: string;
+  /** bKash orders only: PAID, FAILED (last try failed or cancelled) or PENDING (not paid yet). */
+  paymentState?: 'PAID' | 'FAILED' | 'PENDING' | null;
+  /** bKash's transaction id and when it was paid (bKash orders, once paid). */
+  bkashTrxId?: string | null;
+  bkashPaidAt?: string | null;
+  /** Money sent back to the customer's bKash wallet so far. */
+  bkashRefunded?: number | null;
   paymentId: string | null;
   orderStatus: string;
   shopId: number | null;
@@ -720,6 +727,8 @@ export interface PublicOrderTracking {
   shipping: number | null;
   total: number | null;
   paymentMethod: string | null;
+  /** bKash orders only: PAID, FAILED or PENDING. */
+  paymentState?: 'PAID' | 'FAILED' | 'PENDING' | null;
 }
 
 export interface AdminStatusUpdatePayload {

@@ -6,6 +6,7 @@ import { ApiService } from '../core/api.service';
 import { PublicOrderTracking } from '../core/api.models';
 import { TranslatePipe } from '../core/i18n/translate.pipe';
 import { FINAL_ORDER_STATUSES, ORDER_STEPS, OrderTimelineComponent } from '../components/shared/order-timeline.component';
+import { BkashPayAgainComponent } from '../components/shared/bkash-pay-again.component';
 
 /**
  * Track Order: anyone with an order number sees its progress and items.
@@ -13,7 +14,7 @@ import { FINAL_ORDER_STATUSES, ORDER_STEPS, OrderTimelineComponent } from '../co
  */
 @Component({
   standalone: true,
-  imports: [CurrencyPipe, DatePipe, FormsModule, RouterLink, TranslatePipe, OrderTimelineComponent],
+  imports: [CurrencyPipe, DatePipe, FormsModule, RouterLink, TranslatePipe, OrderTimelineComponent, BkashPayAgainComponent],
   template: `
     <section class="mx-auto max-w-5xl px-1 py-10">
       <div class="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
@@ -60,6 +61,10 @@ import { FINAL_ORDER_STATUSES, ORDER_STEPS, OrderTimelineComponent } from '../co
               </div>
 
               <div class="mt-6">
+                <app-bkash-pay-again [orderNumber]="o.orderNumber" [paymentState]="o.paymentState" [orderStatus]="o.status" />
+              </div>
+
+              <div class="mt-6">
                 <app-order-timeline [status]="o.status" [dates]="stepDates()" [placedAt]="o.placedAt" />
               </div>
 
@@ -103,7 +108,10 @@ import { FINAL_ORDER_STATUSES, ORDER_STEPS, OrderTimelineComponent } from '../co
                 }
                 <div class="flex justify-between pt-1 text-base font-semibold"><span>{{ 'track.total' | t }}</span><span class="tabular-nums">{{ o.total | currency:'BDT':'৳' }}</span></div>
                 @if (o.paymentMethod) {
-                  <p class="pt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ 'track.payment' | t }}: {{ paymentLabel(o.paymentMethod) }}</p>
+                  <p class="pt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ 'track.payment' | t }}: {{ paymentLabel(o.paymentMethod) }}
+                    @if (o.paymentState === 'PAID') { <span class="font-medium text-emerald-600">· Paid</span> }
+                    @else if (o.paymentState) { <span class="font-medium text-amber-600" data-testid="track-unpaid">· Not paid yet</span> }
+                  </p>
                 }
               </div>
             </article>

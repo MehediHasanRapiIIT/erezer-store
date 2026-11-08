@@ -16,6 +16,7 @@ import { parseApiError } from '../../../core/utils/api-error.util';
 import { PermissionService } from '../../../core/services/permission.service';
 import { NoticeService } from '../../../core/services/notice.service';
 import { OrderNotesComponent } from '../order-notes/order-notes.component';
+import { BkashRefundComponent } from '../bkash-refund/bkash-refund.component';
 
 // Display order for the lifecycle timeline (PENDING omitted — it's a legacy alias;
 // "In production" is no longer a step).
@@ -31,7 +32,7 @@ const TIMELINE: OrderStatus[] = [
 @Component({
   selector: 'app-order-detail',
   standalone: true,
-  imports: [FormsModule, SidebarComponent, OrderNotesComponent],
+  imports: [FormsModule, SidebarComponent, OrderNotesComponent, BkashRefundComponent],
   templateUrl: './order-detail.component.html',
 })
 export class OrderDetailComponent implements OnInit {

@@ -19,4 +19,8 @@ public class BkashCreatePaymentRequest {
     private String intent;       // "sale"
     private String callbackUrl;
     private String customerEmail;
+    /** Shown on bKash's page: the customer's mobile number fills in the wallet box. */
+    private String payerReference;
+    /** Unique for each attempt: an order paid for a second time needs a new one. */
+    private String invoiceNumber;
 }

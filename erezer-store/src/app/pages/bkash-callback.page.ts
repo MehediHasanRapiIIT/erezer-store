@@ -78,7 +78,8 @@ export class BkashCallbackPage implements OnInit {
 
   ngOnInit(): void {
     const qp = this.route.snapshot.queryParamMap;
-    const paymentId = qp.get('paymentId');
+    // The shop's own return step sends paymentId; bKash itself spells it paymentID.
+    const paymentId = qp.get('paymentId') || qp.get('paymentID');
     const status    = qp.get('status');
     this.orderId.set(qp.get('orderId'));
 
@@ -88,6 +89,10 @@ export class BkashCallbackPage implements OnInit {
     }
     if (status === 'cancelled' || status === 'cancel') {
       this.state.set('cancelled');
+      return;
+    }
+    if (status === 'failure') {
+      this.state.set('failed');
       return;
     }
 

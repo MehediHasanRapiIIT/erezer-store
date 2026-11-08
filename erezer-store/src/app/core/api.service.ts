@@ -377,8 +377,9 @@ export class ApiService {
     return this.http.post<CheckoutQuoteResponse>(`${BASE}/api/checkout/quote`, payload);
   }
 
-  bkashInit(orderId: string): Observable<BkashPaymentResponse> {
-    return this.http.post<BkashPaymentResponse>(`${BASE}/api/payments/bkash/init`, { orderId });
+  /** Starts a bKash payment for an order, by its id or (from Track Order) its number. */
+  bkashInit(orderId: string | null, orderNumber?: string | null): Observable<BkashPaymentResponse> {
+    return this.http.post<BkashPaymentResponse>(`${BASE}/api/payments/bkash/init`, orderId ? { orderId } : { orderNumber });
   }
 
   bkashExecute(paymentId: string): Observable<BkashPaymentResponse> {

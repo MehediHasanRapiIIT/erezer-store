@@ -168,6 +168,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         m.put("customerEmail", order.getCustomerEmail());
         m.put("deliveryAddress", order.getDeliveryAddress());
         m.put("paymentMethod", order.getPaymentMethod());
+        // A bKash receipt: the transaction id, and the paying wallet with its middle hidden.
+        m.put("bkashTrxId", dto.getBkashTrxId());
+        m.put("bkashWallet", kn.org.deliverybackend.payment.bkash.BkashPaymentState.masked(dto.getBkashPayerAccount()));
         m.put("items", items);
         m.put("subtotal", money(subtotal != null ? subtotal : BigDecimal.ZERO));
         m.put("hasDiscount", discount.signum() > 0);

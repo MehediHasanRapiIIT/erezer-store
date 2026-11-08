@@ -2,7 +2,6 @@ package kn.org.deliverybackend.payment.bkash;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
@@ -22,7 +21,8 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Component
 @Slf4j
-@ConditionalOnProperty(name = "app.bkash.mode", havingValue = "STUB", matchIfMissing = true)
+@org.springframework.boot.autoconfigure.condition.ConditionalOnExpression(
+        "!('${app.bkash.mode:}' == 'REST' or ('${app.bkash.mode:}' == '' and '${app.bkash.app-key:}' != ''))")
 public class BkashSandboxStubClient implements BkashPaymentService {
 
     private final ConcurrentHashMap<String, BkashPaymentResponse> store = new ConcurrentHashMap<>();
@@ -49,6 +49,13 @@ public class BkashSandboxStubClient implements BkashPaymentService {
         store.put(paymentId, response);
         log.info("[bKash-stub] Created payment {} for order {}", paymentId, request.getOrderId());
         return response;
+    }
+
+    @Override
+    public BkashRefundResponse refund(String paymentId, String trxId, java.math.BigDecimal amount, String sku, String reason) {
+        log.info("[bKash-stub] Refund of {} for {}", amount, paymentId);
+        return BkashRefundResponse.builder().status("Completed").amount(amount)
+                .refundTrxId("STUB-R" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase()).build();
     }
 
     @Override

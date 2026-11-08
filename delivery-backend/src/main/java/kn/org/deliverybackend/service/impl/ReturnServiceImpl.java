@@ -56,6 +56,8 @@ public class ReturnServiceImpl implements ReturnService {
     private final FileStorageService      fileStorageService;
     private final ApplicationEventPublisher eventPublisher;
     private final kn.org.deliverybackend.repository.StoreSettingsRepository storeSettingsRepository;
+    private final kn.org.deliverybackend.repository.PaymentRepository paymentRepository;
+    private final kn.org.deliverybackend.payment.bkash.BkashRefundService bkashRefunds;
 
     /** How long a return can be asked for when the shop has not set its own number of days in Settings. */
     @Value("${app.returns.window-days:14}")
@@ -225,6 +227,22 @@ public class ReturnServiceImpl implements ReturnService {
     @Override
     @Transactional
     public ReturnRequestDTO markRefunded(UUID returnId, ReturnDecisionDTO decision, String adminIdentity) {
+        // A bKash-paid order gets its money back through bKash first; if bKash refuses,
+        // the return stays as it was and staff see bKash's reason.
+        ReturnRequest before = returnRepository.findById(returnId)
+                .orElseThrow(() -> new ResourceNotFoundException("Return not found: " + returnId));
+        Order order = orderRepository.findById(before.getOrderId()).orElse(null);
+        if (order != null && "PAID".equals(kn.org.deliverybackend.payment.bkash.BkashPaymentState.of(
+                order.getPaymentMethod(), paymentRepository.findByOrderId(order.getId())))
+                && ReturnStatus.parse(before.getStatus()).map(st -> st.canTransitionTo(ReturnStatus.REFUNDED)).orElse(false)) {
+            java.math.BigDecimal amount = decision != null && decision.getRefundAmount() != null
+                    ? decision.getRefundAmount() : before.getRefundAmount();
+            if (amount == null) {
+                throw new kn.org.deliverybackend.exception.InvalidRequestException("Enter the refund amount: it is sent back to the customer's bKash wallet.");
+            }
+            bkashRefunds.refund(order.getId(), amount, "Return of order " + order.getOrderNumber(),
+                    adminIdentity, returnId);
+        }
         ReturnRequest r = transitionInternal(returnId, ReturnStatus.REFUNDED, decision, adminIdentity);
         r.setRefundedAt(LocalDateTime.now());
         returnRepository.save(r);

@@ -172,6 +172,7 @@ import { parseApiError } from '../../core/utils/api-error.util';
                     @if (!perms.canAny('returns.decide', 'returns.refund')) {
                       <p class="text-xs text-gray-400">Needs the “Approve or reject returns” or “Refund returns” permission.</p>
                     }
+                    <p class="text-xs text-gray-500">If the order was paid with bKash, “Mark refunded” sends this amount back to the customer's bKash wallet. If bKash refuses, the return stays as it is and you see bKash's reason.</p>
 
                     @if (decisionError()) {
                       <p class="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{{ decisionError() }}</p>

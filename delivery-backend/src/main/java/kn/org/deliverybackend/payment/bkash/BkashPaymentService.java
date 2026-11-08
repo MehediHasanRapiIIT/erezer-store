@@ -22,4 +22,11 @@ public interface BkashPaymentService {
 
     /** Step 3: idempotent status query — used for reconciliation and the callback. */
     BkashPaymentResponse queryPayment(String paymentId);
+
+    /**
+     * Sends money back to the wallet that paid: all or part of a completed payment,
+     * up to 10 times, within 60 days. Never throws for bKash's own refusals: the
+     * answer says so, with bKash's message.
+     */
+    BkashRefundResponse refund(String paymentId, String trxId, java.math.BigDecimal amount, String sku, String reason);
 }

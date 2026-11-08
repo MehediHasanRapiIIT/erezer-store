@@ -255,6 +255,16 @@ services:
       BUSINESS_FISCAL_YEAR_START_MONTH: ${BUSINESS_FISCAL_YEAR_START_MONTH:-7}
       BUSINESS_CURRENCY: ${BUSINESS_CURRENCY:-BDT}
 
+      # --- bKash checkout: blank app key keeps the built-in stub; the sandbox
+      # credentials in .env switch on the real gateway. bKash sends the customer's
+      # browser back to the callback, so localhost works for local testing. ---
+      BKASH_BASE_URL: ${BKASH_BASE_URL:-https://tokenized.sandbox.bka.sh/v1.2.0-beta}
+      BKASH_APP_KEY: ${BKASH_APP_KEY:-}
+      BKASH_APP_SECRET: ${BKASH_APP_SECRET:-}
+      BKASH_USERNAME: ${BKASH_USERNAME:-}
+      BKASH_PASSWORD: ${BKASH_PASSWORD:-}
+      BKASH_CALLBACK_URL: ${BKASH_CALLBACK_URL:-http://localhost:8080/api/payments/bkash/callback}
+
       # --- Meta Conversions API (server-side purchase events) ---
       META_PIXEL_ID: ${META_PIXEL_ID:-}
       META_CAPI_ACCESS_TOKEN: ${META_CAPI_ACCESS_TOKEN:-}

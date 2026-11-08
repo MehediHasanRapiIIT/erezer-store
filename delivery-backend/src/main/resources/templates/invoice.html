@@ -98,6 +98,9 @@
         <td>
           <div class="k">Payment</div>
           <div class="v" th:text="${paymentMethod}">CASH</div>
+          <div th:if="${bkashTrxId}" style="margin-top:5px;font-size:10px;color:#d4d4d4;letter-spacing:0;text-transform:none">
+            Paid · Trx ID <span style="color:#ffffff;font-weight:bold" th:text="${bkashTrxId}">DK810PV2KN</span><span th:if="${bkashWallet}"> · from <span th:text="${bkashWallet}">017*****575</span></span>
+          </div>
         </td>
       </tr>
     </table>
@@ -150,8 +153,7 @@
     <table class="totwrap">
       <tr>
         <td class="note">
-          <strong th:text="${itemCount}">0</strong> item(s) in this order.<br />
-          This is a computer-generated invoice and does not require a signature.
+          <strong th:text="${itemCount}">0</strong> item(s) in this order.
         </td>
         <td>
           <table class="totals">
