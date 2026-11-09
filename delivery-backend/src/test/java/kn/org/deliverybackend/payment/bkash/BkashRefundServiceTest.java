@@ -71,6 +71,8 @@ class BkashRefundServiceTest {
         when(refunds.findByOrderIdOrderByCreatedAtAsc(orderId)).thenAnswer(inv -> new ArrayList<>(stored));
         when(refunds.save(any(PaymentRefund.class))).thenAnswer(inv -> { stored.add(inv.getArgument(0)); return inv.getArgument(0); });
         when(tx.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+        when(refunds.findByPaymentId(any())).thenAnswer(inv -> new ArrayList<>(stored));
+        when(bkash.maxRefunds()).thenReturn(10);
     }
 
     private void bkashSays(String status, String message) {
@@ -95,6 +97,33 @@ class BkashRefundServiceTest {
         BkashRefundService.Summary done = service.summary(orderId);
         assertFalse(done.allowed());
         assertEquals("The whole payment has been refunded.", done.notAllowedReason());
+    }
+
+    @Test
+    void bkashRepeatingAnEarlierRefundIsNotANewOne() {
+        // v1.2.0-beta, asked to refund a payment again, answers with its first refund.
+        when(bkash.refund(anyString(), anyString(), any(), anyString(), anyString())).thenReturn(
+                BkashRefundResponse.builder().status("Completed").refundTrxId("DK820PV3BC").amount(new BigDecimal("100.00")).build());
+        BkashRefundService service = at("2026-11-08T10:00:00Z");
+        service.refund(orderId, new BigDecimal("100"), "test", "admin", null);
+        InvalidRequestException repeat = assertThrows(InvalidRequestException.class,
+                () -> service.refund(orderId, new BigDecimal("360"), "360", "admin", null));
+        assertTrue(repeat.getMessage().contains("DK820PV3BC"), repeat.getMessage());
+        assertEquals(PaymentRefund.FAILED, stored.get(1).getStatus());
+        assertEquals(0, new BigDecimal("100.00").compareTo(service.summary(orderId).refunded()), "only the real refund counts");
+    }
+
+    @Test
+    void oneRefundOnlyWhereBkashAllowsOne() {
+        when(bkash.maxRefunds()).thenReturn(1);
+        bkashSays("Completed", null);
+        BkashRefundService service = at("2026-11-08T10:00:00Z");
+        service.refund(orderId, new BigDecimal("100"), "x", "admin", null);
+        BkashRefundService.Summary after = service.summary(orderId);
+        assertFalse(after.allowed());
+        assertEquals(1, after.maxRefunds());
+        assertThrows(InvalidRequestException.class, () -> service.refund(orderId, new BigDecimal("10"), "x", "admin", null));
+        verify(bkash).refund(anyString(), anyString(), any(), anyString(), anyString());
     }
 
     @Test

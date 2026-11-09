@@ -165,6 +165,12 @@ public class BkashRestClient implements BkashPaymentService {
                 .amount(refunded == null ? amount : new BigDecimal(refunded)).build();
     }
 
+    /** v1.2.0-beta refunds a payment once: asked again, it answers with that first refund. */
+    @Override
+    public int maxRefunds() {
+        return v2 ? 10 : 1;
+    }
+
     // ── calls ─────────────────────────────────────────────────────────────────
 
     private Map<String, Object> idBody(String paymentId) {

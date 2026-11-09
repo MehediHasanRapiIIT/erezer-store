@@ -55,6 +55,7 @@ public class BkashController {
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final MetaConversionsService metaConversions;
+    private final kn.org.deliverybackend.service.StoreSettingsService storeSettingsService;
 
     @Value("${app.bkash.callback-url}")
     private String configuredCallbackUrl;
@@ -66,6 +67,11 @@ public class BkashController {
     public ResponseEntity<BkashPaymentResponse> init(@jakarta.validation.Valid @RequestBody InitRequest request,
                                                      jakarta.servlet.http.HttpServletRequest http) {
         rateLimiter.enforce("bkash:" + kn.org.deliverybackend.util.ClientIp.of(http), 20, java.time.Duration.ofMinutes(10));
+        // Switched off in Settings: no new bKash payment, not even "Pay again" on an older order.
+        if (Boolean.FALSE.equals(storeSettingsService.get().getPaymentBkashEnabled())) {
+            throw new kn.org.deliverybackend.exception.InvalidRequestException(
+                    "bKash payment isn't available right now. Please contact us to pay for this order.");
+        }
         Order order;
         if (request.orderId != null && !request.orderId.isBlank()) {
             UUID orderId;

@@ -16,6 +16,8 @@ interface RefundSummary {
   allowed: boolean;
   notAllowedReason: string | null;
   trxId: string | null;
+  /** How many refunds bKash makes of one payment: 1 on the v1.2.0-beta API, 10 on V2. */
+  maxRefunds: number;
   refunds: {
     status: 'COMPLETED' | 'FAILED' | 'UNKNOWN';
     amount: number;
@@ -40,14 +42,14 @@ interface RefundSummary {
     <section class="bg-white rounded-xl border border-gray-200 p-5" data-testid="bkash-refund">
       <header class="mb-3">
         <h2 class="font-bold text-gray-900 text-sm">bKash refund</h2>
-        <p class="text-xs text-gray-500">Money goes back to the wallet that paid. Up to {{ maxRefunds }} refunds, within 60 days of the payment.</p>
+        <p class="text-xs text-gray-500">Money goes back to the wallet that paid. {{ limitText() }}</p>
       </header>
 
       @if (summary(); as s) {
         <div class="grid grid-cols-3 gap-3 text-sm">
           <div><p class="text-xs text-gray-400">Paid</p><p class="font-semibold">৳{{ money(s.paid) }}</p></div>
           <div><p class="text-xs text-gray-400">Refunded</p><p class="font-semibold" data-testid="bkash-refunded">৳{{ money(s.refunded) }}</p></div>
-          <div><p class="text-xs text-gray-400">Can still refund</p><p class="font-semibold text-emerald-700" data-testid="bkash-refundable">৳{{ money(s.refundable) }}</p></div>
+          <div><p class="text-xs text-gray-400">Can still refund</p><p class="font-semibold text-emerald-700" data-testid="bkash-refundable">৳{{ money(s.allowed ? s.refundable : 0) }}</p></div>
         </div>
 
         @if (s.refunds.length) {
@@ -122,12 +124,17 @@ export class BkashRefundComponent implements OnInit {
   /** A refund went through: the page may want to reload the order. */
   readonly refunded = output<void>();
 
-  protected readonly maxRefunds = 10;
   protected readonly summary = signal<RefundSummary | null>(null);
   protected readonly busy = signal(false);
   protected readonly error = signal('');
   protected amount: number | null = null;
   protected reason = '';
+
+  protected limitText(): string {
+    const max = this.summary()?.maxRefunds ?? 10;
+    return max === 1 ? 'One refund per payment (all or part), within 60 days of the payment.'
+      : `Up to ${max} refunds, within 60 days of the payment.`;
+  }
 
   private url(): string {
     return `${environment.apiBaseUrl}/admin/orders/${this.orderId()}/bkash-refunds`;

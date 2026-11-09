@@ -1,5 +1,6 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { ApiService } from '../../core/api.service';
+import { SettingsStore } from '../../core/store/settings.store';
 
 /**
  * A bKash order that bKash has not been paid for yet: says so, and offers to pay
@@ -32,6 +33,7 @@ import { ApiService } from '../../core/api.service';
 })
 export class BkashPayAgainComponent {
   private readonly api = inject(ApiService);
+  private readonly settings = inject(SettingsStore);
 
   readonly orderId = input<string | null>(null);
   readonly orderNumber = input<string | null>(null);
@@ -42,7 +44,9 @@ export class BkashPayAgainComponent {
   protected readonly error = signal('');
   protected readonly show = computed(() =>
     (this.paymentState() === 'FAILED' || this.paymentState() === 'PENDING')
-    && (this.orderStatus() ?? '').toUpperCase() === 'PLACED');
+    && (this.orderStatus() ?? '').toUpperCase() === 'PLACED'
+    // Not while the shop has bKash switched off in Settings.
+    && this.settings.settings()?.paymentBkashEnabled !== false);
 
   protected pay(): void {
     this.busy.set(true);

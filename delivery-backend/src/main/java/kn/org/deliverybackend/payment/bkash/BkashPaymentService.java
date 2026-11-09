@@ -29,4 +29,9 @@ public interface BkashPaymentService {
      * answer says so, with bKash's message.
      */
     BkashRefundResponse refund(String paymentId, String trxId, java.math.BigDecimal amount, String sku, String reason);
+
+    /** How many refunds bKash makes of one payment: 10 on V2, but only one on v1.2.0-beta. */
+    default int maxRefunds() {
+        return 10;
+    }
 }

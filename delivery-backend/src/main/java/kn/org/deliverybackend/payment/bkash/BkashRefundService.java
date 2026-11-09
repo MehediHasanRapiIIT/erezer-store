@@ -28,7 +28,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * from the order page, or when a return is marked refunded. bKash's rules, and the shop's:
  * <ul>
  *   <li>only a completed bKash payment, and only within 60 days of it;</li>
- *   <li>never more than was paid, all refunds together; at most 10 refunds a payment;</li>
+ *   <li>never more than was paid, all refunds together; at most 10 refunds a payment
+ *       (only one on bKash's v1.2.0-beta API);</li>
+ *   <li>an answer with a refund already on record is not a new refund: v1.2.0-beta, asked
+ *       to refund a payment again, answers with its first refund instead;</li>
  *   <li>one refund of an order at a time, so a double click cannot pay twice;</li>
  *   <li>every try is kept, with who asked and bKash's answer. A try bKash did not answer
  *       counts as refunded until checked, so it can never be paid out a second time.</li>
@@ -41,7 +44,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class BkashRefundService {
 
     public static final int REFUND_DAYS = 60;
-    public static final int MAX_REFUNDS = 10;
     private static final String UNKNOWN = "UNKNOWN";
 
     private final PaymentRepository payments;
@@ -79,7 +81,7 @@ public class BkashRefundService {
      * why not when it can't (no bKash payment, past 60 days, 10 refunds already).
      */
     public record Summary(BigDecimal paid, BigDecimal refunded, BigDecimal refundable, LocalDateTime refundableUntil,
-                          boolean allowed, String notAllowedReason, String trxId, List<Line> refunds) {
+                          boolean allowed, String notAllowedReason, String trxId, List<Line> refunds, int maxRefunds) {
     }
 
     public Summary summary(UUID orderId) {
@@ -89,7 +91,7 @@ public class BkashRefundService {
         Payment paid = BkashPaymentState.completed(payments.findByOrderId(orderId)).orElse(null);
         if (paid == null) {
             return new Summary(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, null, false,
-                    "This order has no completed bKash payment.", null, lines);
+                    "This order has no completed bKash payment.", null, lines, bkash.maxRefunds());
         }
         BigDecimal refunded = counted(all);
         BigDecimal left = paid.getAmount().subtract(refunded).max(BigDecimal.ZERO);
@@ -101,10 +103,12 @@ public class BkashRefundService {
             why = "The whole payment has been refunded.";
         } else if (LocalDateTime.now(clock).isAfter(until)) {
             why = "bKash refunds are only possible within " + REFUND_DAYS + " days of the payment.";
-        } else if (completedCount(all) >= MAX_REFUNDS) {
-            why = "bKash allows at most " + MAX_REFUNDS + " refunds of one payment.";
+        } else if (completedCount(all) >= bkash.maxRefunds()) {
+            why = bkash.maxRefunds() == 1 ? "bKash allows only one refund of each payment on this account."
+                    : "bKash allows at most " + bkash.maxRefunds() + " refunds of one payment.";
         }
-        return new Summary(paid.getAmount(), refunded, left, until, why == null, why, paid.getProviderTrxId(), lines);
+        return new Summary(paid.getAmount(), refunded, left, until, why == null, why, paid.getProviderTrxId(), lines,
+                bkash.maxRefunds());
     }
 
     /**
@@ -128,6 +132,10 @@ public class BkashRefundService {
             String sku = order.getOrderNumber() != null ? order.getOrderNumber() : orderId.toString().substring(0, 8);
 
             BkashRefundResponse answer = bkash.refund(paid.getProviderPaymentId(), paid.getProviderTrxId(), money, sku, why);
+            if (answer.completed() && alreadyRecorded(paid, answer.getRefundTrxId())) {
+                answer = BkashRefundResponse.builder().status("Failed").errorMessage("bKash made no new refund: it answered with the earlier refund "
+                        + answer.getRefundTrxId() + ". Only one refund of this payment is possible.").build();
+            }
 
             PaymentRefund record = new PaymentRefund();
             record.setPaymentId(paid.getId());
@@ -156,6 +164,11 @@ public class BkashRefundService {
     private static BigDecimal counted(List<PaymentRefund> all) {
         return all.stream().filter(r -> PaymentRefund.COMPLETED.equals(r.getStatus()) || UNKNOWN.equals(r.getStatus()))
                 .map(PaymentRefund::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private boolean alreadyRecorded(Payment paid, String refundTrxId) {
+        return refundTrxId != null && refunds.findByPaymentId(paid.getId()).stream()
+                .anyMatch(r -> PaymentRefund.COMPLETED.equals(r.getStatus()) && refundTrxId.equals(r.getRefundTrxId()));
     }
 
     private static long completedCount(List<PaymentRefund> all) {
