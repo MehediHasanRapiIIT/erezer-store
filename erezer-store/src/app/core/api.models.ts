@@ -130,6 +130,8 @@ export interface ApiProduct {
   shippingCharge?: number | null;
   /** What its category charges to deliver, used when the product sets none. */
   categoryShippingCharge?: number | null;
+  /** Ways to pay this product can't be bought with (CASH, BKASH, CARD), from itself or its category. */
+  blockedPaymentMethods?: string[] | null;
 
   // Phase 3 — clothing brand fields
   brand?: string | null;
@@ -523,6 +525,10 @@ export interface CheckoutQuoteResponse {
   freeShippingReason?: 'FREE_ALL' | 'OFFER' | 'COUPON' | null;
   /** The free-shipping offer's minimum while the offer is on. */
   freeShippingOfferMin?: number | null;
+  /** The ways to pay this basket may use: the shop's switches narrowed by each product's. */
+  allowedPaymentMethods?: ('CASH' | 'BKASH' | 'CARD')[] | null;
+  /** Why no way to pay fits this basket (its items must be ordered separately); null otherwise. */
+  paymentMessage?: string | null;
 }
 
 export interface BkashPaymentResponse {

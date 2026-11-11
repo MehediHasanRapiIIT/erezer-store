@@ -317,6 +317,9 @@ public class CategoryServiceImpl implements CategoryService {
         dto.setPath(kn.org.deliverybackend.service.CategoryTree.path(categoryRepository, category));
         dto.setEffectiveShippingCharge(kn.org.deliverybackend.service.CategoryTree.shippingCharge(categoryRepository, category));
         dto.setEffectiveDiscountExcluded(kn.org.deliverybackend.service.CategoryTree.discountExcluded(categoryRepository, category));
+        dto.setEffectivePayCod(kn.org.deliverybackend.service.CategoryTree.payment(categoryRepository, category, "CASH"));
+        dto.setEffectivePayBkash(kn.org.deliverybackend.service.CategoryTree.payment(categoryRepository, category, "BKASH"));
+        dto.setEffectivePayCard(kn.org.deliverybackend.service.CategoryTree.payment(categoryRepository, category, "CARD"));
         dto.setEffectiveShowStockQuantity(Boolean.TRUE.equals(
                 kn.org.deliverybackend.service.CategoryTree.showStockQuantity(categoryRepository, category)));
         return dto;

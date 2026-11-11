@@ -204,4 +204,17 @@ export class ProductService {
   deleteProduct(id: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/api/products/${id}`);
   }
+
+  /**
+   * Which ways to pay chosen products, or one category, may be bought with. For each
+   * method: ALLOW, BLOCK, FOLLOW (same as the category), or leave it out to keep it.
+   */
+  setPaymentMethods(target: { productIds: number[] } | { categoryId: number }, change: PaymentMethodsChange): Observable<{ message: string }> {
+    const where = 'categoryId' in target ? 'category' : 'products';
+    return this.http.put<{ message: string }>(`${this.baseUrl}/admin/payment-methods/${where}`, { ...target, ...change });
+  }
 }
+
+/** ALLOW, BLOCK, FOLLOW (same as category); undefined leaves it as it is. */
+export type PaymentChoice = 'ALLOW' | 'BLOCK' | 'FOLLOW';
+export interface PaymentMethodsChange { cod?: PaymentChoice; bkash?: PaymentChoice; card?: PaymentChoice; }

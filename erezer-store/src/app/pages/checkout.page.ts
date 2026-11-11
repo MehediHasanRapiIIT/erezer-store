@@ -225,6 +225,15 @@ import { ToastService } from '../core/toast.service';
               </button>
             }
           </div>
+          @if (quote()?.paymentMessage) {
+            <p class="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300" role="alert" data-testid="payment-conflict">
+              {{ quote()?.paymentMessage }}
+            </p>
+          } @else if (paymentNarrowed()) {
+            <p class="mt-3 text-xs text-neutral-500 dark:text-neutral-400" data-testid="payment-narrowed">
+              Some items in your bag can only be paid by {{ narrowedLabel() }}.
+            </p>
+          }
         </div>
 
         <!-- Order summary -->
@@ -305,7 +314,7 @@ import { ToastService } from '../core/toast.service';
           }
           <button type="button" (click)="placeOrder()"
             class="btn-primary mt-4 w-full !rounded-full disabled:cursor-not-allowed disabled:opacity-50"
-            [disabled]="effCount() === 0 || submitting() || needsVerification()">
+            [disabled]="effCount() === 0 || submitting() || needsVerification() || paymentMethods().length === 0">
             {{ submitting() ? 'Placing order…' : (needsVerification() ? 'Verify your email to order' : payButtonLabel()) }}
           </button>
 
@@ -382,7 +391,7 @@ export class CheckoutPage implements OnInit, OnDestroy {
 
   /** Payment methods the admin has enabled (in store settings). Null flags (settings
    *  not yet loaded) are treated as enabled so nothing flickers off on first paint. */
-  protected readonly paymentMethods = computed<PaymentMethod[]>(() => {
+  protected readonly shopPaymentMethods = computed<PaymentMethod[]>(() => {
     const s = this.settingsStore.settings();
     const methods: PaymentMethod[] = [];
     if (!s || s.paymentCodEnabled !== false) methods.push('CASH');
@@ -390,6 +399,20 @@ export class CheckoutPage implements OnInit, OnDestroy {
     if (!s || s.paymentCardEnabled !== false) methods.push('CARD');
     return methods.length ? methods : ['CASH'];
   });
+
+  /**
+   * The ways to pay this basket may use: the shop's, narrowed by what each product
+   * allows (the server's quote says). Empty when the items can't share any.
+   */
+  protected readonly paymentMethods = computed<PaymentMethod[]>(() => {
+    const allowed = this.quote()?.allowedPaymentMethods;
+    if (!allowed) return this.shopPaymentMethods();
+    return this.shopPaymentMethods().filter((m) => allowed.includes(m));
+  });
+
+  /** Some ways to pay are hidden because of what is in the bag. */
+  protected readonly paymentNarrowed = computed(() =>
+    this.paymentMethods().length > 0 && this.paymentMethods().length < this.shopPaymentMethods().length);
 
   protected readonly shippingZones   = signal<ShippingZone[]>([]);
   protected readonly selectedZoneId  = signal<number | null>(null);
@@ -488,7 +511,7 @@ export class CheckoutPage implements OnInit, OnDestroy {
     // (e.g. the default CASH is disabled): fall back to the first enabled one.
     effect(() => {
       const methods = this.paymentMethods();
-      if (!methods.includes(this.paymentMethod())) {
+      if (methods.length && !methods.includes(this.paymentMethod())) {
         this.paymentMethod.set(methods[0]);
       }
     });
@@ -609,6 +632,11 @@ export class CheckoutPage implements OnInit, OnDestroy {
       .finally(() => this.resending.set(false));
   }
 
+  /** "bKash" or "Cash on delivery or bKash", for the note under the methods. */
+  protected narrowedLabel(): string {
+    return this.paymentMethods().map((m) => this.paymentLabel(m)).join(' or ');
+  }
+
   protected paymentLabel(m: PaymentMethod): string {
     return m === 'CASH' ? 'Cash on Delivery'
          : m === 'BKASH' ? 'bKash'
@@ -652,6 +680,10 @@ export class CheckoutPage implements OnInit, OnDestroy {
     if (this.sizesMissing()) {
       this.toasts.warn('Please select a size for each item before placing your order.');
       document.querySelector('main [data-testid="cart-size-picker"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (this.paymentMethods().length === 0) {
+      this.toasts.warn(this.quote()?.paymentMessage ?? "These items can't be paid for together. Please order them separately.");
       return;
     }
     this.submitted.set(true);

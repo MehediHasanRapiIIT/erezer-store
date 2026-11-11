@@ -50,6 +50,14 @@ public class CategoryResponseDTO {
      * Zero means delivered free.
      */
     private BigDecimal shippingCharge;
+    /** The category's own payment switches: true allowed, false not, null follow the parent. */
+    private Boolean payCod;
+    private Boolean payBkash;
+    private Boolean payCard;
+    /** What it ends up with once its parents are counted; null when nothing up the tree says. */
+    private Boolean effectivePayCod;
+    private Boolean effectivePayBkash;
+    private Boolean effectivePayCard;
     /** The size chart this category names for its products; null for none of its own. */
     private Long sizeChartId;
     /** The category's own chart for each fit that has one, by fit. */

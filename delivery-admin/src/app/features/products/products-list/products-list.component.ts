@@ -5,7 +5,7 @@ import { RouterLink, Router, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 import { SidebarComponent } from '../../../shared/sidebar/sidebar.component';
-import { BulkProductAction, ProductService } from '../../../core/services/product.service';
+import { BulkProductAction, PaymentChoice, ProductService } from '../../../core/services/product.service';
 import { CategoryService } from '../../../core/services/category.service';
 import { CategoryResponse, ProductResponse } from '../../../core/models/api.models';
 import { parseApiError } from '../../../core/utils/api-error.util';
@@ -90,6 +90,28 @@ export class ProductsListComponent implements OnInit, OnDestroy {
   chargeCategoryId = signal<number | null>(null);
   chargeSaving = signal(false);
   chargeError = signal('');
+
+  // ── Ways to pay ────────────────────────────────────────────────────────────
+  // Which ways to pay chosen products, or a category, may be bought with. The
+  // shop-wide switches in Settings still come first.
+  payMode = signal(false);
+  payTab = signal<'products' | 'category'>('products');
+  /** For each method: leave it (KEEP), Allowed, Not allowed, or Same as category. */
+  payChoice = signal<Record<'cod' | 'bkash' | 'card', 'KEEP' | PaymentChoice>>({ cod: 'KEEP', bkash: 'KEEP', card: 'KEEP' });
+  payCategoryId = signal<number | null>(null);
+  paySaving = signal(false);
+  payError = signal('');
+  readonly payMethods: { key: 'cod' | 'bkash' | 'card'; label: string }[] = [
+    { key: 'cod', label: 'Cash on delivery' },
+    { key: 'bkash', label: 'bKash' },
+    { key: 'card', label: 'Card' },
+  ];
+  readonly payOptions: { value: 'KEEP' | PaymentChoice; label: string }[] = [
+    { value: 'KEEP', label: 'Leave as it is' },
+    { value: 'ALLOW', label: 'Allowed' },
+    { value: 'BLOCK', label: 'Not allowed' },
+    { value: 'FOLLOW', label: 'Same as category' },
+  ];
 
   showingFrom = computed(() => this.currentPage() * this.pageSize + 1);
   showingTo = computed(() => Math.min((this.currentPage() + 1) * this.pageSize, this.totalElements()));
@@ -292,7 +314,7 @@ export class ProductsListComponent implements OnInit, OnDestroy {
     this.fitMode.update((on) => !on);
     this.fitError.set('');
     // One panel at a time: they share the ticks in the list.
-    if (this.fitMode()) this.chargeMode.set(false);
+    if (this.fitMode()) { this.chargeMode.set(false); this.payMode.set(false); }
     this.picks.set(new Set());
   }
 
@@ -356,11 +378,95 @@ export class ProductsListComponent implements OnInit, OnDestroy {
 
   toggleChargeMode(): void {
     this.chargeMode.update((on) => !on);
-    if (this.chargeMode()) this.fitMode.set(false);
+    if (this.chargeMode()) { this.fitMode.set(false); this.payMode.set(false); }
     if (!this.chargeMode()) {
       this.picks.set(new Set());
       this.chargeError.set('');
     }
+  }
+
+  // ── Ways to pay ────────────────────────────────────────────────────────────
+
+  /** Products need "Edit products"; a category needs "Edit categories". */
+  canSetPayments(): boolean {
+    return this.perms.can('products.edit') || this.perms.can('categories.edit');
+  }
+
+  togglePayMode(): void {
+    this.payMode.update((on) => !on);
+    this.payError.set('');
+    if (this.payMode()) {
+      this.fitMode.set(false);
+      this.chargeMode.set(false);
+      if (!this.perms.can('products.edit')) this.payTab.set('category');
+    }
+    this.picks.set(new Set());
+  }
+
+  setPayChoice(key: 'cod' | 'bkash' | 'card', value: 'KEEP' | PaymentChoice): void {
+    this.payChoice.update((c) => ({ ...c, [key]: value }));
+  }
+
+  /** What the panel will do, in words. */
+  payPreview(): string {
+    const changes = this.payMethods
+      .filter((m) => this.payChoice()[m.key] !== 'KEEP')
+      .map((m) => `${m.label}: ${this.payOptions.find((o) => o.value === this.payChoice()[m.key])!.label.toLowerCase()}`);
+    if (changes.length === 0) return 'Choose what to change for at least one way to pay.';
+    const who = this.payTab() === 'products'
+      ? `The ${this.pickedCount()} ticked product${this.pickedCount() === 1 ? '' : 's'}`
+      : `${this.categories().find((c) => c.id === this.payCategoryId())?.name ?? 'The category you choose'} (and its products that don't set their own)`;
+    return `${who} → ${changes.join(', ')}. The switches in Settings still come first.`;
+  }
+
+  async applyPayments(): Promise<void> {
+    if (this.paySaving()) return;
+    const byCategory = this.payTab() === 'category';
+    if (byCategory && !this.payCategoryId()) { this.payError.set('Choose a category.'); return; }
+    if (!byCategory && this.pickedCount() === 0) { this.payError.set('Tick at least one product in the list.'); return; }
+    const c = this.payChoice();
+    const change = {
+      cod: c.cod === 'KEEP' ? undefined : c.cod,
+      bkash: c.bkash === 'KEEP' ? undefined : c.bkash,
+      card: c.card === 'KEEP' ? undefined : c.card,
+    };
+    if (!change.cod && !change.bkash && !change.card) { this.payError.set('Choose what to change for at least one way to pay.'); return; }
+    const ok = await this.confirmer.ask({
+      title: 'Change the ways to pay?',
+      message: this.payPreview(),
+      confirmLabel: 'Save',
+    });
+    if (!ok) return;
+    this.paySaving.set(true);
+    this.payError.set('');
+    this.productService.setPaymentMethods(
+      byCategory ? { categoryId: this.payCategoryId()! } : { productIds: [...this.picks()] }, change).subscribe({
+      next: (result) => {
+        this.paySaving.set(false);
+        this.picks.set(new Set());
+        this.notices.success('Ways to pay saved', result.message);
+        this.loadPage(this.currentPage());
+      },
+      error: (err) => {
+        this.paySaving.set(false);
+        this.payError.set(parseApiError(err));
+      },
+    });
+  }
+
+  /** A short badge for a product that can't be paid every way, e.g. "bKash only". */
+  paymentBadge(product: ProductResponse): string {
+    const blocked = product.blockedPaymentMethods ?? [];
+    if (blocked.length === 0) return '';
+    const names: Record<string, string> = { CASH: 'COD', BKASH: 'bKash', CARD: 'Card' };
+    const left = ['CASH', 'BKASH'].filter((m) => !blocked.includes(m));
+    if (left.length === 1) return `${names[left[0]]} only`;
+    return 'No ' + blocked.map((m) => names[m]).join(', ');
+  }
+
+  paymentBadgeTitle(product: ProductResponse): string {
+    const own = product.payCod != null || product.payBkash != null || product.payCard != null;
+    return own ? 'Set on this product' : `From ${product.categoryName ?? 'its category'}`;
   }
 
   /**
@@ -371,7 +477,8 @@ export class ProductsListComponent implements OnInit, OnDestroy {
   pickingProducts(): boolean {
     return this.canBulk()
       || (this.chargeMode() && this.chargeTab() === 'products' && this.canSetCharges())
-      || (this.fitMode() && this.fitTab() === 'products' && this.canSetFits());
+      || (this.fitMode() && this.fitTab() === 'products' && this.canSetFits())
+      || (this.payMode() && this.payTab() === 'products' && this.canSetPayments());
   }
 
   // ── One action for the ticked products ─────────────────────────────────────
@@ -413,7 +520,7 @@ export class ProductsListComponent implements OnInit, OnDestroy {
 
   /** The bar of actions shows once something is ticked, and steps aside for the fits and delivery tools, which use the same ticks. */
   showBulkBar(): boolean {
-    return this.canBulk() && this.pickedCount() > 0 && !this.fitMode() && !this.chargeMode();
+    return this.canBulk() && this.pickedCount() > 0 && !this.fitMode() && !this.chargeMode() && !this.payMode();
   }
 
   private tickedWords(): string {

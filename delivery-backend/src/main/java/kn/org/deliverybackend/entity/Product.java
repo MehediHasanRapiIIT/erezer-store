@@ -122,6 +122,17 @@ public class Product extends AbstractBaseEntity<Long> {
     @Column(name = "shipping_charge", precision = 12, scale = 2)
     private BigDecimal shippingCharge;
 
+    /**
+     * Whether this product may be paid for by cash on delivery, bKash and card.
+     * Null means its category decides; see {@code PaymentMethodRules}.
+     */
+    @Column(name = "pay_cod")
+    private Boolean payCod;
+    @Column(name = "pay_bkash")
+    private Boolean payBkash;
+    @Column(name = "pay_card")
+    private Boolean payCard;
+
     /** Stock on this product's page: follow the category, the quantity, or labels. Null means follow the category. */
     @Enumerated(EnumType.STRING)
     @Column(name = "stock_display", length = 20)

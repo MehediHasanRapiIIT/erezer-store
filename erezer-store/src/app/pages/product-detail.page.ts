@@ -185,6 +185,14 @@ import { RevealDirective } from '../core/reveal.directive';
                   {{ delivery.label }}
                 </p>
               }
+              @if (paymentNote(p); as payNote) {
+                <p class="flex items-center gap-1.5 text-sm font-medium text-neutral-600 dark:text-neutral-300" data-testid="payment-note">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"/>
+                  </svg>
+                  {{ payNote }}
+                </p>
+              }
 
               <div class="border-t border-neutral-200 dark:border-neutral-800"></div>
 
@@ -1405,6 +1413,22 @@ export class ProductDetailPage implements OnInit {
     if (charge == null) return null;
     if (charge === 0) return { label: 'Free delivery', free: true };
     return { label: `Delivery ৳${charge.toLocaleString()}`, free: false };
+  }
+
+  /**
+   * "bKash payment only", when this product (or its category) allows fewer ways to
+   * pay than the shop does. Null when it can be paid every way the shop takes.
+   */
+  protected paymentNote(p: ApiProduct): string | null {
+    const blocked = p.blockedPaymentMethods ?? [];
+    if (!blocked.length) return null;
+    const s = this.settings();
+    const shop = ([['CASH', s?.paymentCodEnabled], ['BKASH', s?.paymentBkashEnabled], ['CARD', s?.paymentCardEnabled]] as const)
+      .filter(([, on]) => on !== false).map(([m]) => m as string);
+    const left = shop.filter((m) => !blocked.includes(m));
+    if (left.length === shop.length || left.length === 0) return null;
+    const names: Record<string, string> = { CASH: 'Cash on delivery', BKASH: 'bKash payment', CARD: 'Card payment' };
+    return left.map((m) => names[m]).join(' or ') + ' only';
   }
 
   protected basePrice(p: ApiProduct): number {

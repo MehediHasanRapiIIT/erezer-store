@@ -74,6 +74,20 @@ public class ProductResponseDTO {
      */
     private BigDecimal categoryShippingCharge;
 
+    /** This product's own payment switches: true allowed, false not, null follow the category. */
+    private Boolean payCod;
+    private Boolean payBkash;
+    private Boolean payCard;
+    /** The category's (nearest up the tree), read-only here, so a row can say where a limit came from. */
+    private Boolean categoryPayCod;
+    private Boolean categoryPayBkash;
+    private Boolean categoryPayCard;
+    /**
+     * Ways to pay this product can't be bought with (CASH, BKASH, CARD), from its own
+     * setting or its category's. The shop-wide switches in Settings are not counted.
+     */
+    private java.util.List<String> blockedPaymentMethods;
+
     /** The product's own choice, for the edit form: CATEGORY, QUANTITY or LABEL. */
     private kn.org.deliverybackend.enumeration.StockDisplay stockDisplay;
     /** Whether the product page shows the quantity, with the category already taken into account. */

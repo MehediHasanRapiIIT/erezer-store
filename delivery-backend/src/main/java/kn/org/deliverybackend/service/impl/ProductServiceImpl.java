@@ -407,8 +407,16 @@ public class ProductServiceImpl implements ProductService {
                 dto.setShowStockQuantity(StockDisplay.showsQuantity(product.getStockDisplay(),
                         CategoryTree.showStockQuantity(categoryRepository, cat)));
                 dto.setCategoryShippingCharge(CategoryTree.shippingCharge(categoryRepository, cat));
+                dto.setCategoryPayCod(CategoryTree.payment(categoryRepository, cat, "CASH"));
+                dto.setCategoryPayBkash(CategoryTree.payment(categoryRepository, cat, "BKASH"));
+                dto.setCategoryPayCard(CategoryTree.payment(categoryRepository, cat, "CARD"));
             });
         }
+        java.util.List<String> blocked = new java.util.ArrayList<>();
+        if (Boolean.FALSE.equals(product.getPayCod() != null ? product.getPayCod() : dto.getCategoryPayCod())) blocked.add("CASH");
+        if (Boolean.FALSE.equals(product.getPayBkash() != null ? product.getPayBkash() : dto.getCategoryPayBkash())) blocked.add("BKASH");
+        if (Boolean.FALSE.equals(product.getPayCard() != null ? product.getPayCard() : dto.getCategoryPayCard())) blocked.add("CARD");
+        dto.setBlockedPaymentMethods(blocked);
         return dto;
     }
 

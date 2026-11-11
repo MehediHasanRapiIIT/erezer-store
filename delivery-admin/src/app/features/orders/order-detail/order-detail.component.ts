@@ -125,6 +125,12 @@ export class OrderDetailComponent implements OnInit {
     this.loadStatusOptions();
   }
 
+  /** After a bKash refund: the Paid badge shows what went back. */
+  reloadOrder(): void {
+    const o = this.order();
+    if (o) this.orderService.getAdminOrder(o.id).subscribe({ next: (fresh) => this.order.set(fresh) });
+  }
+
   private applyOrder(o: OrderResponse): void {
     this.order.set(o);
     this.selectedStatus.set(this.defaultSelection());

@@ -79,6 +79,7 @@ public class OrderServiceImpl implements OrderService {
     // Delivery charges set on products and categories (V21).
     private final ShippingCharges shippingCharges;
     private final kn.org.deliverybackend.service.StoreSettingsService storeSettingsService;
+    private final PaymentMethodRules paymentMethodRules;
 
     @org.springframework.beans.factory.annotation.Value("${app.orders.cancellation-window-minutes:60}")
     private long cancellationWindowMinutes;
@@ -94,6 +95,7 @@ public class OrderServiceImpl implements OrderService {
 
         // Reserve inventory and compute the raw subtotal (no shipping yet).
         BigDecimal subtotal = computeAndReserveStock(request.getItems(), null);
+        checkBasketPayment(paymentMethod, request.getItems());
         BigDecimal autoDiscount = computeAutoDiscount(request.getItems());
         BigDecimal customSurcharge = computeCustomSurcharge(request.getItems());
         BigDecimal bundleDiscount = request.getBundleId() != null
@@ -194,6 +196,7 @@ public class OrderServiceImpl implements OrderService {
     public OrderDTO placeGuestOrder(GuestOrderRequestDTO request) {
         String paymentMethod = checkedPaymentMethod(request.getPaymentMethod());
         BigDecimal subtotal = computeAndReserveStock(request.getItems(), null);
+        checkBasketPayment(paymentMethod, request.getItems());
         BigDecimal autoDiscount = computeAutoDiscount(request.getItems());
         BigDecimal customSurcharge = computeCustomSurcharge(request.getItems());
         BigDecimal bundleDiscount = request.getBundleId() != null
@@ -357,6 +360,19 @@ public class OrderServiceImpl implements OrderService {
             total = total.add(discountEngine.discountForLine(product, lineSubtotal));
         }
         return total;
+    }
+
+    /**
+     * Refuses a way to pay that a product in the basket (or its category) doesn't
+     * allow. Checkout only offers the allowed ones; this stops an order that skips it.
+     */
+    private void checkBasketPayment(String paymentMethod, List<OrderItemRequestDTO> items) {
+        if (items == null || items.isEmpty()) return;
+        List<Product> products = new ArrayList<>(items.size());
+        for (OrderItemRequestDTO item : items) {
+            products.add(inventoryService.lockAndGetProduct(item.getProductId()));
+        }
+        paymentMethodRules.check(paymentMethod, products);
     }
 
     /**

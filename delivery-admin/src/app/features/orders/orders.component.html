@@ -217,7 +217,12 @@
                   <td class="px-5 py-3.5 font-semibold text-gray-800 whitespace-nowrap">৳ {{ formatAmount(order.totalAmount) }}</td>
                   <td class="px-5 py-3.5 text-xs text-gray-600">
                     {{ order.paymentMethod }}
-                    @if (order.paymentState === 'PAID') {
+                    @if (order.paymentState === 'PAID' && order.bkashRefunded && order.bkashRefunded >= order.totalAmount) {
+                      <span class="ml-1 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700" data-testid="order-refunded">Refunded</span>
+                    } @else if (order.paymentState === 'PAID' && order.bkashRefunded) {
+                      <span class="ml-1 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700" data-testid="order-part-refunded"
+                        [title]="'৳' + formatAmount(order.bkashRefunded) + ' refunded'">Part refunded</span>
+                    } @else if (order.paymentState === 'PAID') {
                       <span class="ml-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">Paid</span>
                     } @else if (order.paymentState) {
                       <span class="ml-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700" data-testid="order-unpaid"

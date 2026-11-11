@@ -98,6 +98,12 @@ export interface ProductResponse {
   shippingCharge: number | null;
   /** What its category charges to deliver, so a row can say where an inherited charge came from. */
   categoryShippingCharge: number | null;
+  /** Its own payment switches: true allowed, false not, null same as its category. */
+  payCod?: boolean | null;
+  payBkash?: boolean | null;
+  payCard?: boolean | null;
+  /** Ways to pay it can't be bought with (CASH, BKASH, CARD), from itself or its category. Settings not counted. */
+  blockedPaymentMethods?: string[];
   /** Its category is excluded, which keeps it at full price too. Read-only. */
   categoryDiscountExcluded: boolean | null;
   stockDisplay?: StockDisplay | null;
@@ -365,6 +371,8 @@ export interface OrderResponse {
   bkashTrxId?: string | null;
   bkashPayerAccount?: string | null;
   bkashPaidAt?: string | null;
+  /** bKash money sent back to the customer so far (completed refunds), if any. */
+  bkashRefunded?: number | null;
   paymentId: string | null;
   orderStatus: string;
   shopId: number;

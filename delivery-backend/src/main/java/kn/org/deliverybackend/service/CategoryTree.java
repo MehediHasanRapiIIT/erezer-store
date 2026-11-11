@@ -87,6 +87,32 @@ public final class CategoryTree {
         return null;
     }
 
+    /**
+     * Whether products in this category may be paid by {@code method} (CASH, BKASH
+     * or CARD): the nearest category up the tree that says so decides; null when
+     * none does.
+     */
+    public static Boolean payment(CategoryRepository categories, Category category, String method) {
+        if (category == null) return null;
+        Boolean own = paymentOf(category, method);
+        if (own != null) return own;
+        for (Category above : ancestors(categories, category)) {
+            Boolean said = paymentOf(above, method);
+            if (said != null) return said;
+        }
+        return null;
+    }
+
+    /** A category's own switch for one way to pay. */
+    public static Boolean paymentOf(Category category, String method) {
+        return switch (method) {
+            case "CASH" -> category.getPayCod();
+            case "BKASH" -> category.getPayBkash();
+            case "CARD" -> category.getPayCard();
+            default -> null;
+        };
+    }
+
     /** Kept at full price because it, or any category it sits under, is. */
     public static boolean discountExcluded(CategoryRepository categories, Category category) {
         if (category == null) return false;

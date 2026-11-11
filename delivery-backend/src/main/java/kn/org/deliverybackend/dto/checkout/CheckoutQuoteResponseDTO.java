@@ -32,4 +32,11 @@ public class CheckoutQuoteResponseDTO {
     private String freeShippingReason;
     /** The free-shipping offer's minimum while the offer is on, so checkout can say so. */
     private BigDecimal freeShippingOfferMin;
+    /**
+     * The ways to pay this basket may use (CASH, BKASH, CARD): the shop's switches,
+     * narrowed by what each product (or its category) allows.
+     */
+    private java.util.List<String> allowedPaymentMethods;
+    /** Why no way to pay fits this basket, when none does; null otherwise. */
+    private String paymentMessage;
 }

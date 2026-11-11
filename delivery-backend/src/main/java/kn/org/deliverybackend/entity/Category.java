@@ -73,6 +73,18 @@ public class Category extends AbstractBaseEntity<Long> {
     private BigDecimal shippingCharge;
 
     /**
+     * Whether products in this category may be paid for by cash on delivery,
+     * bKash and card, unless a product sets its own. Null means the parent
+     * category decides, and in the end the shop-wide switch in Settings.
+     */
+    @Column(name = "pay_cod")
+    private Boolean payCod;
+    @Column(name = "pay_bkash")
+    private Boolean payBkash;
+    @Column(name = "pay_card")
+    private Boolean payCard;
+
+    /**
      * The category directly above this one, making it a subcategory. Null for
      * a main category. Subcategories go to any depth (see CategoryTree).
      */

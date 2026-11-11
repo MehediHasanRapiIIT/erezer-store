@@ -37,6 +37,7 @@ public class CheckoutQuoteServiceImpl implements CheckoutQuoteService {
     private final DiscountEngine discountEngine;
     private final BundleService bundleService;
     private final ShippingCharges shippingCharges;
+    private final PaymentMethodRules paymentMethodRules;
 
     @Override
     @Transactional(readOnly = true)
@@ -133,6 +134,7 @@ public class CheckoutQuoteServiceImpl implements CheckoutQuoteService {
                 .add(customSurcharge);
         if (total.signum() < 0) total = BigDecimal.ZERO;
 
+        PaymentMethodRules.BasketPayment payment = paymentMethodRules.forBasket(basketProducts);
         return CheckoutQuoteResponseDTO.builder()
                 .subtotal(subtotal)
                 .shippingFee(shippingFee)
@@ -148,6 +150,8 @@ public class CheckoutQuoteServiceImpl implements CheckoutQuoteService {
                 .couponApplied(couponApplied)
                 .freeShippingReason(shipping.freeReason())
                 .freeShippingOfferMin(shipping.offerMin())
+                .allowedPaymentMethods(payment.allowed())
+                .paymentMessage(payment.message())
                 .build();
     }
 }
