@@ -729,6 +729,8 @@ export interface PublicOrderTracking {
   paymentMethod: string | null;
   /** bKash orders only: PAID, FAILED or PENDING. */
   paymentState?: 'PAID' | 'FAILED' | 'PENDING' | null;
+  /** bKash money sent back to the customer, if any. */
+  refunded?: number | null;
 }
 
 export interface AdminStatusUpdatePayload {

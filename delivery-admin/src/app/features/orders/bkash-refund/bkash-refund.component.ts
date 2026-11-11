@@ -78,6 +78,14 @@ interface RefundSummary {
           </ul>
         }
 
+        @if (wholeRefunded(s) && canCancel()) {
+          <div class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2" data-testid="bkash-refund-cancel-hint">
+            <p class="text-xs text-amber-800">The whole payment was refunded, but the order is still open. Cancel it too, so the customer sees it's cancelled?</p>
+            <button type="button" (click)="askCancel()" data-testid="bkash-refund-cancel-order"
+              class="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700">Cancel order</button>
+          </div>
+        }
+
         @if (!s.allowed) {
           <p class="mt-4 rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600" data-testid="bkash-refund-blocked">{{ s.notAllowedReason }}</p>
         } @else if (!perms.can('returns.refund')) {
@@ -123,6 +131,10 @@ export class BkashRefundComponent implements OnInit {
   readonly orderId = input.required<string>();
   /** A refund went through: the page may want to reload the order. */
   readonly refunded = output<void>();
+  /** The order can still be cancelled by this staff member. */
+  readonly canCancel = input(false);
+  /** Staff confirmed cancelling the order after a full refund. */
+  readonly cancelOrder = output<void>();
 
   protected readonly summary = signal<RefundSummary | null>(null);
   protected readonly busy = signal(false);
@@ -179,6 +191,20 @@ export class BkashRefundComponent implements OnInit {
         this.http.get<RefundSummary>(this.url()).subscribe({ next: (s) => this.summary.set(s) });
       },
     });
+  }
+
+  protected wholeRefunded(s: RefundSummary): boolean {
+    return Number(s.paid) > 0 && Number(s.refunded) >= Number(s.paid);
+  }
+
+  protected async askCancel(): Promise<void> {
+    const ok = await this.confirm.ask({
+      title: 'Cancel this order?',
+      message: 'The customer gets the cancellation email, with a note that the payment was refunded to their bKash.',
+      confirmLabel: 'Cancel order',
+      danger: true,
+    });
+    if (ok) this.cancelOrder.emit();
   }
 
   protected money(n: number | null | undefined): string {

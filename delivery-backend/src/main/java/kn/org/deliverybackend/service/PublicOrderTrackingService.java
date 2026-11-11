@@ -60,7 +60,8 @@ public class PublicOrderTrackingService {
                         : order.getDeliveryCharge() != null ? BigDecimal.valueOf(order.getDeliveryCharge()) : null,
                 order.getTotalAmount(),
                 order.getPaymentMethod(),
-                withItems.getPaymentState());
+                withItems.getPaymentState(),
+                withItems.getBkashRefunded());
     }
 
     private static PublicOrderTrackingDTO.Item item(OrderItemDTO i) {

@@ -271,7 +271,8 @@
             </div>
 
             @if (order()!.paymentState === 'PAID') {
-              <app-bkash-refund [orderId]="order()!.id" />
+              <app-bkash-refund [orderId]="order()!.id"
+                [canCancel]="permittedNext().includes('CANCELLED')" (cancelOrder)="cancelAfterRefund()" />
             }
 
             <!-- Phase 5: internal admin notes -->

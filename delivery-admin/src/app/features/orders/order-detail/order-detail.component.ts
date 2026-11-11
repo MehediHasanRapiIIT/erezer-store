@@ -303,6 +303,13 @@ export class OrderDetailComponent implements OnInit {
     return this.perms.can(status === 'CANCELLED' ? 'orders.cancel' : 'orders.status');
   }
 
+  /** After a full bKash refund: cancel the order, telling the customer where the money went. */
+  cancelAfterRefund(): void {
+    this.selectedStatus.set('CANCELLED');
+    this.statusNote.set('Your payment has been refunded to your bKash account.');
+    this.onUpdateStatus();
+  }
+
   onUpdateStatus(): void {
     const o = this.order();
     if (!o) return;

@@ -109,7 +109,11 @@ import { BkashPayAgainComponent } from '../components/shared/bkash-pay-again.com
                 <div class="flex justify-between pt-1 text-base font-semibold"><span>{{ 'track.total' | t }}</span><span class="tabular-nums">{{ o.total | currency:'BDT':'৳' }}</span></div>
                 @if (o.paymentMethod) {
                   <p class="pt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ 'track.payment' | t }}: {{ paymentLabel(o.paymentMethod) }}
-                    @if (o.paymentState === 'PAID') { <span class="font-medium text-emerald-600">· Paid</span> }
+                    @if (o.paymentState === 'PAID' && o.refunded) {
+                      <span class="font-medium text-emerald-600">· Paid</span>
+                      <span class="font-medium text-sky-600" data-testid="track-refunded">&nbsp;· Refunded {{ o.refunded | currency:'BDT':'৳' }}</span>
+                    }
+                    @else if (o.paymentState === 'PAID') { <span class="font-medium text-emerald-600">· Paid</span> }
                     @else if (o.paymentState) { <span class="font-medium text-amber-600" data-testid="track-unpaid">· Not paid yet</span> }
                   </p>
                 }
