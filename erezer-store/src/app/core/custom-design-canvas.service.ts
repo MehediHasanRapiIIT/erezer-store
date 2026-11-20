@@ -1,9 +1,22 @@
 import { Injectable, signal } from '@angular/core';
-import { Canvas, FabricImage, FabricObject, IText, Point, Rect, Shadow, filters } from 'fabric';
+import { Canvas, FabricImage, FabricObject, IText, Path, Point, Rect, Shadow, filters } from 'fabric';
 import type { CustomDesignImages, CustomDesignView } from './api.models';
 import { REGULAR_SHIRT, type ShirtModel } from './shirt-models';
 
 const VIEWS: CustomDesignView[] = ['front', 'back', 'leftSleeve', 'rightSleeve'];
+
+// A text's bend is saved with the design, so a curved text comes back curved.
+IText.customProperties = ['curve'];
+
+/** Bengali letters: such text needs a Bengali font, or it shows as boxes or a poor fallback. */
+const BANGLA = /[\u0980-\u09FF]/;
+export const BANGLA_FONTS = ['Hind Siliguri', 'Noto Sans Bengali'];
+export function isBangla(text: string): boolean {
+  return BANGLA.test(text);
+}
+
+/** Ready-made looks for a text, one tap each. */
+export type TextStyleId = 'classic' | 'outline' | 'varsity' | 'retro' | 'neon' | 'script';
 
 /** Serialized whole-studio state: the fabric objects for each view. */
 type StudioState = Partial<Record<CustomDesignView, unknown>>;
@@ -30,6 +43,8 @@ export interface ActiveProps {
   angle: number;
   /** The words, for text. */
   text: string;
+  /** How much the text bends: -100 (down, like a smile) to 100 (up, an arch); 0 straight. */
+  curve: number;
   /** How wide it is, as a percentage of the printable area. */
   sizePercent: number;
   /** Image-only adjustments, read back off the fabric filter stack. */
@@ -281,12 +296,126 @@ export class CustomDesignCanvasService {
     const c = this.canvas;
     const o = c?.getActiveObject();
     if (!c || !o || !this.isText(o)) return;
-    (o as unknown as IText).set({ text: value });
+    const text = o as unknown as IText;
+    text.set({ text: value });
+    this.applyCurve(text);
     o.setCoords();
     this.clampToArea(o);
     c.requestRenderAll();
     this.syncActive();
-    this.pushHistory();
+    // Bengali typed in a Latin font: switch to a Bengali one, once it has loaded.
+    const family = String(text.fontFamily ?? '').split(',')[0].trim().replace(/"/g, '');
+    if (isBangla(value) && !BANGLA_FONTS.includes(family)) void this.setFontFamily(BANGLA_FONTS[0]);
+    // One undo step per pause in typing, not one per letter.
+    clearTimeout(this.typingTimer);
+    this.typingTimer = setTimeout(() => this.pushHistory(), 600);
+  }
+
+  private typingTimer?: ReturnType<typeof setTimeout>;
+
+  // ── Curved text ────────────────────────────────────────────────────────────
+
+  /** Bends the selected text: -100 down (a smile) to 100 up (an arch); 0 straight. */
+  setCurve(value: number): void {
+    const v = Math.max(-100, Math.min(100, Math.round(Number(value) || 0)));
+    this.mutateActive((o) => this.isText(o), (o) => o.set('curve', v));
+  }
+
+  /**
+   * Lays the text along an arc for its bend, keeping it where it was. The arc is
+   * just as long as the words, part of a circle whose share grows with the bend
+   * (up to 330 degrees), centred on the circle's top (arch) or bottom (smile), so
+   * the letters stand upright. Fabric centres text along its path, so the text is
+   * centred too. Text over several lines stays straight: fabric would write every
+   * line on the same arc.
+   */
+  private applyCurve(o: IText): void {
+    const curve = (o as unknown as { curve?: number }).curve ?? 0;
+    const hasPath = !!(o as unknown as { path?: unknown }).path;
+    if (!curve && !hasPath) return;
+    const centre = o.getCenterPoint();
+    o.set({ path: undefined, objectCaching: true });
+    o.initDimensions();
+    if (curve && !String(o.text ?? '').includes('\n')) {
+      const width = (o.width || 1) * 1.03;
+      const sweep = (Math.min(330, Math.abs(curve) * 3.3) * Math.PI) / 180;
+      const r = width / sweep;
+      // Arch: clockwise over the top (-90deg). Smile: anticlockwise under the bottom (90deg).
+      const mid = curve > 0 ? -Math.PI / 2 : Math.PI / 2;
+      const from = curve > 0 ? mid - sweep / 2 : mid + sweep / 2;
+      const to = curve > 0 ? mid + sweep / 2 : mid - sweep / 2;
+      const pt = (a: number) => `${(r * Math.cos(a)).toFixed(2)} ${(r * Math.sin(a)).toFixed(2)}`;
+      const path = new Path(`M ${pt(from)} A ${r.toFixed(2)} ${r.toFixed(2)} 0 ${sweep > Math.PI ? 1 : 0} ${curve > 0 ? 1 : 0} ${pt(to)}`,
+        { visible: false, fill: '', stroke: '', strokeWidth: 0 });
+      // Letters stand out of the path's box, so a cached picture of the box would cut them.
+      o.set({ path, pathSide: 'left', pathAlign: 'center', pathStartOffset: 0, textAlign: 'center', objectCaching: false });
+      o.initDimensions();
+    }
+    o.setPositionByOrigin(centre, 'center', 'center');
+    o.setCoords();
+  }
+
+  /** Curved texts read back from a saved design: lay them out again, uncached, so no letter is cut. */
+  private recurveTexts(): void {
+    for (const o of this.canvas?.getObjects() ?? []) {
+      if (this.isText(o) && (o as unknown as { curve?: number }).curve) this.applyCurve(o as IText);
+    }
+  }
+
+  // ── Ready-made styles ──────────────────────────────────────────────────────
+
+  /**
+   * One-tap looks. Each sets the font and the effects; the text's own colour is
+   * kept except where the look is its colour (neon). Outlines contrast with the
+   * shirt: dark on a light shirt, light on a dark one.
+   */
+  async applyTextStyle(id: TextStyleId, darkShirt: boolean): Promise<void> {
+    const font: Record<TextStyleId, string> = {
+      classic: 'Inter', outline: 'Anton', varsity: 'Archivo Black', retro: 'Righteous', neon: 'Bebas Neue', script: 'Pacifico',
+    };
+    const o = this.canvas?.getActiveObject();
+    if (!o || !this.isText(o)) return;
+    const family = isBangla(String((o as unknown as IText).text ?? '')) ? BANGLA_FONTS[0] : font[id];
+    await this.ensureFontLoaded(family);
+    const edge = darkShirt ? '#ffffff' : '#111111';
+    this.mutateActive((x) => this.isText(x), (x) => {
+      const size = ((x as unknown as Record<string, unknown>)['fontSize'] as number) ?? 40;
+      const fill = (x as unknown as Record<string, unknown>)['fill'];
+      const base = {
+        fontFamily: family, fontWeight: 'normal', fontStyle: 'normal', underline: false,
+        stroke: null as string | null, strokeWidth: 0, shadow: null as Shadow | null, charSpacing: 0,
+      };
+      switch (id) {
+        case 'classic':
+          x.set({ ...base, fontWeight: 'bold' });
+          break;
+        case 'outline':
+          x.set({ ...base, stroke: edge, strokeWidth: Math.max(1, size * 0.05), paintFirst: 'stroke' });
+          break;
+        case 'varsity':
+          x.set({
+            ...base, charSpacing: 60, stroke: edge, strokeWidth: Math.max(1.5, size * 0.07), paintFirst: 'stroke',
+            text: String((x as unknown as IText).text ?? '').toUpperCase(), curve: 25,
+          });
+          break;
+        case 'retro':
+          x.set({
+            ...base, shadow: new Shadow({
+              color: fill === '#f59e0b' ? '#111111' : '#f59e0b', blur: 0,
+              offsetX: Math.max(2, size * 0.07), offsetY: Math.max(2, size * 0.07),
+            }),
+          });
+          break;
+        case 'neon': {
+          const glow = darkShirt ? '#39ff14' : '#ff2e88';
+          x.set({ ...base, fill: glow, charSpacing: 40, shadow: new Shadow({ color: glow, blur: Math.max(6, size * 0.35), offsetX: 0, offsetY: 0 }) });
+          break;
+        }
+        case 'script':
+          x.set({ ...base });
+          break;
+      }
+    });
   }
 
   /** One side's artwork for the 3D shirt; null when that side is empty. */
@@ -626,6 +755,7 @@ export class CustomDesignCanvasService {
     this.suppressHistory = true;
     const objects = (state as { objects?: unknown[] })?.objects ?? [];
     await this.canvas.loadFromJSON({ objects, version: '6' });
+    this.recurveTexts();
     this.canvas.requestRenderAll();
     this.suppressHistory = false;
   }
@@ -639,20 +769,45 @@ export class CustomDesignCanvasService {
       top: this.height / 2,
       originX: 'center',
       originY: 'center',
-      fontFamily: 'Inter, system-ui, sans-serif',
+      fontFamily: isBangla(value) ? BANGLA_FONTS[0] : 'Inter, system-ui, sans-serif',
       fontSize: 40,
+      fontWeight: 'bold',
+      textAlign: 'center',
       fill,
     });
     // Comfortable to see and touch from the start, on a phone as on a big screen.
     const start = !this.wholeShirt ? 0.6 : this.onSleeve ? 0.25 : 0.4;
     text.set({ fontSize: Math.round(40 * Math.min(4, (this.printArea.width * start) / (text.width || 1))) });
     this.fitToArea(text);
+    this.placeInFreeSpot(text);
     this.canvas.add(text);
     this.canvas.setActiveObject(text);
     this.canvas.requestRenderAll();
     this.hasSelection.set(true);
     this.syncActive();
     this.pushHistory();
+  }
+
+  /**
+   * A new item lands in the middle, unless something is already there: then just
+   * under the lowest thing in the way, or above it when there's no room below, so
+   * a second text never hides behind the first.
+   */
+  private placeInFreeSpot(obj: FabricObject): void {
+    const others = this.userObjects();
+    if (!others.length) return;
+    obj.setCoords();
+    const a = this.printArea;
+    const gap = obj.getScaledHeight() * 0.25;
+    const overlaps = () => others.some((o) => o.intersectsWithObject(obj) || o.isContainedWithinObject(obj) || obj.isContainedWithinObject(o));
+    if (!overlaps()) return;
+    const centre = obj.getCenterPoint();
+    const half = obj.getScaledHeight() / 2;
+    const below = Math.max(...others.map((o) => o.getBoundingRect().top + o.getBoundingRect().height)) + gap + half;
+    const above = Math.min(...others.map((o) => o.getBoundingRect().top)) - gap - half;
+    const y = below + half <= a.top + a.height ? below : above - half >= a.top ? above : centre.y;
+    obj.setPositionByOrigin(new Point(centre.x, y), 'center', 'center');
+    obj.setCoords();
   }
 
   async addImage(url: string): Promise<void> {
@@ -687,6 +842,7 @@ export class CustomDesignCanvasService {
     this.active.set({
       kind: this.isText(o) ? 'text' : (o.type === 'image' ? 'image' : 'other'),
       text: (t['text'] as string) ?? '',
+      curve: (t['curve'] as number) ?? 0,
       sizePercent: Math.round((o.getScaledWidth() / (this.printArea.width || 1)) * 100),
       fontFamily: (t['fontFamily'] as string) ?? 'Inter',
       fontSize: (t['fontSize'] as number) ?? 40,
@@ -711,6 +867,8 @@ export class CustomDesignCanvasService {
     const o = this.canvas?.getActiveObject();
     if (!o || !predicate(o)) return;
     fn(o);
+    // A curved text's arc is measured from its width, which font, size and spacing change.
+    if (this.isText(o)) this.applyCurve(o as IText);
     this.canvas?.requestRenderAll();
     this.pushHistory();
     this.syncActive();
@@ -1181,6 +1339,7 @@ export class CustomDesignCanvasService {
     if (!this.canvas) return;
     this.suppressHistory = true;
     await this.canvas.loadFromJSON({ objects: JSON.parse(objectsJson), version: '6' });
+    this.recurveTexts();
     // loadFromJSON clears the canvas — re-attach the mockup + guide helpers.
     if (this.mockup) this.canvas.add(this.mockup);
     this.ensurePrintArea();

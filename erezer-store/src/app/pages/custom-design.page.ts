@@ -4,7 +4,7 @@ import { ActivatedRoute } from '@angular/router';
 import { catchError, of } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { AuthService } from '../core/auth.service';
-import { CustomDesignCanvasService, ImageFilterPreset } from '../core/custom-design-canvas.service';
+import { BANGLA_FONTS, CustomDesignCanvasService, ImageFilterPreset, TextStyleId, isBangla } from '../core/custom-design-canvas.service';
 import { Shirt3dComponent, ShirtDesigner } from '../components/shared/shirt-3d.component';
 import { REGULAR_SHIRT, shirtModelFor } from '../core/shirt-models';
 import type {
@@ -73,25 +73,10 @@ const SKIN_TONES = [
                 <span class="text-lg">🖼️</span>
                 {{ uploading() ? 'UPLOADING…' : 'ADD DESIGN' }}
               </label>
-              <button type="button" (click)="focusText()" class="app-card flex flex-col items-center gap-1 p-4 text-center text-xs font-semibold">
+              <button type="button" (click)="startText()" data-testid="add-text" class="app-card flex flex-col items-center gap-1 p-4 text-center text-xs font-semibold">
                 <span class="text-lg">T</span>
                 ADD TEXT
               </button>
-            </div>
-
-            <!-- Add text row -->
-            <div class="app-card studio-sheet space-y-2 p-3" [class.studio-sheet-closed]="sheet() !== 'text'" data-testid="sheet-text">
-              <div class="studio-sheet-head sm:hidden">
-                <span>Add text</span>
-                <button type="button" (click)="closeSheet()" class="studio-sheet-done">Done</button>
-              </div>
-              <input #textInput [(ngModel)]="newText" name="newText" placeholder="Type text…" maxlength="120"
-                (keyup.enter)="newText.trim() && addText()"
-                class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
-              <div class="flex items-center gap-2">
-                <input type="color" value="#111111" [(ngModel)]="textColor" name="textColor" (change)="applyTextColor()" class="h-8 w-10 cursor-pointer rounded" />
-                <button type="button" (click)="addText()" class="btn-secondary flex-1 py-1.5 text-sm" [disabled]="!newText.trim()">Add text</button>
-              </div>
             </div>
 
             <!-- Contextual: selected element tools -->
@@ -105,85 +90,127 @@ const SKIN_TONES = [
                   {{ a.kind === 'text' ? 'Text' : a.kind === 'image' ? 'Image' : 'Element' }} options
                 </span>
 
-                @if (a.kind === 'text') {
-                  <input [ngModel]="a.text" (ngModelChange)="canvas.setActiveText($event)" maxlength="120" aria-label="Your text" data-testid="active-text"
-                    class="w-full rounded-lg border border-neutral-300 px-2 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
-                  <select [ngModel]="a.fontFamily.split(',')[0].trim()" (ngModelChange)="canvas.setFontFamily($event)"
-                    class="w-full rounded-lg border border-neutral-300 px-2 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-900"
-                    [style.font-family]="a.fontFamily">
-                    @for (g of fontGroups; track g.label) {
-                      <optgroup [label]="g.label">
-                        @for (f of g.fonts; track f) {
-                          <option [value]="f" [style.font-family]="f">{{ f }}</option>
+@if (a.kind === 'text') {
+                  <!-- Typed straight onto the shirt: every key shows at once. Enter starts a new line. -->
+                  <textarea #activeText [ngModel]="a.text" (ngModelChange)="canvas.setActiveText($event)" maxlength="120" rows="2"
+                    aria-label="Your text" data-testid="active-text" placeholder="Type your text…"
+                    class="w-full resize-none rounded-lg border border-neutral-300 px-3 py-2 text-base leading-snug dark:border-neutral-700 dark:bg-neutral-900"
+                    [style.font-family]="a.fontFamily"></textarea>
+
+                  <div class="flex overflow-hidden rounded-lg border border-neutral-300 text-xs font-semibold dark:border-neutral-700" role="tablist">
+                    @for (t of textTabs; track t.id) {
+                      <button type="button" role="tab" (click)="textTab.set(t.id)" [attr.aria-selected]="textTab() === t.id"
+                        [attr.data-testid]="'text-tab-' + t.id" class="flex-1 px-1 py-1.5"
+                        [class.bg-neutral-900]="textTab() === t.id" [class.text-white]="textTab() === t.id"
+                        [class.dark:bg-white]="textTab() === t.id" [class.dark:text-black]="textTab() === t.id">{{ t.label }}</button>
+                    }
+                  </div>
+
+                  @switch (textTab()) {
+                    @case ('font') {
+                      <!-- Each card shows the customer's own words in that font. -->
+                      <div class="grid max-h-56 grid-cols-2 gap-1.5 overflow-y-auto pr-1" data-testid="font-cards">
+                        @for (f of fontsFor(a.text); track f) {
+                          <button type="button" (click)="canvas.setFontFamily(f)" [title]="f"
+                            class="truncate rounded-lg border px-2 py-2 text-left text-base leading-tight"
+                            [class.border-neutral-900]="fontName(a.fontFamily) === f" [class.ring-1]="fontName(a.fontFamily) === f"
+                            [class.ring-neutral-900]="fontName(a.fontFamily) === f" [class.dark:border-white]="fontName(a.fontFamily) === f"
+                            [class.border-neutral-200]="fontName(a.fontFamily) !== f" [class.dark:border-neutral-700]="fontName(a.fontFamily) !== f"
+                            [style.font-family]="f">
+                            {{ previewWords(a.text) }}
+                            <span class="block font-sans text-[10px] text-neutral-500">{{ f }}</span>
+                          </button>
                         }
-                      </optgroup>
+                      </div>
                     }
-                  </select>
-
-                  <div class="flex items-center gap-2">
-                    <label class="flex flex-1 items-center gap-1 text-xs">Size
-                      <input type="number" min="6" max="200" [ngModel]="a.fontSize" (ngModelChange)="canvas.setFontSize($event)"
-                        class="w-16 rounded-lg border border-neutral-300 px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-900" />
-                    </label>
-                    <button type="button" (click)="canvas.toggleBold()" title="Bold"
-                      class="h-8 w-8 rounded-lg border text-sm font-bold" [class.bg-neutral-900]="a.bold" [class.text-white]="a.bold"
-                      [class.border-neutral-300]="!a.bold" [class.dark:border-neutral-700]="!a.bold">B</button>
-                    <button type="button" (click)="canvas.toggleItalic()" title="Italic"
-                      class="h-8 w-8 rounded-lg border text-sm italic" [class.bg-neutral-900]="a.italic" [class.text-white]="a.italic"
-                      [class.border-neutral-300]="!a.italic" [class.dark:border-neutral-700]="!a.italic">I</button>
-                    <button type="button" (click)="canvas.toggleUnderline()" title="Underline"
-                      class="h-8 w-8 rounded-lg border text-sm underline" [class.bg-neutral-900]="a.underline" [class.text-white]="a.underline"
-                      [class.border-neutral-300]="!a.underline" [class.dark:border-neutral-700]="!a.underline">U</button>
-                  </div>
-
-                  <div class="flex items-center gap-2">
-                    <div class="flex overflow-hidden rounded-lg border border-neutral-300 dark:border-neutral-700">
-                      @for (al of ['left','center','right']; track al) {
-                        <button type="button" (click)="canvas.setTextAlign($any(al))" class="px-2.5 py-1 text-xs"
-                          [class.bg-neutral-900]="a.textAlign === al" [class.text-white]="a.textAlign === al">
-                          {{ al === 'left' ? '⇤' : al === 'center' ? '≡' : '⇥' }}
-                        </button>
+                    @case ('colour') {
+                      <div class="flex flex-wrap items-center gap-1.5" data-testid="text-swatches">
+                        @for (c of swatches; track c.hex) {
+                          <button type="button" (click)="canvas.setActiveTextColor(c.hex)" [title]="c.name" [attr.aria-label]="c.name"
+                            class="h-8 w-8 rounded-full border-2 shadow-sm" [style.background]="c.hex"
+                            [class.border-sky-500]="a.fill.toLowerCase() === c.hex" [class.border-neutral-300]="a.fill.toLowerCase() !== c.hex"></button>
+                        }
+                        <label class="flex items-center gap-1 text-xs" title="Any colour">More
+                          <input type="color" [ngModel]="a.fill" (ngModelChange)="canvas.setActiveTextColor($event)" class="h-8 w-9 cursor-pointer rounded" />
+                        </label>
+                      </div>
+                      <div class="flex items-center gap-2 text-xs">
+                        <span class="w-14 shrink-0">Outline</span>
+                        <input type="color" [value]="a.strokeColor" (change)="onStroke($event, a.strokeWidth || 2)" title="Outline colour" class="h-7 w-8 cursor-pointer rounded" />
+                        <input type="range" min="0" max="8" step="0.5" [ngModel]="a.strokeWidth" (ngModelChange)="canvas.setTextStroke(a.strokeColor, $event)" class="flex-1" aria-label="Outline thickness" />
+                      </div>
+                      <div class="flex items-center gap-2 text-xs">
+                        <button type="button" (click)="canvas.setShadow(!a.shadow, a.shadowColor)"
+                          class="rounded-lg border px-2 py-1" [class.bg-neutral-900]="a.shadow" [class.text-white]="a.shadow"
+                          [class.border-neutral-300]="!a.shadow" [class.dark:border-neutral-700]="!a.shadow">Shadow</button>
+                        @if (a.shadow) {
+                          <input type="color" [value]="a.shadowColor" (change)="onShadowColor($event)" title="Shadow colour" class="h-7 w-8 cursor-pointer rounded" />
+                        }
+                      </div>
+                    }
+                    @case ('style') {
+                      <p class="text-xs text-neutral-500 dark:text-neutral-400">One tap for a ready-made look. You can change anything after.</p>
+                      <div class="grid grid-cols-3 gap-1.5" data-testid="text-styles">
+                        @for (s of textStyles; track s.id) {
+                          <button type="button" (click)="applyStyle(s.id)" [attr.data-testid]="'text-style-' + s.id"
+                            class="rounded-lg border border-neutral-200 px-1 py-2 text-center dark:border-neutral-700" [style.font-family]="s.font">
+                            <span class="block truncate text-base" [style]="s.css">{{ s.sample }}</span>
+                            <span class="block font-sans text-[10px] text-neutral-500">{{ s.label }}</span>
+                          </button>
+                        }
+                      </div>
+                      <label class="flex items-center gap-2 text-xs">
+                        <span class="w-14 shrink-0">Spacing</span>
+                        <input type="range" min="-50" max="600" step="10" [ngModel]="a.charSpacing" (ngModelChange)="canvas.setCharSpacing($event)" class="flex-1" />
+                      </label>
+                      <label class="flex items-center gap-2 text-xs">
+                        <span class="w-14 shrink-0">Line gap</span>
+                        <input type="range" min="0.7" max="2.4" step="0.05" [ngModel]="a.lineHeight" (ngModelChange)="canvas.setLineHeight($event)" class="flex-1" />
+                      </label>
+                    }
+                    @case ('curve') {
+                      <label class="flex items-center gap-2 text-xs">
+                        <span class="w-14 shrink-0">Curve</span>
+                        <input type="range" min="-100" max="100" step="1" [ngModel]="a.curve" (ngModelChange)="canvas.setCurve($event)"
+                          class="flex-1" aria-label="Curve" data-testid="text-curve" />
+                        <span class="w-8 text-right tabular-nums">{{ a.curve }}</span>
+                      </label>
+                      <div class="flex gap-1.5 text-xs">
+                        <button type="button" (click)="canvas.setCurve(-40)" class="btn-secondary flex-1 py-1.5">◡ Smile</button>
+                        <button type="button" (click)="canvas.setCurve(0)" class="btn-secondary flex-1 py-1.5">— Straight</button>
+                        <button type="button" (click)="canvas.setCurve(40)" class="btn-secondary flex-1 py-1.5">◠ Arch</button>
+                      </div>
+                      @if (a.curve !== 0 && a.text.includes('\n')) {
+                        <p class="text-xs text-amber-600" data-testid="curve-one-line">Curved text needs one line. Remove the line break to curve it.</p>
                       }
-                    </div>
-                    <label class="flex items-center gap-1 text-xs">Fill
-                      <input type="color" [ngModel]="a.fill" (ngModelChange)="canvas.setActiveTextColor($event)" class="h-7 w-8 cursor-pointer rounded" />
-                    </label>
-                  </div>
-
-                  <div class="flex items-center gap-2 text-xs">
-                    <span>Outline</span>
-                    <input type="color" [value]="a.strokeColor" (change)="onStroke($event, a.strokeWidth)" class="h-7 w-8 cursor-pointer rounded" />
-                    <input type="range" min="0" max="8" step="0.5" [ngModel]="a.strokeWidth" (ngModelChange)="canvas.setTextStroke(a.strokeColor, $event)" class="flex-1" />
-                  </div>
-
-                  <!-- Letter spacing: fabric measures it in 1/1000 em, so the
-                       slider range is wide but the label shows plain steps. -->
-                  <label class="flex items-center gap-2 text-xs">
-                    <span class="w-14 shrink-0">Spacing</span>
-                    <input type="range" min="-50" max="600" step="10" [ngModel]="a.charSpacing"
-                      (ngModelChange)="canvas.setCharSpacing($event)" class="flex-1" />
-                  </label>
-
-                  <label class="flex items-center gap-2 text-xs">
-                    <span class="w-14 shrink-0">Line gap</span>
-                    <input type="range" min="0.7" max="2.4" step="0.05" [ngModel]="a.lineHeight"
-                      (ngModelChange)="canvas.setLineHeight($event)" class="flex-1" />
-                  </label>
-
-                  <div class="flex items-center gap-2 text-xs">
-                    <button type="button" (click)="canvas.setShadow(!a.shadow, a.shadowColor)"
-                      class="rounded-lg border px-2 py-1" [class.bg-neutral-900]="a.shadow" [class.text-white]="a.shadow"
-                      [class.border-neutral-300]="!a.shadow" [class.dark:border-neutral-700]="!a.shadow">Shadow</button>
-                    @if (a.shadow) {
-                      <input type="color" [value]="a.shadowColor" (change)="onShadowColor($event)"
-                        title="Shadow colour" class="h-7 w-8 cursor-pointer rounded" />
                     }
-                    <span class="ml-auto flex overflow-hidden rounded-lg border border-neutral-300 dark:border-neutral-700">
-                      <button type="button" (click)="canvas.transformCase('upper')" title="UPPERCASE" class="px-2 py-1">AA</button>
-                      <button type="button" (click)="canvas.transformCase('title')" title="Title Case" class="px-2 py-1">Aa</button>
-                      <button type="button" (click)="canvas.transformCase('lower')" title="lowercase" class="px-2 py-1">aa</button>
-                    </span>
-                  </div>
+                    @default {
+                      <div class="flex flex-wrap items-center gap-2">
+                        <button type="button" (click)="canvas.toggleBold()" title="Bold"
+                          class="h-8 w-8 rounded-lg border text-sm font-bold" [class.bg-neutral-900]="a.bold" [class.text-white]="a.bold"
+                          [class.border-neutral-300]="!a.bold" [class.dark:border-neutral-700]="!a.bold">B</button>
+                        <button type="button" (click)="canvas.toggleItalic()" title="Italic"
+                          class="h-8 w-8 rounded-lg border text-sm italic" [class.bg-neutral-900]="a.italic" [class.text-white]="a.italic"
+                          [class.border-neutral-300]="!a.italic" [class.dark:border-neutral-700]="!a.italic">I</button>
+                        <button type="button" (click)="canvas.toggleUnderline()" title="Underline"
+                          class="h-8 w-8 rounded-lg border text-sm underline" [class.bg-neutral-900]="a.underline" [class.text-white]="a.underline"
+                          [class.border-neutral-300]="!a.underline" [class.dark:border-neutral-700]="!a.underline">U</button>
+                        <div class="flex overflow-hidden rounded-lg border border-neutral-300 dark:border-neutral-700">
+                          @for (al of ['left','center','right']; track al) {
+                            <button type="button" (click)="canvas.setTextAlign($any(al))" class="px-2.5 py-1 text-xs" [title]="'Align ' + al"
+                              [class.bg-neutral-900]="a.textAlign === al" [class.text-white]="a.textAlign === al">
+                              {{ al === 'left' ? '⇤' : al === 'center' ? '≡' : '⇥' }}
+                            </button>
+                          }
+                        </div>
+                        <span class="ml-auto flex overflow-hidden rounded-lg border border-neutral-300 text-xs dark:border-neutral-700">
+                          <button type="button" (click)="canvas.transformCase('upper')" title="UPPERCASE" class="px-2 py-1">AA</button>
+                          <button type="button" (click)="canvas.transformCase('title')" title="Title Case" class="px-2 py-1">Aa</button>
+                          <button type="button" (click)="canvas.transformCase('lower')" title="lowercase" class="px-2 py-1">aa</button>
+                        </span>
+                      </div>
+                    }
+                  }
                 }
 
                 @if (a.kind === 'image') {
@@ -690,7 +717,7 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
 
   @ViewChild('canvasEl') private canvasRef!: ElementRef<HTMLCanvasElement>;
-  @ViewChild('textInput') private textInputRef?: ElementRef<HTMLInputElement>;
+  @ViewChild('activeText') private activeTextRef?: ElementRef<HTMLTextAreaElement>;
 
   /**
    * Mockup image for a view tab's thumbnail, taken from the currently-selected
@@ -728,10 +755,10 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
 
   /** The bar of tools: opens a panel, or closes it when it is the one open. */
   protected toggleSheet(id: StudioSheet): void {
+    // "Text" puts a new text on the shirt and opens it for typing.
+    if (id === 'text') { this.startText(); return; }
     const opening = this.sheet() !== id;
     this.sheet.set(opening ? id : null);
-    // Typing is the whole point of the Text panel: put the cursor in its box.
-    if (opening && id === 'text') setTimeout(() => this.textInputRef?.nativeElement.focus(), 60);
   }
 
   protected closeSheet(): void {
@@ -755,8 +782,31 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
   protected selectedTechnique = '';
   protected readonly view = signal<CustomDesignView>('front');
 
-  protected newText = '';
-  protected textColor = '#111111';
+  /** Which part of the text tools is showing. */
+  protected readonly textTab = signal<'text' | 'font' | 'colour' | 'style' | 'curve'>('text');
+  protected readonly textTabs: { id: 'text' | 'font' | 'colour' | 'style' | 'curve'; label: string }[] = [
+    { id: 'text', label: 'Text' },
+    { id: 'font', label: 'Font' },
+    { id: 'colour', label: 'Colour' },
+    { id: 'style', label: 'Style' },
+    { id: 'curve', label: 'Curve' },
+  ];
+  /** Colours that print well and suit most shirts; "More" opens any colour. */
+  protected readonly swatches: { hex: string; name: string }[] = [
+    { hex: '#111111', name: 'Black' }, { hex: '#ffffff', name: 'White' }, { hex: '#e11d48', name: 'Red' },
+    { hex: '#f97316', name: 'Orange' }, { hex: '#facc15', name: 'Yellow' }, { hex: '#c9a227', name: 'Gold' },
+    { hex: '#16a34a', name: 'Green' }, { hex: '#0ea5e9', name: 'Sky blue' }, { hex: '#1d4ed8', name: 'Royal blue' },
+    { hex: '#1e3a5f', name: 'Navy' }, { hex: '#7c3aed', name: 'Purple' }, { hex: '#ec4899', name: 'Pink' },
+    { hex: '#9ca3af', name: 'Grey' }, { hex: '#7f1d1d', name: 'Maroon' },
+  ];
+  protected readonly textStyles: { id: TextStyleId; label: string; font: string; sample: string; css: string }[] = [
+    { id: 'classic', label: 'Classic', font: 'Inter', sample: 'Aa', css: 'font-weight:700' },
+    { id: 'outline', label: 'Bold outline', font: 'Anton', sample: 'Aa', css: '-webkit-text-stroke:1px #111;color:#fff' },
+    { id: 'varsity', label: 'Varsity', font: 'Archivo Black', sample: 'AA', css: 'letter-spacing:.08em;-webkit-text-stroke:1px #111' },
+    { id: 'retro', label: 'Retro', font: 'Righteous', sample: 'Aa', css: 'text-shadow:2px 2px 0 #f59e0b' },
+    { id: 'neon', label: 'Neon', font: 'Bebas Neue', sample: 'Aa', css: 'color:#ff2e88;text-shadow:0 0 6px #ff2e88' },
+    { id: 'script', label: 'Handwritten', font: 'Pacifico', sample: 'Aa', css: '' },
+  ];
 
   /**
    * Fonts offered in the text tool, grouped so the list stays scannable.
@@ -1034,8 +1084,38 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
     this.canvas.selectAt(x, y);
   }
 
-  protected focusText(): void {
-    this.textInputRef?.nativeElement.focus();
+  /**
+   * ADD TEXT: puts "Your text" on the shirt straight away, selected, and opens the
+   * typing box with those words selected, so the first key replaces them.
+   */
+  protected startText(): void {
+    this.canvas.addText('Your text', this.isDarkShirt() ? '#ffffff' : '#111111');
+    this.textTab.set('text');
+    this.sheet.set('edit');
+    setTimeout(() => {
+      const box = this.activeTextRef?.nativeElement;
+      box?.focus();
+      box?.select();
+    }, 80);
+  }
+
+  /** The font list for these words: Bengali fonts first for Bengali text. */
+  protected fontsFor(text: string): string[] {
+    return isBangla(text) ? [...BANGLA_FONTS, ...this.fonts.filter((f) => !BANGLA_FONTS.includes(f))] : this.fonts;
+  }
+
+  /** The words a font card shows: the customer's own, kept short. */
+  protected previewWords(text: string): string {
+    const first = (text || '').split('\n')[0].trim() || 'Your text';
+    return first.length > 14 ? first.slice(0, 13) + '…' : first;
+  }
+
+  protected fontName(family: string): string {
+    return (family || '').split(',')[0].trim().replace(/"/g, '');
+  }
+
+  protected applyStyle(id: TextStyleId): void {
+    void this.canvas.applyTextStyle(id, this.isDarkShirt());
   }
 
   /** A dark shirt: bright enough text starts white, or it would vanish into the cloth. */
@@ -1046,19 +1126,6 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
     return 0.299 * r + 0.587 * g + 0.114 * b < 110;
   }
 
-  protected addText(): void {
-    // The customer's own colour wins; the untouched default follows the shirt.
-    const chosen = this.textColor.toLowerCase() !== '#111111';
-    this.canvas.addText(this.newText, chosen ? this.textColor : this.isDarkShirt() ? '#ffffff' : '#111111');
-    this.newText = '';
-    // On a phone, get the panel out of the way so the new text can be seen and moved.
-    this.textInputRef?.nativeElement.blur();
-    this.sheet.set(null);
-  }
-
-  protected applyTextColor(): void {
-    this.canvas.setActiveTextColor(this.textColor);
-  }
 
   protected addLogo(url: string): void {
     void this.canvas.addImage(url);
