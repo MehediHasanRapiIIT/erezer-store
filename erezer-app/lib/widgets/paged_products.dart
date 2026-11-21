@@ -3,7 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import '../app/theme.dart';
 import '../data/models.dart';
 import 'common.dart';
-import 'product_card.dart';
+import '../features/home/home_bands.dart';
 
 /// Loads one page of products; pages count from 0.
 typedef PageLoader = Future<PageOf<Product>> Function(int page);
@@ -80,7 +80,7 @@ class _PagedProductGridState extends State<PagedProductGrid> {
   Widget build(BuildContext context) {
     if (_items.isEmpty && _error != null) return ErrorRetry(message: _error!, onRetry: _loadMore);
     if (_items.isEmpty && !_done) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.ink));
+      return Center(child: CircularProgressIndicator(color: AppColors.ink));
     }
     return RefreshIndicator(
       color: AppColors.ink,
@@ -102,10 +102,21 @@ class _PagedProductGridState extends State<PagedProductGrid> {
             else
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                sliver: SliverGrid.builder(
-                  gridDelegate: productGridDelegate,
-                  itemCount: _items.length,
-                  itemBuilder: (_, i) => ProductCard(product: _items[i]),
+                sliver: SliverList.builder(
+                  itemCount: (_items.length + 1) ~/ 2,
+                  itemBuilder: (_, row) => IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(child: GridProductCard(product: _items[row * 2])),
+                        Expanded(
+                          child: row * 2 + 1 < _items.length
+                              ? GridProductCard(product: _items[row * 2 + 1])
+                              : const SizedBox.shrink(),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             SliverToBoxAdapter(
@@ -115,7 +126,7 @@ class _PagedProductGridState extends State<PagedProductGrid> {
                   child: _error != null
                       ? TextButton(onPressed: _loadMore, child: const Text('Couldn’t load more. Tap to try again.'))
                       : _loading
-                      ? const CircularProgressIndicator(color: AppColors.ink)
+                      ? CircularProgressIndicator(color: AppColors.ink)
                       : const SizedBox.shrink(),
                 ),
               ),

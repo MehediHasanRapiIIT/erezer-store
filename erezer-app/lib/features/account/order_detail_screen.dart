@@ -109,7 +109,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       body: o == null
           ? (_error != null
                 ? ErrorRetry(message: _error!, onRetry: _load)
-                : const Center(child: CircularProgressIndicator(color: AppColors.ink)))
+                : Center(child: CircularProgressIndicator(color: AppColors.ink)))
           : RefreshIndicator(
               color: AppColors.ink,
               onRefresh: _load,
@@ -121,7 +121,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                       Expanded(
                         child: Text(
                           o.createdAt == null ? '' : 'Placed ${shortDate(o.createdAt!)}',
-                          style: const TextStyle(color: AppColors.muted),
+                          style: TextStyle(color: AppColors.muted),
                         ),
                       ),
                       StatusChip(o.status),
@@ -165,7 +165,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                               if (o.refunded != null && o.refunded! > 0) 'Refunded ${taka(o.refunded!)}',
                             ].whereType<String>().join('\n'),
                             key: const Key('order-payment'),
-                            style: const TextStyle(color: AppColors.muted, height: 1.4),
+                            style: TextStyle(color: AppColors.muted, height: 1.4),
                           ),
                         ),
                       ],
@@ -282,7 +282,7 @@ class OrderLines extends StatelessWidget {
                     Text(l.name, style: const TextStyle(fontWeight: FontWeight.w600)),
                     Text(
                       [if ((l.size ?? '').isNotEmpty) l.size!, '${l.quantity} × ${taka(l.price)}'].join(' · '),
-                      style: const TextStyle(color: AppColors.muted, fontSize: 13),
+                      style: TextStyle(color: AppColors.muted, fontSize: 13),
                     ),
                   ],
                 ),

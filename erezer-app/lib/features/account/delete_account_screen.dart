@@ -74,7 +74,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
             style: TextStyle(height: 1.5),
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'Your past orders stay in our records for accounting, without your name, email, phone or address. '
             'This cannot be undone.',
             style: TextStyle(color: AppColors.muted, height: 1.4),
@@ -88,11 +88,11 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
             decoration: InputDecoration(
               labelText: 'Your password',
               filled: true,
-              fillColor: Colors.white,
+              fillColor: AppColors.card,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.line),
+                borderSide: BorderSide(color: AppColors.line),
               ),
             ),
             onSubmitted: (_) => _delete(),
@@ -113,10 +113,10 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
               onPressed: _busy ? null : _delete,
               style: FilledButton.styleFrom(backgroundColor: const Color(0xFFB91C1C)),
               child: _busy
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 22,
                       height: 22,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      child: CircularProgressIndicator(color: AppColors.onInk, strokeWidth: 2),
                     )
                   : const Text('Delete my account', style: TextStyle(fontSize: 16)),
             ),

@@ -573,6 +573,20 @@ const SKIN_TONES = [
               <p class="app-muted mt-1 text-xs">Total pieces: {{ totalQty }}</p>
             </div>
 
+            @if (asksFit()) {
+              <div class="mt-3" data-testid="submit-fit">
+                <span class="text-xs font-semibold uppercase tracking-wide">Fit *</span>
+                <div class="mt-1 grid grid-cols-2 gap-2">
+                  @for (f of hoodieFits; track f) {
+                    <button type="button" (click)="submitFit = f" [attr.aria-pressed]="submitFit === f"
+                      class="rounded-lg border-2 px-3 py-2 text-sm font-semibold transition"
+                      [class.border-black]="submitFit === f" [class.dark:border-white]="submitFit === f"
+                      [class.border-neutral-200]="submitFit !== f" [class.dark:border-neutral-700]="submitFit !== f">{{ f }}</button>
+                  }
+                </div>
+              </div>
+            }
+
             <div class="mt-3">
               <span class="text-xs font-semibold uppercase tracking-wide">Print / Embroidery technique *</span>
               <select [(ngModel)]="submitTechnique" class="cd-input mt-1 w-full">
@@ -901,6 +915,10 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
   /** Size → quantity for the structured order grid, plus technique + free-text notes. */
   protected sizeQty: Record<string, number> = {};
   protected submitTechnique = '';
+  /** A hoodie is made in either fit from the same design; the customer says which when ordering. */
+  protected readonly hoodieFits = ['Regular fit', 'Drop shoulder'];
+  protected submitFit = '';
+  protected readonly asksFit = computed(() => /hood(ie|y)/i.test(this.selectedItemName()));
   protected notesExtra = '';
 
   private canvasReady = false;
@@ -1265,6 +1283,7 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
       .map((s) => `<li>${s}: ${this.sizeQty[s]}</li>`);
     const parts: string[] = [];
     if (rows.length) parts.push(`<p><strong>Size-wise quantity</strong></p><ul>${rows.join('')}</ul>`);
+    if (this.asksFit() && this.submitFit) parts.push(`<p><strong>Fit:</strong> ${this.escapeHtml(this.submitFit)}</p>`);
     const tech = this.submitTechnique || this.selectedTechnique;
     if (tech) parts.push(`<p><strong>Print / Embroidery technique:</strong> ${this.escapeHtml(tech)}</p>`);
     if (this.notesExtra.trim()) parts.push(`<p><strong>Notes:</strong> ${this.escapeHtml(this.notesExtra.trim())}</p>`);
@@ -1289,6 +1308,10 @@ export class CustomDesignPage implements AfterViewInit, OnDestroy {
     }
     if (this.totalQty <= 0) {
       this.submitError.set('Enter a quantity for at least one size.');
+      return;
+    }
+    if (this.asksFit() && !this.submitFit) {
+      this.submitError.set('Please choose the fit: Regular fit or Drop shoulder.');
       return;
     }
     const anyContent = this.viewTabs.some((t) => !this.canvas.isViewEmpty(t.id));

@@ -48,7 +48,10 @@ class AccountScreen extends ConsumerWidget {
                         child: FilledButton(
                           key: const Key('go-login'),
                           onPressed: () => context.push('/account/login'),
-                          style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppColors.ink),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: AppColors.black,
+                          ),
                           child: const Text('Log in'),
                         ),
                       ),
@@ -79,7 +82,7 @@ class AccountScreen extends ConsumerWidget {
                   backgroundColor: AppColors.ink,
                   child: Text(
                     (session.firstName.isNotEmpty ? session.firstName[0] : session.email[0]).toUpperCase(),
-                    style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700),
+                    style: TextStyle(color: AppColors.onInk, fontSize: 22, fontWeight: FontWeight.w700),
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -92,7 +95,7 @@ class AccountScreen extends ConsumerWidget {
                         key: const Key('account-hello'),
                         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
                       ),
-                      Text(session.email, style: const TextStyle(color: AppColors.muted)),
+                      Text(session.email, style: TextStyle(color: AppColors.muted)),
                     ],
                   ),
                 ),
@@ -232,10 +235,7 @@ class _VerifyEmailNoticeState extends ConsumerState<VerifyEmailNotice> {
             'We sent a link to ${session.email}. Open it to confirm, then tap "I have confirmed". '
             'Check your spam folder if you can\'t find it.',
           ),
-          if (_note != null) ...[
-            const SizedBox(height: 6),
-            Text(_note!, style: const TextStyle(color: AppColors.muted)),
-          ],
+          if (_note != null) ...[const SizedBox(height: 6), Text(_note!, style: TextStyle(color: AppColors.muted))],
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,

@@ -87,11 +87,11 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                       labelText: 'Order number',
                       hintText: 'EZ-123456',
                       filled: true,
-                      fillColor: Colors.white,
+                      fillColor: AppColors.card,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: AppColors.line),
+                        borderSide: BorderSide(color: AppColors.line),
                       ),
                     ),
                   ),
@@ -111,7 +111,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            if (_busy) const Center(child: CircularProgressIndicator(color: AppColors.ink)),
+            if (_busy) Center(child: CircularProgressIndicator(color: AppColors.ink)),
             if (_error != null)
               Text(
                 _error!,
@@ -166,7 +166,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                                 total: t.total,
                               ) ??
                               '',
-                          style: const TextStyle(color: AppColors.muted),
+                          style: TextStyle(color: AppColors.muted),
                         ),
                       ),
                     ],

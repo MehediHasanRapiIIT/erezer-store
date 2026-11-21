@@ -7,6 +7,7 @@ import '../../app/theme.dart';
 import '../../data/cart.dart';
 import '../../data/pricing.dart';
 import '../../widgets/common.dart';
+import '../product/quick_add.dart';
 
 /// The bag: each item with its size, quantity buttons and a remove button,
 /// and the way to checkout.
@@ -18,6 +19,7 @@ class CartScreen extends ConsumerWidget {
     final lines = ref.watch(cartProvider);
     final cart = ref.read(cartProvider.notifier);
     final subtotal = lines.fold<double>(0, (sum, l) => sum + l.unitPrice * l.quantity);
+    final sizesMissing = ref.watch(linesNeedingSizeProvider).isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -68,8 +70,19 @@ class CartScreen extends ConsumerWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(fontWeight: FontWeight.w600),
                               ),
-                              if (l.label.isNotEmpty)
-                                Text(l.label, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+                              if (l.sizeMissing)
+                                Text(
+                                  'SIZE: NOT CHOSEN YET',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.5,
+                                    color: AppColors.dark ? const Color(0xFFFCD34D) : const Color(0xFFB45309),
+                                  ),
+                                )
+                              else if (l.label.isNotEmpty)
+                                Text(l.label, style: TextStyle(color: AppColors.muted, fontSize: 13)),
+                              CartSizePicker(key: ValueKey('picker-${l.key}'), line: l),
                               const SizedBox(height: 4),
                               Text(taka(l.unitPrice * l.quantity), style: const TextStyle(fontWeight: FontWeight.w700)),
                               const SizedBox(height: 6),
@@ -115,8 +128,8 @@ class CartScreen extends ConsumerWidget {
           : SafeArea(
               child: Container(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
+                decoration: BoxDecoration(
+                  color: AppColors.card,
                   border: Border(top: BorderSide(color: AppColors.line)),
                 ),
                 child: Column(
@@ -133,20 +146,48 @@ class CartScreen extends ConsumerWidget {
                       ],
                     ),
                     const SizedBox(height: 2),
-                    const Align(
+                    Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
                         'Delivery is added at checkout.',
                         style: TextStyle(color: AppColors.muted, fontSize: 13),
                       ),
                     ),
+                    if (sizesMissing) ...[
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Choose a size for each item to place your order.',
+                          key: const Key('size-needed'),
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.dark ? const Color(0xFFFCD34D) : const Color(0xFFB45309),
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     SizedBox(
                       width: double.infinity,
                       height: 52,
                       child: FilledButton(
                         key: const Key('go-checkout'),
-                        onPressed: () => context.push('/cart/checkout'),
+                        // Not while an item still has no size.
+                        onPressed: () {
+                          if (!sizesMissing) {
+                            context.push('/cart/checkout');
+                            return;
+                          }
+                          ScaffoldMessenger.of(context)
+                            ..hideCurrentSnackBar()
+                            ..showSnackBar(
+                              const SnackBar(
+                                content: Text('Please select a size for each item before placing your order.'),
+                              ),
+                            );
+                        },
                         child: const Text('Checkout', style: TextStyle(fontSize: 16)),
                       ),
                     ),

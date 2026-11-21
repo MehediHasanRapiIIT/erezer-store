@@ -9,12 +9,17 @@ import 'package:http/testing.dart';
 void main() {
   final sent = <String, Map<String, dynamic>>{};
   final headers = <String, Map<String, String>>{};
-  final api = ApiClient(client: MockClient((req) async {
-    sent[req.url.path] = jsonDecode(req.body) as Map<String, dynamic>;
-    headers[req.url.path] = req.headers;
-    return http.Response(jsonEncode({'id': 'o1', 'orderNumber': 'EZ-1'}), 201,
-        headers: {'content-type': 'application/json'});
-  }));
+  final api = ApiClient(
+    client: MockClient((req) async {
+      sent[req.url.path] = jsonDecode(req.body) as Map<String, dynamic>;
+      headers[req.url.path] = req.headers;
+      return http.Response(
+        jsonEncode({'id': 'o1', 'orderNumber': 'EZ-1'}),
+        201,
+        headers: {'content-type': 'application/json'},
+      );
+    }),
+  );
   const line = CartLine(productId: 1, quantity: 1, name: 'Tee', unitPrice: 500, variantId: 10);
 
   test("an order carries the phone that placed it, so its updates reach that phone", () async {

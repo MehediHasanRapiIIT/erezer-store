@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  CustomerHistory,
   OrderResponse,
   OrderStatus,
   OrderStatusOption,
@@ -38,6 +39,17 @@ export class OrderService {
 
   getSummary(): Observable<OrderSummary> {
     return this.http.get<OrderSummary>(`${this.baseUrl}/admin/orders/summary`);
+  }
+
+  /** Customer history counts for a page of orders: order id → counts. */
+  getCustomerHistoryCounts(orderIds: string[]): Observable<Record<string, CustomerHistory>> {
+    return this.http.get<Record<string, CustomerHistory>>(`${this.baseUrl}/admin/orders/customer-history`,
+      { params: { ids: orderIds.join(',') } });
+  }
+
+  /** Every other order from this order's phone number, newest first, with the counts. */
+  getCustomerHistory(orderId: string): Observable<CustomerHistory> {
+    return this.http.get<CustomerHistory>(`${this.baseUrl}/admin/orders/${orderId}/customer-history`);
   }
 
   /**

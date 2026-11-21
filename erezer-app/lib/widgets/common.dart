@@ -13,11 +13,11 @@ class NetImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final placeholder = Container(
-      color: const Color(0xFFF0F0F0),
+      color: AppColors.soft,
       alignment: Alignment.center,
       child: Text(
         fallback.isEmpty ? '' : fallback[0].toUpperCase(),
-        style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: AppColors.muted),
+        style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: AppColors.muted),
       ),
     );
     if (url == null || url!.isEmpty) return placeholder;
@@ -32,7 +32,7 @@ class NetImage extends StatelessWidget {
           fit: BoxFit.cover,
           memCacheWidth: width,
           fadeInDuration: const Duration(milliseconds: 200),
-          placeholder: (context, _) => Container(color: const Color(0xFFF0F0F0)),
+          placeholder: (context, _) => Container(color: AppColors.soft),
           errorWidget: (context, _, _) => placeholder,
         );
       },
@@ -54,12 +54,12 @@ class ErrorRetry extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.wifi_off_rounded, size: 40, color: AppColors.muted),
+            Icon(Icons.wifi_off_rounded, size: 40, color: AppColors.muted),
             const SizedBox(height: 12),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.muted),
+              style: TextStyle(color: AppColors.muted),
             ),
             const SizedBox(height: 16),
             FilledButton(onPressed: onRetry, child: const Text('Try again')),
@@ -88,7 +88,7 @@ class EmptyState extends StatelessWidget {
             Container(
               width: 72,
               height: 72,
-              decoration: const BoxDecoration(color: Color(0xFFF0F0F0), shape: BoxShape.circle),
+              decoration: BoxDecoration(color: AppColors.soft, shape: BoxShape.circle),
               child: Icon(icon, size: 32),
             ),
             const SizedBox(height: 16),
@@ -97,7 +97,7 @@ class EmptyState extends StatelessWidget {
             Text(
               text,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.muted),
+              style: TextStyle(color: AppColors.muted),
             ),
           ],
         ),

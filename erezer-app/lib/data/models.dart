@@ -53,6 +53,12 @@ class StoreSettings {
     this.payBkash = true,
     this.payCard = true,
     this.couponsEnabled = true,
+    this.homeLayout,
+    this.highlights = const [],
+    this.story,
+    this.marquee = const [],
+    this.promises = const [],
+    this.outlets = const [],
   });
 
   factory StoreSettings.fromJson(Map<String, dynamic> j) => StoreSettings(
@@ -67,6 +73,21 @@ class StoreSettings {
     payBkash: j['paymentBkashEnabled'] as bool? ?? true,
     payCard: j['paymentCardEnabled'] as bool? ?? true,
     couponsEnabled: j['couponsEnabled'] as bool? ?? true,
+    homeLayout: j['homeLayout'] is List
+        ? [
+            for (final s in _list(j['homeLayout']))
+              if (s['enabled'] == true && s['key'] is String) s['key'] as String,
+          ]
+        : null,
+    highlights: _list(j['highlights']).map(Highlight.fromJson).toList(),
+    story: j['brandStory'] is Map<String, dynamic>
+        ? BrandStory.fromJson(j['brandStory'] as Map<String, dynamic>)
+        : null,
+    marquee: (j['marquee'] is Map && (j['marquee'] as Map)['enabled'] != false)
+        ? (((j['marquee'] as Map)['items'] as List?) ?? const []).whereType<String>().toList()
+        : const [],
+    promises: _list((j['footer'] as Map<String, dynamic>?)?['promises']).map(FooterPromise.fromJson).toList(),
+    outlets: _list((j['footer'] as Map<String, dynamic>?)?['outlets']).map(ShopOutlet.fromJson).toList(),
   );
 
   final String? supportPhone;
@@ -82,6 +103,23 @@ class StoreSettings {
 
   /// The admin's promo code switch.
   final bool couponsEnabled;
+
+  /// The home page bands the admin left switched on, top to bottom (Admin →
+  /// Home page layout); null from a shop that never set one.
+  final List<String>? homeLayout;
+
+  /// The admin's highlights band ("2–4 days · Fast delivery").
+  final List<Highlight> highlights;
+
+  /// "Our story" on the home page.
+  final BrandStory? story;
+
+  /// The scrolling strip's words; empty when switched off.
+  final List<String> marquee;
+
+  /// The shop's promises and shops (the website's footer).
+  final List<FooterPromise> promises;
+  final List<ShopOutlet> outlets;
 
   /// The ways to pay the shop takes: CASH, BKASH, CARD.
   List<String> get paymentMethods => [if (payCod) 'CASH', if (payBkash) 'BKASH', if (payCard) 'CARD'];
@@ -213,6 +251,24 @@ class Product {
   final Map<String, int> effectiveFitSizeChartIds;
 
   bool get isOutOfStock => !isAvailable || stockStatus == 'OUT_OF_STOCK';
+
+  /// What a product card needs, for keeping on the phone (wishlist, recently viewed).
+  Map<String, dynamic> toCardJson() => {
+    'id': id,
+    'categoryId': categoryId,
+    'categoryName': categoryName,
+    'name': name,
+    'description': '',
+    'price': price,
+    'discountPrice': discountPrice,
+    'saleByAmount': saleByAmount,
+    'imageUrl': imageUrl,
+    'isAvailable': isAvailable,
+    'isNewArrival': isNewArrival,
+    'stockStatus': stockStatus,
+    'discountExcluded': discountExcluded,
+    'categoryDiscountExcluded': categoryDiscountExcluded,
+  };
 }
 
 /// One buyable version of a product: a size, maybe in a fit and a colour.
@@ -321,6 +377,7 @@ class ShopBanner {
     required this.imageUrl,
     this.mobileImageUrl,
     this.title,
+    this.details,
     this.ctaLabel,
     this.ctaLink,
   });
@@ -330,6 +387,7 @@ class ShopBanner {
     imageUrl: j['imageUrl'] as String? ?? '',
     mobileImageUrl: j['mobileImageUrl'] as String?,
     title: j['promotionTitle'] as String?,
+    details: j['promotionDetails'] as String?,
     ctaLabel: j['ctaLabel'] as String?,
     ctaLink: j['ctaLink'] as String?,
   );
@@ -338,6 +396,7 @@ class ShopBanner {
   final String imageUrl;
   final String? mobileImageUrl;
   final String? title;
+  final String? details;
   final String? ctaLabel;
   final String? ctaLink;
 }
@@ -802,4 +861,129 @@ class Profile {
   final String lastName;
   final String email;
   final String? phone;
+}
+
+/// One box of the highlights band.
+class Highlight {
+  Highlight({required this.icon, required this.value, required this.label, required this.description});
+
+  factory Highlight.fromJson(Map<String, dynamic> j) => Highlight(
+    icon: j['icon'] as String? ?? 'star',
+    value: j['value'] as String? ?? '',
+    label: j['label'] as String? ?? '',
+    description: j['description'] as String? ?? '',
+  );
+
+  final String icon;
+  final String value;
+  final String label;
+  final String description;
+}
+
+class SocialLink {
+  SocialLink({required this.handle, this.url});
+  final String handle;
+  final String? url;
+}
+
+/// "Our story" (Admin → Settings): words, a button, social accounts and photos.
+class BrandStory {
+  BrandStory({
+    this.eyebrow,
+    this.heading,
+    this.body,
+    this.ctaLabel,
+    this.ctaLink,
+    this.socials = const [],
+    this.images = const [],
+  });
+
+  factory BrandStory.fromJson(Map<String, dynamic> j) => BrandStory(
+    eyebrow: j['eyebrow'] as String?,
+    heading: j['heading'] as String?,
+    body: j['body'] as String?,
+    ctaLabel: j['ctaLabel'] as String?,
+    ctaLink: j['ctaLink'] as String?,
+    socials: [
+      for (final s in _list(j['socials']))
+        if ((s['handle'] as String? ?? '').isNotEmpty)
+          SocialLink(handle: s['handle'] as String, url: s['url'] as String?),
+    ],
+    images: ((j['images'] as List?) ?? const []).whereType<String>().toList(),
+  );
+
+  final String? eyebrow;
+  final String? heading;
+  final String? body;
+  final String? ctaLabel;
+  final String? ctaLink;
+  final List<SocialLink> socials;
+  final List<String> images;
+}
+
+class FooterPromise {
+  FooterPromise({required this.icon, required this.title, required this.description});
+
+  factory FooterPromise.fromJson(Map<String, dynamic> j) => FooterPromise(
+    icon: j['icon'] as String? ?? '',
+    title: j['title'] as String? ?? '',
+    description: j['description'] as String? ?? '',
+  );
+
+  final String icon;
+  final String title;
+  final String description;
+}
+
+/// One of the shop's own stores.
+class ShopOutlet {
+  ShopOutlet({required this.name, this.imageUrl, this.address, this.phone, this.mapUrl});
+
+  factory ShopOutlet.fromJson(Map<String, dynamic> j) => ShopOutlet(
+    name: j['name'] as String? ?? '',
+    imageUrl: j['imageUrl'] as String?,
+    address: j['address'] as String?,
+    phone: j['phone'] as String?,
+    mapUrl: j['mapUrl'] as String?,
+  );
+
+  final String name;
+  final String? imageUrl;
+  final String? address;
+  final String? phone;
+  final String? mapUrl;
+}
+
+/// A running flash sale: its name, when it ends and its products.
+class FlashSale {
+  FlashSale({
+    required this.name,
+    required this.endsAt,
+    required this.products,
+    this.label,
+    this.isPercent = true,
+    this.value = 0,
+    this.couponCode,
+  });
+
+  factory FlashSale.fromJson(Map<String, dynamic> j) => FlashSale(
+    name: j['name'] as String? ?? '',
+    label: j['label'] as String?,
+    endsAt: DateTime.tryParse(j['endsAt'] as String? ?? '')?.toLocal() ?? DateTime.now(),
+    isPercent: j['discountType'] != 'FLAT',
+    value: _num(j['discountValue']),
+    couponCode: j['couponCode'] as String?,
+    products: _list(j['products']).map(Product.fromJson).toList(),
+  );
+
+  final String name;
+  final String? label;
+  final DateTime endsAt;
+  final bool isPercent;
+  final double value;
+  final String? couponCode;
+  final List<Product> products;
+
+  /// "20% OFF" or "৳50 OFF".
+  String get badge => isPercent ? '${value.round()}% OFF' : '${_money(value)} OFF';
 }

@@ -20,7 +20,7 @@ class StatusChip extends StatelessWidget {
     final (bg, fg) = switch (status) {
       'DELIVERED' => (const Color(0xFFDCFCE7), const Color(0xFF166534)),
       'CANCELLED' || 'RETURNED' => (const Color(0xFFFEE2E2), const Color(0xFF991B1B)),
-      'PLACED' || 'PENDING' => (const Color(0xFFF5F5F5), AppColors.ink),
+      'PLACED' || 'PENDING' => (AppColors.soft, AppColors.ink),
       _ => (const Color(0xFFDBEAFE), const Color(0xFF1E40AF)),
     };
     return Container(
@@ -54,7 +54,7 @@ class OrderTimeline extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
           ),
-          if (at != null) Text(shortDate(at), style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+          if (at != null) Text(shortDate(at), style: TextStyle(color: AppColors.muted, fontSize: 12)),
         ],
       );
     }
@@ -103,10 +103,10 @@ class _Step extends StatelessWidget {
                   height: 20,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: done ? AppColors.ink : Colors.white,
+                    color: done ? AppColors.ink : AppColors.card,
                     border: Border.all(color: done ? AppColors.ink : AppColors.line, width: 2),
                   ),
-                  child: done ? const Icon(Icons.check, size: 13, color: Colors.white) : null,
+                  child: done ? Icon(Icons.check, size: 13, color: AppColors.onInk) : null,
                 ),
                 if (!last) Expanded(child: Container(width: 2, color: done ? AppColors.ink : AppColors.line)),
               ],
@@ -127,7 +127,7 @@ class _Step extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (at != null) Text(shortDate(at!), style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                  if (at != null) Text(shortDate(at!), style: TextStyle(color: AppColors.muted, fontSize: 12)),
                 ],
               ),
             ),

@@ -14,6 +14,7 @@ class CartLine {
     this.label = '',
     this.imageUrl,
     this.maxQuantity,
+    this.sizeMissing = false,
   });
 
   factory CartLine.fromJson(Map<String, dynamic> j) => CartLine(
@@ -25,6 +26,7 @@ class CartLine {
     imageUrl: j['imageUrl'] as String?,
     unitPrice: (j['unitPrice'] as num?)?.toDouble() ?? 0,
     maxQuantity: j['maxQuantity'] as int?,
+    sizeMissing: j['sizeMissing'] as bool? ?? false,
   );
 
   Map<String, dynamic> toJson() => {
@@ -36,6 +38,7 @@ class CartLine {
     'imageUrl': imageUrl,
     'unitPrice': unitPrice,
     'maxQuantity': maxQuantity,
+    'sizeMissing': sizeMissing,
   };
 
   final int productId;
@@ -53,6 +56,10 @@ class CartLine {
   /// How many the shop has, when it counts them.
   final int? maxQuantity;
 
+  /// Added from a product card for a product that comes in sizes: the cart and
+  /// the checkout ask for the size before the order can be placed.
+  final bool sizeMissing;
+
   String get key => '$productId:${variantId ?? ''}';
 
   CartLine withQuantity(int q) => CartLine(
@@ -64,6 +71,7 @@ class CartLine {
     imageUrl: imageUrl,
     unitPrice: unitPrice,
     maxQuantity: maxQuantity,
+    sizeMissing: sizeMissing,
   );
 }
 
@@ -126,6 +134,23 @@ class CartNotifier extends Notifier<List<CartLine>> {
     return true;
   }
 
+  /// The size picked for [old] (first time or a change): it becomes [chosen],
+  /// same quantity, in the same place (joined with that size if already there).
+  void replace(CartLine old, CartLine chosen) {
+    final i = state.indexWhere((l) => l.key == old.key);
+    if (i < 0) return;
+    final rest = [...state]..removeAt(i);
+    final same = rest.indexWhere((l) => l.key == chosen.key);
+    final limit = _limit(chosen);
+    if (same >= 0) {
+      rest[same] = chosen.withQuantity((rest[same].quantity + old.quantity).clamp(1, limit));
+    } else {
+      rest.insert(i, chosen.withQuantity(old.quantity.clamp(1, limit)));
+    }
+    state = rest;
+    _save();
+  }
+
   void setQuantity(String key, int quantity) {
     if (quantity <= 0) return remove(key);
     state = [for (final l in state) l.key == key ? l.withQuantity(quantity.clamp(1, _limit(l))) : l];
@@ -148,6 +173,11 @@ class CartNotifier extends Notifier<List<CartLine>> {
 final cartProvider = NotifierProvider<CartNotifier, List<CartLine>>(CartNotifier.new);
 
 /// How many items are in the bag, for the badge on the Cart tab.
+/// The items still waiting for their size.
+final linesNeedingSizeProvider = Provider<List<CartLine>>(
+  (ref) => ref.watch(cartProvider).where((l) => l.sizeMissing).toList(),
+);
+
 final cartCountProvider = Provider<int>((ref) => ref.watch(cartProvider).fold(0, (n, l) => n + l.quantity));
 
 /// The customer's delivery details from their last order, so they needn't

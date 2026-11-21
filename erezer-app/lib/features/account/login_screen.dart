@@ -89,16 +89,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   InputDecoration _field(String label, {Widget? suffix}) => InputDecoration(
     labelText: label,
     filled: true,
-    fillColor: Colors.white,
+    fillColor: AppColors.card,
     suffixIcon: suffix,
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: AppColors.line),
+      borderSide: BorderSide(color: AppColors.line),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: AppColors.ink),
+      borderSide: BorderSide(color: AppColors.ink),
     ),
   );
 
@@ -121,7 +121,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               Text(
                 _signUp ? 'Create your account to see your orders in one place.' : 'Welcome back.',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.muted),
+                style: TextStyle(color: AppColors.muted),
               ),
               const SizedBox(height: 24),
               if (_signUp) ...[
@@ -211,10 +211,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   key: const Key('login-submit'),
                   onPressed: _busy ? null : _submit,
                   child: _busy
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 22,
                           height: 22,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          child: CircularProgressIndicator(color: AppColors.onInk, strokeWidth: 2),
                         )
                       : Text(_signUp ? 'Create account' : 'Log in', style: const TextStyle(fontSize: 16)),
                 ),

@@ -563,6 +563,28 @@ reload the shop's home page.
 
 ---
 
+## 15. Customer history (spotting fake orders)
+
+Every order is matched to the customer's other orders by phone number, however
+it was typed: `01712-345678`, `+8801712345678` and `01712345678` are one
+customer (`orders.phone_key`, the last 10 digits, from migration V50).
+
+- **Orders list:** a badge under the phone. Green means "5 delivered". Amber
+  means mostly delivered, with some cancelled or returned. Red means as many
+  cancelled or returned as delivered, or more. Grey means "New customer".
+- **Order page:** a "Customer history" box with the counts and every other
+  order from that number. Each one opens in a new tab.
+- Anyone who can see orders (`ORDERS_VIEW`) sees it; no new permission.
+
+```bash
+curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8080/admin/orders/customer-history?ids=<id1>,<id2>"
+curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8080/admin/orders/<id>/customer-history"
+```
+
+Unit test: `CustomerHistoryServiceTest`.
+
+---
+
 ## What is not wired up locally
 
 These are stubbed on purpose, and are **not** signs of a broken setup:

@@ -194,9 +194,9 @@ class _Waiting extends StatelessWidget {
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const CircularProgressIndicator(color: AppColors.ink),
+        CircularProgressIndicator(color: AppColors.ink),
         const SizedBox(height: 16),
-        Text(text, style: const TextStyle(color: AppColors.muted)),
+        Text(text, style: TextStyle(color: AppColors.muted)),
       ],
     ),
   );
@@ -242,7 +242,7 @@ class _NotPaid extends StatelessWidget {
               Text(
                 message!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.muted),
+                style: TextStyle(color: AppColors.muted),
               ),
             ],
             const SizedBox(height: 16),

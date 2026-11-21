@@ -10,7 +10,9 @@ import '../../widgets/paged_products.dart';
 /// sub-categories as chips across the top.
 class ProductListScreen extends ConsumerStatefulWidget {
   const ProductListScreen({super.key, required this.categoryId});
-  final int categoryId;
+
+  /// Null for every product in the shop.
+  final int? categoryId;
 
   @override
   ConsumerState<ProductListScreen> createState() => _ProductListScreenState();
@@ -23,13 +25,16 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
   Widget build(BuildContext context) {
     final all = ref.watch(categoriesProvider).value ?? const [];
     final category = all.where((c) => c.id == widget.categoryId).firstOrNull;
-    final subs = all.where((c) => c.parentId == widget.categoryId).toList()
+    final subs = all.where((c) => widget.categoryId != null && c.parentId == widget.categoryId).toList()
       ..sort((a, b) => a.shopOrder.compareTo(b.shopOrder));
     final api = ref.watch(apiProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(category?.name ?? 'Products', style: const TextStyle(fontWeight: FontWeight.w600)),
+        title: Text(
+          category?.name ?? (widget.categoryId == null ? 'All products' : 'Products'),
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
         actions: [
           IconButton(icon: const Icon(Icons.search), tooltip: 'Search', onPressed: () => openSearch(context)),
           PopupMenuButton<ProductSort>(
@@ -66,7 +71,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: Text(
                 [if (total != null) '$total products', if (sort != ProductSort.featured) sort.label].join(' · '),
-                style: const TextStyle(color: AppColors.muted),
+                style: TextStyle(color: AppColors.muted),
               ),
             ),
           ],

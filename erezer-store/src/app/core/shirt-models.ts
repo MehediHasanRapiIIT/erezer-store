@@ -24,8 +24,10 @@ export interface ShirtModel {
   fabric?: { map: string; normal: string };
   /** Its licence (CC BY 4.0) asks for this wherever it's shown. */
   credit: { title: string; url: string; by: string };
-  /** The man in the Preview, fitted to this shirt (model-source/bake_man.mjs). */
-  person: string;
+  /** The man in the Preview, fitted to this shirt (model-source/bake_man.mjs). None: no "on a man" choice. */
+  person?: string;
+  /** How much wider than a T-shirt it is, arms out, so the view stands back far enough. */
+  wide?: number;
 }
 
 export const REGULAR_SHIRT: ShirtModel = {
@@ -63,8 +65,34 @@ export const DROP_SHOULDER_SHIRT: ShirtModel = {
   person: 'models/man-drop.glb',
 };
 
+/**
+ * The drop shoulder hoodie, from Marvelous Designer (model-source/bake_hoodie.mjs). The
+ * pocket carries the front's pattern, so a front design runs across it.
+ */
+export const HOODIE: ShirtModel = {
+  file: 'models/hoodie.glb',
+  places: {
+    front: { part: 'front', u: 0, width: 512, top: -377 },
+    back: { part: 'back', u: 0, width: 512, top: -377 },
+    rightSleeve: { part: 'sleeveLeft', u: 0, width: 402, top: -261 },
+    leftSleeve: { part: 'sleeveRight', u: 0, width: 402, top: -261 },
+  },
+  bodyShape: 512 / 755,
+  sleeveShape: 402 / 522,
+  sleeveStart: { rightSleeve: 0.62, leftSleeve: 0.38, y: 0.34 },
+  credit: {
+    title: 'Hoodie',
+    url: 'https://sketchfab.com/3d-models/hoodie-2c674228f1e946b5b8f508f8f818e130',
+    by: 'yogaminggames',
+  },
+  person: 'models/man-hoodie.glb',
+  wide: 1.6,
+};
+
 /** The 3D shirt for a garment, by the name the admin gave it; null means it has none. */
 export function shirtModelFor(itemName: string): ShirtModel | null {
+  // Before "drop shoulder": a "Drop Shoulder Hoodie" is a hoodie.
+  if (/hood(ie|y)/i.test(itemName)) return HOODIE;
   if (/drop[\s-]*shoulder|over[\s-]*size/i.test(itemName)) return DROP_SHOULDER_SHIRT;
   return /t-?\s?shirt|\btee\b/i.test(itemName) ? REGULAR_SHIRT : null;
 }

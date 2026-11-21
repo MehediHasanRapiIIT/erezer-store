@@ -63,6 +63,24 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             // A product code in the order's lines: the code it was placed with.
             "  OR EXISTS (SELECT 1 FROM order_item oi WHERE oi.order_id = o.id AND oi.product_code ILIKE :q)) ";
 
+    /**
+     * Customer history for the admin order list: for each of these orders, how
+     * many OTHER live orders came from the same phone number (orders.phone_key,
+     * its last 10 digits), by status. Rows: order id, status, count.
+     */
+    @Query(value = "SELECT CAST(o.id AS text), UPPER(p.order_status), COUNT(*) FROM orders o "
+            + "JOIN orders p ON p.phone_key = o.phone_key AND p.id <> o.id AND p.deleted = false "
+            + "WHERE o.id IN (:ids) AND LENGTH(o.phone_key) = 10 "
+            + "GROUP BY o.id, UPPER(p.order_status)", nativeQuery = true)
+    List<Object[]> countSamePhoneOrders(@Param("ids") List<UUID> ids);
+
+    /** The other live orders from this order's phone number, newest first (at most 100). */
+    @Query(value = "SELECT p.* FROM orders o "
+            + "JOIN orders p ON p.phone_key = o.phone_key AND p.id <> o.id AND p.deleted = false "
+            + "WHERE o.id = :id AND LENGTH(o.phone_key) = 10 "
+            + "ORDER BY p.created_at DESC, p.id LIMIT 100", nativeQuery = true)
+    List<Order> findSamePhoneOrders(@Param("id") UUID id);
+
     /** The admin order list, newest first; the id breaks ties so pages never overlap. */
     @Query(value = "SELECT * FROM orders o WHERE o.deleted = false " + ADMIN_ORDER_FILTERS
             + "ORDER BY o.created_at DESC, o.id",

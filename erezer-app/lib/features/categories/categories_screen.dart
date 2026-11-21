@@ -6,6 +6,7 @@ import '../../app/theme.dart';
 import '../../data/api_client.dart';
 import '../../data/models.dart';
 import '../../widgets/common.dart';
+import '../../widgets/shop_bar.dart';
 
 /// Every main category with its photo and product count; tapping one shows
 /// its sub-categories, which open their product lists.
@@ -16,11 +17,10 @@ class CategoriesScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final categories = ref.watch(categoriesProvider);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Categories', style: TextStyle(fontWeight: FontWeight.w600)),
-      ),
+      appBar: const ShopAppBar(title: 'Categories'),
+      endDrawer: const ShopMenu(),
       body: categories.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.ink)),
+        loading: () => Center(child: CircularProgressIndicator(color: AppColors.ink)),
         error: (e, _) => ErrorRetry(message: e.toString(), onRetry: () => ref.invalidate(categoriesProvider)),
         data: (all) {
           final top = all.where((c) => c.parentId == null).toList()..sort((a, b) => a.shopOrder.compareTo(b.shopOrder));
@@ -88,7 +88,7 @@ class _CategoryCardState extends State<_CategoryCard> {
                     children: [
                       Text(c.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 4),
-                      Text('${c.productCount} products', style: const TextStyle(color: AppColors.muted)),
+                      Text('${c.productCount} products', style: TextStyle(color: AppColors.muted)),
                     ],
                   ),
                 ),

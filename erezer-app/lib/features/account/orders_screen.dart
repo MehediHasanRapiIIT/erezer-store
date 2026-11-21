@@ -81,7 +81,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
     if (_orders.isEmpty && _error != null) {
       body = ErrorRetry(message: _error!, onRetry: _more);
     } else if (_orders.isEmpty && !_done) {
-      body = const Center(child: CircularProgressIndicator(color: AppColors.ink));
+      body = Center(child: CircularProgressIndicator(color: AppColors.ink));
     } else if (_orders.isEmpty) {
       body = Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -112,7 +112,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
               if (i == _orders.length) {
                 return Center(
                   child: _loading
-                      ? const CircularProgressIndicator(color: AppColors.ink)
+                      ? CircularProgressIndicator(color: AppColors.ink)
                       : (_error != null ? TextButton(onPressed: _more, child: const Text('Tap to load more')) : null),
                 );
               }
@@ -144,7 +144,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                         ),
                         const SizedBox(height: 4),
                         if (o.createdAt != null)
-                          Text(shortDate(o.createdAt!), style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+                          Text(shortDate(o.createdAt!), style: TextStyle(color: AppColors.muted, fontSize: 13)),
                         const SizedBox(height: 8),
                         Text(
                           o.lines.map((l) => '${l.quantity} × ${l.name}').join(', '),

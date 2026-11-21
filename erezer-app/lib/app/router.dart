@@ -17,6 +17,7 @@ import '../features/home/home_screen.dart';
 import '../features/product/product_screen.dart';
 import '../features/products/product_list_screen.dart';
 import '../features/search/search_screen.dart';
+import '../features/wishlist/wishlist_screen.dart';
 import '../data/models.dart';
 import '../widgets/app_shell.dart';
 
@@ -28,7 +29,8 @@ List<RouteBase> _shopPages() => [
   ),
   GoRoute(
     path: 'c/:id',
-    builder: (context, state) => ProductListScreen(categoryId: int.parse(state.pathParameters['id']!)),
+    // c/all: every product (the website's /shop).
+    builder: (context, state) => ProductListScreen(categoryId: int.tryParse(state.pathParameters['id']!)),
   ),
 ];
 
@@ -48,6 +50,8 @@ GoRouter createRouter() => GoRouter(
               routes: [
                 ..._shopPages(),
                 GoRoute(path: 'search', builder: (context, state) => const SearchScreen()),
+                GoRoute(path: 'wishlist', builder: (context, state) => const WishlistScreen()),
+                GoRoute(path: 'flash-sale', builder: (context, state) => const FlashSaleScreen()),
               ],
             ),
           ],

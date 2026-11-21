@@ -5,6 +5,7 @@
  *
  *   node model-source/bake_man.mjs "C:/path/to/Universal Base Characters[Standard]"
  *   node model-source/bake_man.mjs "C:/path/to/Universal Base Characters[Standard]" drop
+ *   node model-source/bake_man.mjs "C:/path/to/Universal Base Characters[Standard]" hoodie
  *
  * The man is "Universal Base Characters" by Quaternius (CC0). The pack is not kept
  * here. This poses him for the shop's shirt (public/models/tshirt.glb) and fixes that
@@ -57,14 +58,17 @@ async function bake({ choice, hairstyles }) {
   const SHIRTS = {
     regular: { file: 'tshirt.glb', out: 'man.glb', collar: { z: -0.036, rx: 0.09, rz: 0.08 }, pictures: true },
     drop: { file: 'tshirt-drop.glb', out: 'man-drop.glb', collar: { z: -0.038, rx: 0.1, rz: 0.08 }, pictures: false },
+    // Long sleeves: his arms go straight down them, hidden, and only his hands show.
+    // The hoodie sits lower on him than the T-shirts and ends higher, at its waistband.
+    hoodie: { file: 'hoodie.glb', out: 'man-hoodie.glb', collar: { z: 0.02, rx: 0.1, rz: 0.09 }, pictures: false, long: true, lift: -0.12, hem: -0.43, forward: 0.065, hips: 0.8, deepNeck: 0.06 },
   };
   const fit = SHIRTS[choice];
   if (!fit) throw new Error(`No shirt called ${choice}`);
   const THREE = await import('three');
   const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
   const { GLTFExporter } = await import('three/addons/exporters/GLTFExporter.js');
-  const SCALE = 1.32, OFFSET = new THREE.Vector3(0, -1.58, -0.01);
-  const HEM = -0.49, LEGS_END = -1.45;
+  const SCALE = 1.32, OFFSET = new THREE.Vector3(0, -1.58 + (fit.lift ?? 0), -0.01 + (fit.forward ?? 0));
+  const HEM = fit.hem ?? -0.49, LEGS_END = -1.45;
   const COLLAR = fit.collar;
 
   const loader = new GLTFLoader();
@@ -90,6 +94,17 @@ async function bake({ choice, hairstyles }) {
     return end.reduce((sum, p) => sum.add(p), new THREE.Vector3()).divideScalar(end.length);
   };
   const ends = { l: sleeveEnd('sleeveRight'), r: sleeveEnd('sleeveLeft') };
+  // A long sleeve's cuff opening: the far end of the cuff (in the 'edge' part) on that side.
+  const cuffEnd = (side) => {
+    const mesh = shirt.scene.getObjectByName('edge'), pos = mesh.geometry.attributes.position, pts = [];
+    for (let i = 0; i < pos.count; i += 2) {
+      const p = mesh.localToWorld(new THREE.Vector3().fromBufferAttribute(pos, i));
+      if (p.x * side > 0.4) pts.push(p);
+    }
+    pts.sort((a, b) => (Math.abs(b.x) * 0.8 - b.y * 0.6) - (Math.abs(a.x) * 0.8 - a.y * 0.6));
+    const end = pts.slice(0, Math.ceil(pts.length * 0.1));
+    return end.reduce((sum, p) => sum.add(p), new THREE.Vector3()).divideScalar(end.length);
+  };
 
   const at = (o) => o.getWorldPosition(new THREE.Vector3());
   const turn = (b, q) => {
@@ -108,7 +123,8 @@ async function bake({ choice, hairstyles }) {
     bone[`upperarm_${s}`].scale.set(0.64, 1, 0.64);
     bone[`lowerarm_${s}`].scale.set(0.84, 1, 0.84);
     bone[`hand_${s}`].scale.set(1.08, 1, 1.08);
-    bone[`thigh_${s}`].scale.set(0.9, 1, 0.9);
+    // A hoodie's waistband is snug: slimmer hips, or they show through at the back.
+    bone[`thigh_${s}`].scale.set(fit.hips ?? 0.9, 1, fit.hips ?? 0.9);
   }
   man.updateMatrixWorld(true);
   for (const s of ['l', 'r']) {
@@ -120,7 +136,16 @@ async function bake({ choice, hairstyles }) {
       });
     }
     aim(bone[`upperarm_${s}`], bone[`lowerarm_${s}`], ends[s]);
-    aim(bone[`lowerarm_${s}`], bone[`hand_${s}`], at(bone[`lowerarm_${s}`]).add(new THREE.Vector3(-side * 0.2, -1, 0.1)));
+    if (fit.long) {
+      // Straight on down the sleeve, with the wrist moved to the cuff's opening so the
+      // hand comes out of it. (The forearm is hidden, so its length doesn't show.)
+      const cuff = cuffEnd(side), hand = bone[`hand_${s}`];
+      aim(bone[`lowerarm_${s}`], hand, cuff);
+      hand.position.copy(hand.parent.worldToLocal(cuff.clone()));
+      hand.updateWorldMatrix(false, true);
+    } else {
+      aim(bone[`lowerarm_${s}`], bone[`hand_${s}`], at(bone[`lowerarm_${s}`]).add(new THREE.Vector3(-side * 0.2, -1, 0.1)));
+    }
   }
   man.updateMatrixWorld(true);
 
@@ -183,10 +208,13 @@ async function bake({ choice, hairstyles }) {
     const v = shape.points[i], j = mainBone(i);
     gone[i] = /^(spine|clavicle)/.test(j) || (j === 'pelvis' && v.y > HEM + 0.04) || (/^thigh/.test(j) && v.y > HEM + 0.14);
     if (/^(neck_01|spine_03|clavicle)/.test(j)) {
-      gone[i] = v.y < 0.33 || Math.hypot(v.x - neck.x, (v.z - neck.z) * 0.9) > 0.16;
-      if (!gone[i] && v.y < 0.64) {
+      // Heights on him, so they move with him when a garment sits him lower; a hoodie's
+      // neck opening is deeper, so his neck goes further down into it.
+      const lift = fit.lift ?? 0, neckEnd = 0.33 + lift - (fit.deepNeck ?? 0);
+      gone[i] = v.y < neckEnd || Math.hypot(v.x - neck.x, (v.z - neck.z) * 0.9) > 0.16;
+      if (!gone[i] && v.y < 0.64 + lift) {
         // Eases from his own neck into the middle of the collar on the way down.
-        const t = Math.min((0.64 - v.y) / 0.22, 1);
+        const t = Math.min((0.64 + lift - v.y) / 0.22, 1);
         const z = neck.z + (COLLAR.z - neck.z) * t;
         const rx = 0.098 + (COLLAR.rx - 0.098) * t, rz = 0.105 + (COLLAR.rz - 0.105) * t;
         const reach = Math.hypot((v.x - neck.x) / rx, (v.z - z) / rz);
@@ -194,7 +222,9 @@ async function bake({ choice, hairstyles }) {
       }
     }
     const arm = j.match(/^upperarm_(.)/);
-    if (arm) {
+    // Under a long sleeve all of the arm is hidden.
+    if (fit.long && /^(upperarm|lowerarm)/.test(j)) gone[i] = true;
+    else if (arm) {
       const start = shoulders[arm[1]], along = ends[arm[1]].clone().sub(start);
       gone[i] = v.clone().sub(start).dot(along) / along.lengthSq() < 0.74;
     }

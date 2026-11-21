@@ -8,7 +8,7 @@ Future<void> showSizeChart(BuildContext context, SizeChart chart, String? fitLab
   return showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
-    backgroundColor: Colors.white,
+    backgroundColor: AppColors.card,
     builder: (_) => _SizeChartSheet(chart: chart, fitLabel: fitLabel),
   );
 }
@@ -64,10 +64,10 @@ class _SizeChartSheetState extends State<_SizeChartSheet> {
             ),
             const SizedBox(height: 12),
             Table(
-              border: TableBorder.symmetric(inside: const BorderSide(color: AppColors.line)),
+              border: TableBorder.symmetric(inside: BorderSide(color: AppColors.line)),
               children: [
                 TableRow(
-                  decoration: const BoxDecoration(color: Color(0xFFF5F5F5)),
+                  decoration: BoxDecoration(color: AppColors.soft),
                   children: [
                     const _Cell('Size', style: head),
                     for (final c in chart.columns) _Cell(c, style: head),

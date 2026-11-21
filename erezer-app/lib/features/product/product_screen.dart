@@ -5,8 +5,10 @@ import 'package:material_ui/material_ui.dart';
 import '../../app/theme.dart';
 import '../../data/api_client.dart';
 import '../../data/cart.dart';
+import '../../data/recently_viewed.dart';
 import '../../data/models.dart';
 import '../../widgets/common.dart';
+import '../../widgets/shop_bar.dart';
 import '../../widgets/product_card.dart';
 import 'product_choice.dart';
 import 'size_chart_sheet.dart';
@@ -23,7 +25,7 @@ class ProductScreen extends ConsumerWidget {
     return details.when(
       loading: () => Scaffold(
         appBar: AppBar(),
-        body: const Center(child: CircularProgressIndicator(color: AppColors.ink)),
+        body: Center(child: CircularProgressIndicator(color: AppColors.ink)),
       ),
       error: (e, _) => Scaffold(
         appBar: AppBar(),
@@ -45,6 +47,16 @@ class _ProductView extends ConsumerStatefulWidget {
 class _ProductViewState extends ConsumerState<_ProductView> {
   late ProductChoice choice = ProductChoice.start(widget.details.product, widget.details.variants);
   final _gallery = PageController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Remembered for "Recently viewed" once the page is up (not while it is being built).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(recentlyViewedProvider.notifier).viewed(widget.details.product);
+    });
+  }
+
   int _photo = 0;
 
   Product get product => widget.details.product;
@@ -115,11 +127,17 @@ class _ProductViewState extends ConsumerState<_ProductView> {
         slivers: [
           SliverAppBar(
             pinned: true,
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: HeartButton(product: p, size: 38),
+              ),
+            ],
             // A white circle keeps Back easy to see on any photo.
             leading: Padding(
               padding: const EdgeInsets.all(8),
               child: Material(
-                color: Colors.white,
+                color: AppColors.card,
                 shape: const CircleBorder(),
                 elevation: 1,
                 child: IconButton(
@@ -149,7 +167,7 @@ class _ProductViewState extends ConsumerState<_ProductView> {
                 if (p.categoryName != null)
                   Text(
                     p.categoryName!.toUpperCase(),
-                    style: const TextStyle(fontSize: 12, letterSpacing: 1.2, color: AppColors.muted),
+                    style: TextStyle(fontSize: 12, letterSpacing: 1.2, color: AppColors.muted),
                   ),
                 const SizedBox(height: 4),
                 Text(
@@ -159,7 +177,7 @@ class _ProductViewState extends ConsumerState<_ProductView> {
                 ),
                 if (p.productCode != null) ...[
                   const SizedBox(height: 2),
-                  Text(p.productCode!, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+                  Text(p.productCode!, style: TextStyle(color: AppColors.muted, fontSize: 13)),
                 ],
                 if (p.totalReviews > 0) ...[
                   const SizedBox(height: 6),
@@ -179,7 +197,7 @@ class _ProductViewState extends ConsumerState<_ProductView> {
                         decoration: BoxDecoration(color: AppColors.ink, borderRadius: BorderRadius.circular(999)),
                         child: Text(
                           '$off% off',
-                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                          style: TextStyle(color: AppColors.onInk, fontSize: 12, fontWeight: FontWeight.w700),
                         ),
                       ),
                     ],
@@ -202,12 +220,12 @@ class _ProductViewState extends ConsumerState<_ProductView> {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      const Icon(Icons.info_outline, size: 16, color: AppColors.muted),
+                      Icon(Icons.info_outline, size: 16, color: AppColors.muted),
                       const SizedBox(width: 6),
                       Text(
                         paymentNote,
                         key: const Key('payment-note'),
-                        style: const TextStyle(color: AppColors.muted),
+                        style: TextStyle(color: AppColors.muted),
                       ),
                     ],
                   ),
@@ -251,7 +269,7 @@ class _ProductViewState extends ConsumerState<_ProductView> {
                   ),
                 ] else if (choice.fits.length == 1) ...[
                   const SizedBox(height: 14),
-                  Text('Fit: ${choice.fitLabel(choice.fits.first)}', style: const TextStyle(color: AppColors.muted)),
+                  Text('Fit: ${choice.fitLabel(choice.fits.first)}', style: TextStyle(color: AppColors.muted)),
                 ],
                 if (choice.sizes.isNotEmpty) ...[
                   const SizedBox(height: 20),
@@ -320,8 +338,8 @@ class _ProductViewState extends ConsumerState<_ProductView> {
       bottomNavigationBar: SafeArea(
         child: Container(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: AppColors.card,
             border: Border(top: BorderSide(color: AppColors.line)),
           ),
           child: SizedBox(
@@ -497,7 +515,7 @@ class _PickButton extends StatelessWidget {
         height: 46,
         padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
-          color: selected ? AppColors.ink : Colors.white,
+          color: selected ? AppColors.ink : AppColors.card,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: selected ? AppColors.ink : AppColors.line),
         ),
@@ -508,7 +526,7 @@ class _PickButton extends StatelessWidget {
             label,
             style: TextStyle(
               fontWeight: FontWeight.w600,
-              color: selected ? Colors.white : (available ? AppColors.ink : const Color(0xFFBDBDBD)),
+              color: selected ? AppColors.onInk : (available ? AppColors.ink : AppColors.muted),
               decoration: available ? null : TextDecoration.lineThrough,
             ),
           ),
@@ -536,7 +554,7 @@ class _Stars extends StatelessWidget {
           ),
         if (label != null) ...[
           const SizedBox(width: 6),
-          Text(label!, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+          Text(label!, style: TextStyle(color: AppColors.muted, fontSize: 13)),
         ],
       ],
     );
@@ -562,7 +580,7 @@ class _Reviews extends ConsumerWidget {
         ),
         const SizedBox(height: 8),
         if (reviews == null || reviews.items.isEmpty)
-          const Text('No reviews yet.', style: TextStyle(color: AppColors.muted))
+          Text('No reviews yet.', style: TextStyle(color: AppColors.muted))
         else
           for (final r in reviews.items)
             Padding(

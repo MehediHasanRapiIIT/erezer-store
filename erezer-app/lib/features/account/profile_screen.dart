@@ -70,11 +70,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   InputDecoration _field(String label) => InputDecoration(
     labelText: label,
     filled: true,
-    fillColor: Colors.white,
+    fillColor: AppColors.card,
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: AppColors.line),
+      borderSide: BorderSide(color: AppColors.line),
     ),
   );
 
@@ -88,7 +88,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       body: p == null
           ? (_error != null
                 ? ErrorRetry(message: _error!, onRetry: _load)
-                : const Center(child: CircularProgressIndicator(color: AppColors.ink)))
+                : Center(child: CircularProgressIndicator(color: AppColors.ink)))
           : Form(
               key: _form,
               child: ListView(

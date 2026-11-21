@@ -27,8 +27,8 @@ class OrderPlacedScreen extends StatelessWidget {
                 Container(
                   width: 84,
                   height: 84,
-                  decoration: const BoxDecoration(color: AppColors.ink, shape: BoxShape.circle),
-                  child: const Icon(Icons.check, color: Colors.white, size: 44),
+                  decoration: BoxDecoration(color: AppColors.ink, shape: BoxShape.circle),
+                  child: Icon(Icons.check, color: AppColors.onInk, size: 44),
                 ),
                 const SizedBox(height: 20),
                 const Text(
@@ -38,7 +38,7 @@ class OrderPlacedScreen extends StatelessWidget {
                 ),
                 if (o != null) ...[
                   const SizedBox(height: 16),
-                  const Text('Your order number', style: TextStyle(color: AppColors.muted)),
+                  Text('Your order number', style: TextStyle(color: AppColors.muted)),
                   const SizedBox(height: 4),
                   Row(
                     mainAxisSize: MainAxisSize.min,
@@ -66,11 +66,11 @@ class OrderPlacedScreen extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF15803D)),
                     ),
                     if (o.bkashTrxId!.isNotEmpty)
-                      Text('Transaction ${o.bkashTrxId}', style: const TextStyle(color: AppColors.muted)),
+                      Text('Transaction ${o.bkashTrxId}', style: TextStyle(color: AppColors.muted)),
                   ] else if (o.total != null)
                     Text('Total ${taka(o.total!)}, paid on delivery.'),
                   const SizedBox(height: 12),
-                  const Text(
+                  Text(
                     'Keep this number to track your order.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: AppColors.muted, height: 1.4),
@@ -123,7 +123,7 @@ class _OrderUpdatesCard extends ConsumerWidget {
       key: const Key('order-updates'),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.line),
       ),
@@ -131,7 +131,7 @@ class _OrderUpdatesCard extends ConsumerWidget {
         children: [
           const Text('Get updates about this order', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'A notification when it is confirmed, shipped and delivered.',
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.muted),

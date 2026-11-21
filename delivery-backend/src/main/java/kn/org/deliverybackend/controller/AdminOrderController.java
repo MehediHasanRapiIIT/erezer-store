@@ -14,6 +14,8 @@ import kn.org.deliverybackend.enumeration.OrderStatus;
 import kn.org.deliverybackend.service.InvoiceService;
 import kn.org.deliverybackend.service.OrderHistoryService;
 import kn.org.deliverybackend.service.OrderService;
+import kn.org.deliverybackend.service.impl.CustomerHistoryService;
+import kn.org.deliverybackend.dto.order.CustomerHistoryDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
@@ -25,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -39,6 +42,7 @@ public class AdminOrderController {
     private final OrderService orderService;
     private final InvoiceService invoiceService;
     private final kn.org.deliverybackend.service.impl.OrderEditService orderEditService;
+    private final CustomerHistoryService customerHistoryService;
 
     @RequiresPermission(Perm.ORDERS_VIEW)
     @GetMapping("/summary")
@@ -59,6 +63,24 @@ public class AdminOrderController {
             @RequestParam(required = false) String payment) {
         return ResponseEntity.ok(orderHistoryService.getOrdersPaged(page, size, status, excludeStatus,
                 fromDate, toDate, q, payment));
+    }
+
+    /**
+     * Customer history for a page of the order list: for each order id, how many
+     * other orders came from the same phone number (delivered, cancelled,
+     * returned, still on their way). ?ids=a,b,c (at most a page's worth).
+     */
+    @RequiresPermission(Perm.ORDERS_VIEW)
+    @GetMapping("/customer-history")
+    public ResponseEntity<Map<UUID, CustomerHistoryDTO>> customerHistoryCounts(@RequestParam List<UUID> ids) {
+        return ResponseEntity.ok(customerHistoryService.countsFor(ids));
+    }
+
+    /** The other orders from this order's phone number, newest first, with the counts. */
+    @RequiresPermission(Perm.ORDERS_VIEW)
+    @GetMapping("/{orderId}/customer-history")
+    public ResponseEntity<CustomerHistoryDTO> customerHistory(@PathVariable UUID orderId) {
+        return ResponseEntity.ok(customerHistoryService.historyFor(orderId));
     }
 
     @RequiresPermission(Perm.ORDERS_VIEW)

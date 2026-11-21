@@ -357,6 +357,27 @@ export interface OrderItem {
   customSurcharge: number | null;
 }
 
+/**
+ * The other orders from the same phone number as an order (typed any way),
+ * to tell an old, trusted customer from one who has cancelled or refused before.
+ * `active` = still on their way. `orders` is empty on the order list.
+ */
+export interface CustomerHistory {
+  delivered: number;
+  cancelled: number;
+  returned: number;
+  active: number;
+  orders: CustomerHistoryOrder[];
+}
+
+export interface CustomerHistoryOrder {
+  id: string;
+  orderNumber?: string | null;
+  createdAt: string;
+  totalAmount: number;
+  orderStatus: string;
+}
+
 export interface OrderResponse {
   id: string;
   /** What the customer sees and tracks by, e.g. EZ-482915. */

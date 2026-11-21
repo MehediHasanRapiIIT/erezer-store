@@ -4,7 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import { OrderService, OrderStatus } from '../../core/services/order.service';
-import { OrderResponse, OrderSummary } from '../../core/models/api.models';
+import { CustomerHistory, OrderResponse, OrderSummary } from '../../core/models/api.models';
+import { CustomerHistoryBadgeComponent } from './customer-history/customer-history.component';
 import { parseApiError } from '../../core/utils/api-error.util';
 import { addDays, businessToday } from '../../core/utils/business-date.util';
 
@@ -21,7 +22,7 @@ const ALL_STATUSES: OrderStatus[] = [
 @Component({
   selector: 'app-orders',
   standalone: true,
-  imports: [FormsModule, SidebarComponent],
+  imports: [FormsModule, SidebarComponent, CustomerHistoryBadgeComponent],
   templateUrl: './orders.component.html',
 })
 export class OrdersComponent implements OnInit, OnDestroy {
@@ -52,6 +53,8 @@ export class OrdersComponent implements OnInit, OnDestroy {
   totalPages = signal(0);
 
   orders = signal<OrderResponse[]>([]);
+  /** Order id → other orders from the same phone number, for the badge under the phone. */
+  history = signal<Record<string, CustomerHistory>>({});
   summary = signal<OrderSummary | null>(null);
   isLoading = signal(true);
   errorMessage = signal('');
@@ -118,6 +121,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
       next: (data) => {
         if (request !== this.latestRequest) return;
         this.orders.set(data.content);
+        this.loadHistory(data.content, request);
         this.currentPage.set(data.number);
         this.totalElements.set(data.totalElements);
         this.totalPages.set(data.totalPages);
@@ -129,6 +133,18 @@ export class OrdersComponent implements OnInit, OnDestroy {
         if (!silent) this.errorMessage.set(parseApiError(err));
         this.isLoading.set(false);
       },
+    });
+  }
+
+  /** The customer history badges for this page; the list shows without them if this fails. */
+  private loadHistory(orders: OrderResponse[], request: number): void {
+    const ids = orders.filter((o) => o.customerPhone).map((o) => o.id);
+    if (ids.length === 0) return;
+    this.orderService.getCustomerHistoryCounts(ids).subscribe({
+      next: (counts) => {
+        if (request === this.latestRequest) this.history.set(counts);
+      },
+      error: () => {},
     });
   }
 

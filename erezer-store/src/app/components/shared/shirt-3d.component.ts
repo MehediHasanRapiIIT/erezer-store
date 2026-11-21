@@ -201,12 +201,13 @@ export class Shirt3dComponent implements AfterViewInit, OnDestroy {
 
   private async loadPerson(): Promise<boolean> {
     const { THREE, scene } = this;
-    if (!THREE || !scene) return false;
+    const file = this.model().person;
+    if (!THREE || !scene || !file) return false;
     try {
       const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
       const pictures = new THREE.TextureLoader();
       const [gltf, skin, bumps, eye] = await Promise.all([
-        new GLTFLoader().loadAsync(this.model().person),
+        new GLTFLoader().loadAsync(file),
         pictures.loadAsync('models/man-skin.jpg'),
         pictures.loadAsync('models/man-skin-normal.jpg'),
         pictures.loadAsync('models/man-eye.jpg'),
@@ -283,7 +284,8 @@ export class Shirt3dComponent implements AfterViewInit, OnDestroy {
         camera.position.copy(spot.point).addScaledVector(spot.normal, SLEEVE_PICTURE_DISTANCE);
         camera.lookAt(spot.point);
       } else {
-        camera.position.setFromSphericalCoords(2.15, Math.PI / 2, FACING[view]);
+        // Back far enough for the whole garment: a hoodie's arms reach wider.
+        camera.position.setFromSphericalCoords(Math.max(2.15, 1.84 * (this.model().wide ?? 1)), Math.PI / 2, FACING[view]);
         camera.lookAt(controls.target);
       }
       renderer.render(scene, camera);
@@ -731,7 +733,9 @@ export class Shirt3dComponent implements AfterViewInit, OnDestroy {
     this.camera.aspect = w / h;
     // Far enough back that the sleeves fit on a tall, narrow screen as well as a wide one.
     // The man is seen down to his upper legs, and his hands fit on a phone too.
-    const distance = this.wearing ? Math.max(4.1, 2.4 / this.camera.aspect) : Math.max(2.15, 1.9 / this.camera.aspect);
+    const wide = this.model().wide ?? 1;
+    // On the man his arms hang lower, so a wide garment needs only part of the extra room.
+    const distance = this.wearing ? Math.max(4.1, (2.4 * (1 + (wide - 1) * 0.75)) / this.camera.aspect) : Math.max(2.15, (1.9 * wide) / this.camera.aspect);
     this.camera.position.setLength(distance);
     this.camera.updateProjectionMatrix();
     this.dirty = true;

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../app/theme.dart';
 import '../data/cart.dart';
 
 /// The bottom tab bar around every main page.
@@ -17,8 +18,8 @@ class AppShell extends ConsumerWidget {
       // Place order) instead of over them, inside the tab bar.
       body: ScaffoldMessenger(child: shell),
       bottomNavigationBar: DecoratedBox(
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: Color(0xFFE5E5E5))),
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: AppColors.line)),
         ),
         child: NavigationBar(
           selectedIndex: shell.currentIndex,

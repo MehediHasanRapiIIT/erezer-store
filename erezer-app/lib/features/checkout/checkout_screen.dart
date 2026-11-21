@@ -8,6 +8,7 @@ import '../../data/auth.dart';
 import '../../data/push.dart';
 import '../account/account_screen.dart';
 import '../../data/cart.dart';
+import '../product/quick_add.dart';
 import '../../data/models.dart';
 import '../../data/pricing.dart';
 import '../../widgets/common.dart';
@@ -141,6 +142,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       setState(() => _placeError = 'Please choose a way to pay.');
       return;
     }
+    if (ref.read(linesNeedingSizeProvider).isNotEmpty) {
+      setState(() => _placeError = 'Please choose a size for each item in your order summary.');
+      return;
+    }
     final lines = ref.read(cartProvider);
     final session = ref.read(authProvider);
     if (session != null && !session.emailVerified) {
@@ -206,6 +211,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     final lines = ref.watch(cartProvider);
+    // A size picked (or changed) here: ask the server for the new total.
+    ref.listen(cartProvider, (before, now) {
+      if (now.isNotEmpty && !_placing) _refreshQuote();
+    });
+    final sizesMissing = ref.watch(linesNeedingSizeProvider).isNotEmpty;
     final session = ref.watch(authProvider);
     final zones = ref.watch(shippingZonesProvider).value ?? const [];
     final settings = ref.watch(storeSettingsProvider).value;
@@ -240,7 +250,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               Text(
                 'Ordering as ${session.name.isEmpty ? session.email : '${session.name} (${session.email})'}',
                 key: const Key('ordering-as'),
-                style: const TextStyle(color: AppColors.muted),
+                style: TextStyle(color: AppColors.muted),
               ),
               const SizedBox(height: 12),
               if (!session.emailVerified) ...[const VerifyEmailNotice(), const SizedBox(height: 12)],
@@ -376,9 +386,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
-                              child: Text(
-                                '${l.quantity} × ${l.name}${l.label.isEmpty ? '' : ' (${l.label})'}',
-                                style: const TextStyle(color: AppColors.muted),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${l.quantity} × ${l.name}${l.label.isEmpty ? '' : ' (${l.label})'}',
+                                    style: TextStyle(color: AppColors.muted),
+                                  ),
+                                  CartSizePicker(key: ValueKey('picker-${l.key}'), line: l, removable: true),
+                                ],
                               ),
                             ),
                           ],
@@ -393,7 +409,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                 TextButton(onPressed: _refreshQuote, child: const Text('Try again')),
                               ],
                             )
-                          : const Padding(
+                          : Padding(
                               padding: EdgeInsets.all(8),
                               child: CircularProgressIndicator(color: AppColors.ink),
                             )
@@ -424,13 +440,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       bottomNavigationBar: SafeArea(
         child: Container(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: AppColors.card,
             border: Border(top: BorderSide(color: AppColors.line)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (sizesMissing) ...[
+                const _Notice('Choose a size for each item in your order summary to place the order.'),
+                const SizedBox(height: 8),
+              ],
               if (_placeError != null) ...[
                 _Notice(_placeError!, key: const Key('place-error')),
                 const SizedBox(height: 8),
@@ -444,10 +464,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       ? null
                       : () => _place(methods),
                   child: _placing
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 22,
                           height: 22,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          child: CircularProgressIndicator(color: AppColors.onInk, strokeWidth: 2),
                         )
                       : Text(
                           '${_method == 'BKASH' ? 'Pay with bKash' : 'Place order'}'
@@ -468,18 +488,18 @@ InputDecoration _decoration(String label, {String? hint}) => InputDecoration(
   labelText: label,
   hintText: hint,
   filled: true,
-  fillColor: Colors.white,
+  fillColor: AppColors.card,
   border: OutlineInputBorder(
     borderRadius: BorderRadius.circular(12),
-    borderSide: const BorderSide(color: AppColors.line),
+    borderSide: BorderSide(color: AppColors.line),
   ),
   enabledBorder: OutlineInputBorder(
     borderRadius: BorderRadius.circular(12),
-    borderSide: const BorderSide(color: AppColors.line),
+    borderSide: BorderSide(color: AppColors.line),
   ),
   focusedBorder: OutlineInputBorder(
     borderRadius: BorderRadius.circular(12),
-    borderSide: const BorderSide(color: AppColors.ink),
+    borderSide: BorderSide(color: AppColors.ink),
   ),
 );
 
@@ -561,7 +581,7 @@ class _RadioCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppColors.card,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: selected ? AppColors.ink : AppColors.line, width: selected ? 1.6 : 1),
           ),
@@ -579,8 +599,7 @@ class _RadioCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                      if (subtitle != null)
-                        Text(subtitle!, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+                      if (subtitle != null) Text(subtitle!, style: TextStyle(color: AppColors.muted, fontSize: 13)),
                     ],
                   ),
                 ),

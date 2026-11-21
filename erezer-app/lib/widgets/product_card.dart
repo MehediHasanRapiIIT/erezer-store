@@ -67,7 +67,7 @@ class ProductCard extends ConsumerWidget {
                     const Positioned(left: 8, top: 8, child: _Badge(text: 'New', dark: false)),
                   if (p.isOutOfStock)
                     Container(
-                      color: Colors.white.withValues(alpha: 0.55),
+                      color: AppColors.card.withValues(alpha: 0.55),
                       alignment: Alignment.center,
                       child: const _Badge(text: 'Sold out', dark: true),
                     ),
@@ -99,10 +99,10 @@ class _Badge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: dark ? AppColors.ink : Colors.white, borderRadius: BorderRadius.circular(999)),
+      decoration: BoxDecoration(color: dark ? AppColors.ink : AppColors.card, borderRadius: BorderRadius.circular(999)),
       child: Text(
         text,
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: dark ? Colors.white : AppColors.ink),
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: dark ? AppColors.onInk : AppColors.ink),
       ),
     );
   }
@@ -115,8 +115,10 @@ class ProductRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Photo (150 wide, 4:5) plus name and price lines, grown with the phone's text size.
+    final words = MediaQuery.textScalerOf(context).scale(64);
     return SizedBox(
-      height: 270,
+      height: 187.5 + 12 + words,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),

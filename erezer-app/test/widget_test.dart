@@ -177,17 +177,18 @@ void main() {
     _sentOrder = null;
   });
 
-  testWidgets('home shows categories, new arrivals with sale prices, and the help line', (tester) async {
+  testWidgets('home shows the website bands: new arrivals with sale prices and the category tiles', (tester) async {
     await _start(tester);
-    expect(find.text('Welcome to Erezer'), findsOneWidget);
-    expect(find.text('T-Shirts'), findsOneWidget);
-    expect(find.text('Hidden'), findsNothing);
-    expect(find.text('New Tee'), findsOneWidget);
+    // No banner set: the shop's name in words, as the website.
+    expect(find.text('Clothing & custom t-shirts.'), findsOneWidget);
+    final home = find.descendant(of: find.byKey(const Key('home-list')), matching: find.byType(Scrollable)).first;
+    await tester.scrollUntilVisible(find.text('New Tee'), 300, scrollable: home);
+    expect(find.text('New arrivals'), findsOneWidget);
     expect(find.text('৳900'), findsOneWidget);
     expect(find.text('৳1,000'), findsOneWidget);
-    await tester.drag(find.byType(Scrollable).first, const Offset(0, -800));
-    await tester.pumpAndSettle();
-    expect(find.text('Need help? +880 1000'), findsOneWidget);
+    await tester.scrollUntilVisible(find.byKey(const Key('collection-tiles')), 300, scrollable: home);
+    expect(find.text('Hidden'), findsNothing);
+    expect(find.text('T-Shirts'), findsWidgets);
   });
 
   testWidgets('a category lists its products with the category discount', (tester) async {
@@ -202,8 +203,8 @@ void main() {
     expect(find.text('2 products'), findsOneWidget);
     // Hoodies' 10% reaches Anime, its sub-category: ৳2,000 → ৳1,800.
     expect(find.text('৳1,800'), findsOneWidget);
-    // New Tee's own sale (৳1,000 → ৳900) is 10% off too.
-    expect(find.text('-10%'), findsNWidgets(2));
+    // The regular price is struck through beside it, as on the website.
+    expect(find.text('৳2,000'), findsOneWidget);
   });
 
   testWidgets('the product page picks a size, shows stock and the size chart', (tester) async {
@@ -340,6 +341,50 @@ void main() {
     expect(find.text('Your cart is empty'), findsOneWidget);
   });
 
+  testWidgets('a card adds at once, like the website; the cart asks for the size before checkout', (tester) async {
+    await _start(tester);
+    await tester.tap(find.text('Categories'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hoodies').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Anime (4)'));
+    await tester.pumpAndSettle();
+
+    // Still on the list: the button turns to "+ Add" with Checkout beside it.
+    await tester.tap(find.byKey(const Key('card-cart-11')));
+    await tester.pumpAndSettle();
+    expect(find.text('2 products'), findsOneWidget);
+    expect(find.text('+ Add'), findsOneWidget);
+    expect(find.byKey(const Key('card-checkout-11')), findsOneWidget);
+    expect(find.byKey(const Key('cart-badge')), findsOneWidget);
+
+    await tester.tap(find.text('Cart'));
+    await tester.pumpAndSettle();
+    expect(find.text('SIZE: NOT CHOSEN YET'), findsOneWidget);
+    expect(find.byKey(const Key('size-needed')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('go-checkout')));
+    await tester.pumpAndSettle();
+    expect(find.text('Please select a size for each item before placing your order.'), findsOneWidget);
+    expect(find.byKey(const Key('place-order')), findsNothing);
+
+    // L is sold out; M gives the line its size.
+    await tester.tap(find.byKey(const Key('size-option-11-2')));
+    await tester.pumpAndSettle();
+    expect(find.text('SIZE: NOT CHOSEN YET'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('size-option-11-1')));
+    await tester.pumpAndSettle();
+    expect(find.text('SIZE: NOT CHOSEN YET'), findsNothing);
+    expect(find.text('M'), findsOneWidget);
+    expect(find.text('Change size'), findsOneWidget);
+    expect(find.byKey(const Key('size-needed')), findsNothing);
+
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('go-checkout')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('place-order')), findsOneWidget);
+  });
+
   testWidgets('bKash: the order is saved, and a payment that cannot start offers Pay again', (tester) async {
     SharedPreferences.setMockInitialValues({
       'erezer.cart.v1': jsonEncode([
@@ -373,6 +418,45 @@ void main() {
     expect(find.text("bKash payment isn't available right now."), findsOneWidget);
     expect(find.textContaining('EZ-123456 is saved but not paid yet'), findsOneWidget);
     expect(find.byKey(const Key('bkash-pay-again')), findsOneWidget);
+  });
+
+  testWidgets('with a large phone text size, product lists fit (no overflow)', (tester) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 1.35;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await _start(tester);
+    GoRouter.of(tester.element(find.byType(Scaffold).first)).push('/c/3');
+    await tester.pumpAndSettle();
+    expect(find.text('Anime Hoodie'), findsOneWidget);
+    expect(find.text('Add to Cart'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the menu opens, and Dark turns the whole app dark', (tester) async {
+    await _start(tester);
+    await tester.tap(find.byKey(const Key('open-menu')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('shop-menu')), findsOneWidget);
+    expect(find.text('Track order'), findsOneWidget);
+    expect(find.text('Showcase'), findsNothing);
+    await tester.tap(find.text('Dark'));
+    await tester.pumpAndSettle();
+    expect(Theme.of(tester.element(find.byKey(const Key('shop-menu')))).brightness, Brightness.dark);
+    await tester.tap(find.text('Day'));
+    await tester.pumpAndSettle();
+    expect(Theme.of(tester.element(find.byKey(const Key('shop-menu')))).brightness, Brightness.light);
+  });
+
+  testWidgets('the heart keeps a product in the wishlist', (tester) async {
+    await _start(tester);
+    final home = find.descendant(of: find.byKey(const Key('home-list')), matching: find.byType(Scrollable)).first;
+    await tester.scrollUntilVisible(find.byKey(const Key('heart-10')), 300, scrollable: home);
+    await tester.tap(find.byKey(const Key('heart-10')));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byKey(const Key('open-wishlist')), -300, scrollable: home);
+    await tester.tap(find.byKey(const Key('open-wishlist')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('wishlist-list')), findsOneWidget);
+    expect(find.text('New Tee'), findsOneWidget);
   });
 
   testWidgets('the cart and account tabs open', (tester) async {

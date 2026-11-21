@@ -280,6 +280,10 @@
                 [canCancel]="permittedNext().includes('CANCELLED')" (cancelOrder)="cancelAfterRefund()" (refunded)="reloadOrder()" />
             }
 
+            @if (order()!.customerPhone) {
+              <app-customer-history [orderId]="order()!.id" />
+            }
+
             <!-- Phase 5: internal admin notes -->
             <app-order-notes [orderId]="order()!.id" />
 

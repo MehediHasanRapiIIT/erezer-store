@@ -98,6 +98,11 @@ class ApiClient {
   Future<StoreSettings> storeSettings() async =>
       StoreSettings.fromJson(await _get('/api/store-settings') as Map<String, dynamic>);
 
+  Future<FlashSale?> flashSale() async {
+    final j = await _get('/api/flash-sale');
+    return j is Map<String, dynamic> ? FlashSale.fromJson(j) : null;
+  }
+
   Future<HomeData> home() async => HomeData.fromJson(await _get('/app/home') as Map<String, dynamic>);
 
   Future<List<ActiveDiscount>> activeDiscounts() async =>
@@ -358,6 +363,12 @@ final categoriesProvider = FutureProvider<List<Category>>((ref) => ref.watch(api
 final storeSettingsProvider = FutureProvider<StoreSettings>((ref) => ref.watch(apiProvider).storeSettings());
 
 final homeProvider = FutureProvider<HomeData>((ref) => ref.watch(apiProvider).home());
+
+/// The flash sale running now, or null.
+final flashSaleProvider = FutureProvider<FlashSale?>((ref) async {
+  final sale = await ref.watch(apiProvider).flashSale();
+  return sale == null || sale.endsAt.isBefore(DateTime.now()) || sale.products.isEmpty ? null : sale;
+});
 
 /// The automatic discounts and the category tree, for showing prices. While
 /// either is loading (or failed), prices show without automatic discounts.
