@@ -145,6 +145,7 @@ public class OrderServiceImpl implements OrderService {
         if (order.getCustomerPhone() == null && request.getPhone() != null && !request.getPhone().isBlank()) {
             order.setCustomerPhone(request.getPhone().trim());
         }
+        order.setPushToken(blankToNull(request.getPushToken()));
 
         Order savedOrder = orderRepository.save(order);
         persistItems(savedOrder.getId(), request.getItems());
@@ -231,6 +232,7 @@ public class OrderServiceImpl implements OrderService {
         order.setCustomerEmail(request.getEmail());
         order.setCustomerName(joinName(request.getFirstName(), request.getLastName()));
         order.setCustomerPhone(request.getPhone() == null ? null : request.getPhone().trim());
+        order.setPushToken(blankToNull(request.getPushToken()));
 
         Order savedOrder = orderRepository.save(order);
         persistItems(savedOrder.getId(), request.getItems());
@@ -777,5 +779,9 @@ public class OrderServiceImpl implements OrderService {
         String l = last == null ? "" : last.trim();
         String combined = (f + " " + l).trim();
         return combined.isEmpty() ? null : combined;
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

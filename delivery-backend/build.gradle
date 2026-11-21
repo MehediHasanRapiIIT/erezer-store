@@ -51,6 +51,8 @@ dependencies {
 
     // Email (SMTP + Thymeleaf templates)
     implementation 'org.springframework.boot:spring-boot-starter-mail'
+    // App notifications: signs in to Firebase Cloud Messaging with the service account.
+    implementation 'com.google.auth:google-auth-library-oauth2-http:1.48.0'
     implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
 
     // PDF invoices — renders XHTML/CSS to PDF (pure Java, via PDFBox).

@@ -98,6 +98,10 @@ public class Order extends AbstractBaseEntity<UUID> {
     @Column(name = "customer_phone", length = 40)
     private String customerPhone;
 
+    /** The phone (Erezer app, Firebase token) this order was placed from, for its notifications. */
+    @Column(name = "push_token", length = 512)
+    private String pushToken;
+
     // ── Phase 4: coupon + zone snapshot ────────────────────────────────────────
     @Column(name = "coupon_id")
     private UUID couponId;

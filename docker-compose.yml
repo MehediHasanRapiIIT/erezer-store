@@ -265,6 +265,9 @@ services:
       BKASH_PASSWORD: ${BKASH_PASSWORD:-}
       BKASH_CALLBACK_URL: ${BKASH_CALLBACK_URL:-http://localhost:8080/api/payments/bkash/callback}
 
+      # --- App notifications (Firebase): base64 of the service account key; blank = log only. ---
+      FIREBASE_SERVICE_ACCOUNT: ${FIREBASE_SERVICE_ACCOUNT:-}
+
       # --- Meta Conversions API (server-side purchase events) ---
       META_PIXEL_ID: ${META_PIXEL_ID:-}
       META_CAPI_ACCESS_TOKEN: ${META_CAPI_ACCESS_TOKEN:-}

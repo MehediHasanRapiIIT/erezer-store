@@ -33,6 +33,22 @@ export class App {
   protected readonly showcase = inject(ShowcaseVisitService);
   /** The in-store showcase screen fills the whole screen: no header, footer or page margins. */
   protected readonly bare = signal(typeof location !== 'undefined' && location.pathname.startsWith('/showcase'));
+  /**
+   * Opened inside the Erezer Android app (the design studio, with ?app=1): the
+   * app has its own bar and tabs, so the site's header, footer and margins hide.
+   * Remembered for the visit, so pages the studio moves to stay the same.
+   */
+  protected readonly inApp = signal(App.openedFromApp());
+
+  private static openedFromApp(): boolean {
+    if (typeof location === 'undefined') return false;
+    try {
+      if (new URLSearchParams(location.search).get('app') === '1') sessionStorage.setItem('erezer-in-app', '1');
+      return sessionStorage.getItem('erezer-in-app') === '1';
+    } catch {
+      return new URLSearchParams(location.search).get('app') === '1';
+    }
+  }
 
   constructor() {
     this.themeService.initializeTheme();

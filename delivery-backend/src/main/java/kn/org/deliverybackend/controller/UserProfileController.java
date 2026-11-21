@@ -2,6 +2,8 @@ package kn.org.deliverybackend.controller;
 
 import jakarta.validation.Valid;
 import kn.org.deliverybackend.dto.UsersDTO;
+import kn.org.deliverybackend.dto.auth.MessageResponseDTO;
+import kn.org.deliverybackend.service.AccountDeletionService;
 import kn.org.deliverybackend.service.UserProfileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +25,7 @@ import java.util.UUID;
 public class UserProfileController {
 
     private final UserProfileService userProfileService;
+    private final AccountDeletionService accountDeletionService;
     private final kn.org.deliverybackend.service.RateLimiterService rateLimiter;
 
     @GetMapping("/{userId}/profile")
@@ -53,5 +56,24 @@ public class UserProfileController {
         rateLimiter.enforce("profile:" + userId, 10, java.time.Duration.ofMinutes(10));
         UsersDTO updatedProfile = userProfileService.updateProfile(userId, usersDTO);
         return ResponseEntity.ok(updatedProfile);
+    }
+
+    /** The customer deletes their own account, confirming with their password. */
+    @PostMapping("/{userId}/account/delete")
+    @Operation(summary = "Delete My Account",
+            description = "Deletes the account; past orders stay without the customer's personal details")
+    public ResponseEntity<MessageResponseDTO> deleteAccount(
+            @PathVariable UUID userId,
+            @Valid @RequestBody DeleteAccountRequest request) {
+        // A wrong password can't be tried over and over.
+        rateLimiter.enforce("account-delete:" + userId, 5, java.time.Duration.ofMinutes(15));
+        accountDeletionService.deleteAccount(userId, request.getPassword());
+        return ResponseEntity.ok(MessageResponseDTO.of("Your account has been deleted."));
+    }
+
+    @lombok.Data
+    public static class DeleteAccountRequest {
+        @jakarta.validation.constraints.NotBlank(message = "Please enter your password.")
+        private String password;
     }
 }

@@ -163,6 +163,8 @@ public class SecurityConfig {
                         // The endpoint itself must accept guest payloads (email + shipping
                         // address inline) and skip userId-based lookups in that case.
                         .requestMatchers(HttpMethod.POST, "/app/consumer/guest/orders").permitAll()
+                        // The Erezer app registers its phone for order notifications before any login.
+                        .requestMatchers(HttpMethod.POST, "/api/push/devices").permitAll()
 
                         // A customer may only reach their own data. Every customer
                         // address carries the customer id, so checking it here once

@@ -294,6 +294,11 @@ export class ApiService {
     return this.http.get<ApiProfile>(`${BASE}/app/consumer/${userId}/profile`);
   }
 
+  /** Deletes the customer's own account, confirmed with their password. Past orders stay without their details. */
+  deleteAccount(userId: string, password: string): Observable<MessageResponse> {
+    return this.http.post<MessageResponse>(`${BASE}/app/consumer/${userId}/account/delete`, { password });
+  }
+
   updateProfile(userId: string, payload: ProfileUpdatePayload): Observable<ApiProfile> {
     return this.http.put<ApiProfile>(`${BASE}/app/consumer/${userId}/profile`, payload);
   }

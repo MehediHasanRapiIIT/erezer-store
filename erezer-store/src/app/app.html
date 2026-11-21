@@ -1,5 +1,12 @@
 @if (bare()) {
   <router-outlet />
+} @else if (inApp()) {
+  <div class="min-h-screen bg-neutral-50 text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100" data-testid="in-app">
+    <main class="mx-auto w-full max-w-7xl px-3 py-3">
+      <router-outlet />
+    </main>
+    <app-toasts />
+  </div>
 } @else {
 <div class="min-h-screen bg-neutral-50 text-neutral-900 antialiased transition-colors dark:bg-neutral-950 dark:text-neutral-100">
   <app-header />

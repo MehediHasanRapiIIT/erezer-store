@@ -152,6 +152,9 @@ services:
       SMS_API_KEY: ${SMS_API_KEY:-}
       SMS_SENDER_ID: ${SMS_SENDER_ID:-}
 
+      # App notifications (Firebase service account key; empty = log only).
+      FIREBASE_SERVICE_ACCOUNT: ${FIREBASE_SERVICE_ACCOUNT:-}
+
       SENTRY_DSN: ${SENTRY_DSN_BACKEND:-}
       SENTRY_ENV: ${SENTRY_ENV:-prod}
       SENTRY_RELEASE: ${SENTRY_RELEASE:-erezer-backend@latest}

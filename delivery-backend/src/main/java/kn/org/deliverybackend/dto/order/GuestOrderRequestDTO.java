@@ -68,4 +68,8 @@ public class GuestOrderRequestDTO {
 
     /** Optional bundle offer id — when set, the items are priced as that bundle. */
     private UUID bundleId;
+
+    /** The Erezer app's phone (Firebase token), so this order's updates reach it. */
+    @jakarta.validation.constraints.Size(max = 512)
+    private String pushToken;
 }

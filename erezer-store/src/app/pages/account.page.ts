@@ -29,6 +29,10 @@ type AuthTab = 'login' | 'register' | 'forgot';
       <article class="app-card p-6 lg:sticky lg:top-24" appReveal>
 
         @if (!auth.isAuthenticated()) {
+          @if (deletedMsg()) {
+            <p class="mb-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+              data-testid="account-deleted">{{ deletedMsg() }}</p>
+          }
           <!-- Animated tab switcher -->
           <div class="relative mb-5 grid grid-cols-3 rounded-xl bg-neutral-100 p-1 dark:bg-neutral-800">
             <span class="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-lg bg-white shadow-sm transition-transform duration-300 ease-out dark:bg-neutral-700"
@@ -215,6 +219,30 @@ type AuthTab = 'login' | 'register' | 'forgot';
                   <button (click)="startEditProfile(p)" class="btn-secondary flex-1 !rounded-full">Edit profile</button>
                   <button (click)="signOut()" class="btn-secondary flex-1 !rounded-full">Sign out</button>
                 </div>
+                <!-- Deleting the account: past orders stay for the shop, without the person's details. -->
+                @if (deleting()) {
+                  <form (ngSubmit)="deleteAccount()" class="space-y-3 rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/40"
+                    data-testid="delete-account-panel">
+                    <p class="text-sm font-semibold text-red-700 dark:text-red-300">Delete your account?</p>
+                    <p class="text-sm app-muted">This removes your login, name, phone, saved addresses and cart. Your past orders stay
+                      in our records without your name, email, phone or address. This cannot be undone.</p>
+                    <input name="deletePassword" [(ngModel)]="deletePassword" type="password" required autocomplete="current-password"
+                      placeholder="Your password" class="field" data-testid="delete-account-password" />
+                    @if (deleteError()) { <p class="err" data-testid="delete-account-error">{{ deleteError() }}</p> }
+                    <div class="flex gap-2">
+                      <button type="submit" [disabled]="!deletePassword || deleteBusy()" data-testid="delete-account-confirm"
+                        class="flex-1 rounded-full bg-red-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
+                        {{ deleteBusy() ? 'Deleting…' : 'Delete my account' }}
+                      </button>
+                      <button type="button" (click)="deleting.set(false)" class="btn-secondary flex-1 !rounded-full">Keep it</button>
+                    </div>
+                  </form>
+                } @else {
+                  <button type="button" (click)="startDelete()" data-testid="delete-account"
+                    class="w-full text-center text-xs text-neutral-500 underline-offset-2 hover:text-red-600 hover:underline">
+                    Delete my account
+                  </button>
+                }
               }
             </div>
           } @else if (profileLoading()) {
@@ -535,6 +563,40 @@ export class AccountPage implements OnInit {
       this.forgotMsg.set('If an account exists for this email, a reset link is on its way.');
     } catch { /* error surfaced via auth.error() */ }
   }
+
+  // ── Delete my account ──────────────────────────────────────────────────────
+  protected readonly deleting = signal(false);
+  protected readonly deleteBusy = signal(false);
+  protected readonly deleteError = signal('');
+  protected deletePassword = '';
+
+  protected startDelete(): void {
+    this.deletePassword = '';
+    this.deleteError.set('');
+    this.deleting.set(true);
+  }
+
+  protected deleteAccount(): void {
+    const userId = this.auth.userId();
+    if (!userId || !this.deletePassword) return;
+    this.deleteBusy.set(true);
+    this.deleteError.set('');
+    this.api.deleteAccount(userId, this.deletePassword).subscribe({
+      next: () => {
+        this.deleteBusy.set(false);
+        this.deleting.set(false);
+        this.signOut();
+        this.deletedMsg.set('Your account has been deleted.');
+      },
+      error: (err) => {
+        this.deleteBusy.set(false);
+        this.deleteError.set(err?.error?.message ?? 'Could not delete your account. Please try again.');
+      },
+    });
+  }
+
+  /** Shown on the sign-in card after an account is deleted. */
+  protected readonly deletedMsg = signal('');
 
   protected signOut(): void {
     this.auth.signOut();

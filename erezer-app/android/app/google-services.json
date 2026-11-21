@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "964889586332",
+    "project_id": "erezer-c1e29",
+    "storage_bucket": "erezer-c1e29.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:964889586332:android:c082603e2f57e057d31b59",
+        "android_client_info": {
+          "package_name": "com.erezer.shop"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDNWwm-AIz5i70cQgudvpgf9IgZh5xGJ8k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
