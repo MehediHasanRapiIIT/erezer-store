@@ -468,6 +468,21 @@ export interface OrderStatusOption {
   allowedNext: OrderStatus[];
 }
 
+/**
+ * The orders of the dates the list shows (both ends included; null = no limit), every
+ * status. `amount` (not cancelled) is left out without "See money totals".
+ */
+export interface OrderDaySummary {
+  fromDate: string | null;
+  toDate: string | null;
+  orders: number;
+  delivered: number;
+  cancelled: number;
+  returned: number;
+  active: number;
+  amount?: number | null;
+}
+
 export interface OrderSummary {
   total: number;
   pending: number;

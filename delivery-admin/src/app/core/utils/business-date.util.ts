@@ -62,6 +62,11 @@ export function formatDate(iso: string): string {
   return parseIsoDate(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+/** "Friday, 4 Sep 2026" */
+export function formatDateWithWeekday(iso: string): string {
+  return `${parseIsoDate(iso).toLocaleDateString('en-GB', { weekday: 'long' })}, ${formatDate(iso)}`;
+}
+
 /** "4 Sep" */
 export function formatDayMonth(iso: string): string {
   return parseIsoDate(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });

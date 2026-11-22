@@ -156,6 +156,30 @@ public class OrderHistoryServiceImpl implements OrderHistoryService {
                 .map(this::toOrderDTOWithItems);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public kn.org.deliverybackend.dto.order.OrderDaySummaryDTO getPeriodSummary(String fromDate, String toDate) {
+        LocalDate firstDay = parseDay(fromDate), lastDay = parseDay(toDate);
+        long orders = 0, delivered = 0, cancelled = 0, returned = 0, active = 0;
+        java.math.BigDecimal amount = java.math.BigDecimal.ZERO;
+        String fromUtc = firstDay == null ? null : calendar.toUtcSql(firstDay);
+        String toUtc = lastDay == null ? null : calendar.toUtcSql(lastDay.plusDays(1));
+        for (Object[] row : orderRepository.sumByStatusBetween(fromUtc, toUtc)) {
+            String status = (String) row[0];
+            long count = ((Number) row[1]).longValue();
+            orders += count;
+            switch (status == null ? "" : status) {
+                case "DELIVERED" -> delivered += count;
+                case "CANCELLED" -> cancelled += count;
+                case "RETURNED" -> returned += count;
+                default -> active += count;
+            }
+            // A cancelled order brings in nothing.
+            if (!"CANCELLED".equals(status)) amount = amount.add(new java.math.BigDecimal(row[2].toString()));
+        }
+        return new kn.org.deliverybackend.dto.order.OrderDaySummaryDTO(firstDay, lastDay, orders, delivered, cancelled, returned, active, amount);
+    }
+
     /** "2026-09-12" (or a longer ISO date-time, of which the day is used); null when blank. */
     private static LocalDate parseDay(String value) {
         if (value == null || value.isBlank()) return null;

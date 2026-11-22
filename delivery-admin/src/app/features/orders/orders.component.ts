@@ -4,10 +4,10 @@ import { FormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import { OrderService, OrderStatus } from '../../core/services/order.service';
-import { CustomerHistory, OrderResponse, OrderSummary } from '../../core/models/api.models';
+import { CustomerHistory, OrderDaySummary, OrderResponse, OrderSummary } from '../../core/models/api.models';
 import { CustomerHistoryBadgeComponent } from './customer-history/customer-history.component';
 import { parseApiError } from '../../core/utils/api-error.util';
-import { addDays, businessToday } from '../../core/utils/business-date.util';
+import { addDays, businessToday, formatDate, formatDateWithWeekday, formatTaka } from '../../core/utils/business-date.util';
 
 const ALL_STATUSES: OrderStatus[] = [
   'PLACED', 'ACCEPTED', 'PROCESSING', 'SHIPPED',
@@ -43,6 +43,12 @@ export class OrdersComponent implements OnInit, OnDestroy {
   filterStatus = signal<string>('ALL');
   filterPayment = signal<string>('ALL');
   filterDate = signal<string>('ALL');
+  /** The day picked on the calendar (yyyy-mm-dd) when the date filter is "Pick a date". */
+  pickedDate = signal<string>('');
+  daySummary = signal<OrderDaySummary | null>(null);
+  readonly today = businessToday();
+  protected readonly formatDay = formatDate;
+  protected readonly taka = formatTaka;
   searchQuery = signal('');
   /** Typed search text, sent to the server after a short pause. */
   private searchSubject = new Subject<string>();
@@ -116,6 +122,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
     const status = history ? 'DELIVERED' : (this.filterStatus() !== 'ALL' ? this.filterStatus() : undefined);
     const excludeStatus = history ? undefined : 'DELIVERED';
     const { fromDate, toDate } = this.getDateRange(this.filterDate());
+    this.loadPeriodSummary(fromDate, toDate);
     this.orderService.getOrdersPaged(page, this.pageSize, status, fromDate, toDate, excludeStatus,
       this.searchQuery().trim(), this.filterPayment()).subscribe({
       next: (data) => {
@@ -156,6 +163,10 @@ export class OrdersComponent implements OnInit, OnDestroy {
       const yesterday = addDays(today, -1);
       return { fromDate: yesterday, toDate: yesterday };
     }
+    if (filter === 'DATE') {
+      const day = this.pickedDate();
+      return day ? { fromDate: day, toDate: day } : {};
+    }
     if (filter === 'LAST_7') return { fromDate: addDays(today, -6), toDate: today };
     if (filter === 'LAST_30') return { fromDate: addDays(today, -29), toDate: today };
     return {};
@@ -185,7 +196,54 @@ export class OrdersComponent implements OnInit, OnDestroy {
 
   onDateFilterChange(date: string): void {
     this.filterDate.set(date);
+    // "Pick a date" starts on today, ready to change.
+    if (date === 'DATE' && !this.pickedDate()) this.pickedDate.set(businessToday());
     this.loadPage(0);
+  }
+
+  /** The single day the list shows (Today, Yesterday or a picked date), else null. */
+  shownDay(): string | null {
+    const today = businessToday();
+    switch (this.filterDate()) {
+      case 'TODAY': return today;
+      case 'YESTERDAY': return addDays(today, -1);
+      case 'DATE': return this.pickedDate() || null;
+      default: return null;
+    }
+  }
+
+  /** ◀ ▶: the day before or after the one shown, never past today. */
+  stepDay(days: number): void {
+    const day = this.shownDay();
+    if (!day) return;
+    const next = addDays(day, days);
+    if (next > businessToday()) return;
+    this.filterDate.set('DATE');
+    this.pickedDate.set(next);
+    this.loadPage(0);
+  }
+
+  onPickedDateChange(day: string): void {
+    this.pickedDate.set(day);
+    if (day) this.loadPage(0);
+  }
+
+  /** The totals of the dates the list shows, every status, whatever else is filtered. */
+  private loadPeriodSummary(fromDate?: string, toDate?: string): void {
+    const key = `${fromDate ?? ''}|${toDate ?? ''}`;
+    this.periodKey = key;
+    this.orderService.getPeriodSummary(fromDate, toDate).subscribe({
+      next: (s) => { if (this.periodKey === key) this.daySummary.set(s); },
+      error: () => { if (this.periodKey === key) this.daySummary.set(null); },
+    });
+  }
+  private periodKey = '';
+
+  /** "Orders on Sunday, 8 Nov 2026", "Orders 15 Nov 2026 – 21 Nov 2026" or "All orders". */
+  periodLabel(d: OrderDaySummary): string {
+    if (!d.fromDate && !d.toDate) return 'All orders';
+    if (d.fromDate === d.toDate) return `Orders on ${formatDateWithWeekday(d.fromDate!)}`;
+    return `Orders ${d.fromDate ? this.formatDay(d.fromDate) : '…'} – ${d.toDate ? this.formatDay(d.toDate) : '…'}`;
   }
 
   setPage(page: number): void {

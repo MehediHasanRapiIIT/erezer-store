@@ -63,6 +63,12 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             // A product code in the order's lines: the code it was placed with.
             "  OR EXISTS (SELECT 1 FROM order_item oi WHERE oi.order_id = o.id AND oi.product_code ILIKE :q)) ";
 
+    /** Live orders placed in [fromUtc, toUtc) (either end null: no limit), counted and added up by status. Rows: status, count, amount. */
+    @Query(value = "SELECT UPPER(o.order_status), COUNT(*), COALESCE(SUM(o.total_amount), 0) FROM orders o "
+            + "WHERE o.deleted = false AND (:fromUtc IS NULL OR o.created_at >= CAST(:fromUtc AS timestamp)) "
+            + "AND (:toUtc IS NULL OR o.created_at < CAST(:toUtc AS timestamp)) GROUP BY UPPER(o.order_status)", nativeQuery = true)
+    List<Object[]> sumByStatusBetween(@Param("fromUtc") String fromUtc, @Param("toUtc") String toUtc);
+
     /**
      * Customer history for the admin order list: for each of these orders, how
      * many OTHER live orders came from the same phone number (orders.phone_key,

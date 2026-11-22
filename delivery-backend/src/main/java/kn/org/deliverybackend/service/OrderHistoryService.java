@@ -37,4 +37,7 @@ public interface OrderHistoryService {
     OrderDTO updateOrderStatus(UUID orderId, String status);
 
     OrderSummaryDTO getSummary();
+
+    /** The orders of some shop days (either end blank: no limit), every status: how many, how each ended up, and their amount. */
+    kn.org.deliverybackend.dto.order.OrderDaySummaryDTO getPeriodSummary(String fromDate, String toDate);
 }

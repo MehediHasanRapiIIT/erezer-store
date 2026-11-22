@@ -237,6 +237,24 @@ class AdminPermissionSecurityTest {
                 .andExpect(jsonPath("$.content[0].lifetimeRevenue").value(5400.00));
     }
 
+    @Test
+    void aDaysOrderAmountNeedsMoneyTotals() throws Exception {
+        when(orderHistoryService.getPeriodSummary("2026-11-21", "2026-11-21")).thenReturn(new kn.org.deliverybackend.dto.order.OrderDaySummaryDTO(
+                java.time.LocalDate.of(2026, 11, 21), java.time.LocalDate.of(2026, 11, 21), 12, 7, 2, 1, 2, new BigDecimal("18450.00")));
+
+        moderator("orders.view");
+        as("mod", get("/admin/orders/period-summary").param("fromDate", "2026-11-21").param("toDate", "2026-11-21"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.orders").value(12))
+                .andExpect(jsonPath("$.cancelled").value(2))
+                .andExpect(jsonPath("$.amount").doesNotExist());
+
+        staff.get("kc-mod").getPermissions().add("finance.revenue");
+        directory.evict("kc-mod");
+        as("mod", get("/admin/orders/period-summary").param("fromDate", "2026-11-21").param("toDate", "2026-11-21"))
+                .andExpect(jsonPath("$.amount").value(18450.00));
+    }
+
     // ── settings sections ───────────────────────────────────────────────────
 
     @Test

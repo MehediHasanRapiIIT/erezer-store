@@ -50,6 +50,18 @@ public class AdminOrderController {
         return ResponseEntity.ok(orderHistoryService.getSummary());
     }
 
+    /**
+     * Totals for the dates the list shows, for the top of it (?fromDate=2026-11-15&toDate=2026-11-21;
+     * leave both out for every order). The amount needs "See money totals".
+     */
+    @RequiresPermission(Perm.ORDERS_VIEW)
+    @GetMapping("/period-summary")
+    public ResponseEntity<kn.org.deliverybackend.dto.order.OrderDaySummaryDTO> getPeriodSummary(
+            @RequestParam(required = false) String fromDate, @RequestParam(required = false) String toDate) {
+        var day = orderHistoryService.getPeriodSummary(fromDate, toDate);
+        return ResponseEntity.ok(StaffAccess.has(Perm.FINANCE_REVENUE) ? day : day.withoutAmount());
+    }
+
     @RequiresPermission(Perm.ORDERS_VIEW)
     @GetMapping("/paged")
     public ResponseEntity<Page<OrderDTO>> getOrdersPaged(

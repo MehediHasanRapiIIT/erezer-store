@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   CustomerHistory,
+  OrderDaySummary,
   OrderResponse,
   OrderStatus,
   OrderStatusOption,
@@ -36,6 +37,14 @@ export interface OrderEdit {
 export class OrderService {
   private http = inject(HttpClient);
   private baseUrl = environment.apiBaseUrl;
+
+  /** Totals for shop days (yyyy-mm-dd, Dhaka; leave both out for every order), for the top of the order list. */
+  getPeriodSummary(fromDate?: string, toDate?: string): Observable<OrderDaySummary> {
+    const params: Record<string, string> = {};
+    if (fromDate) params['fromDate'] = fromDate;
+    if (toDate) params['toDate'] = toDate;
+    return this.http.get<OrderDaySummary>(`${this.baseUrl}/admin/orders/period-summary`, { params });
+  }
 
   getSummary(): Observable<OrderSummary> {
     return this.http.get<OrderSummary>(`${this.baseUrl}/admin/orders/summary`);
