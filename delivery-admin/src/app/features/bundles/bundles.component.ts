@@ -10,6 +10,7 @@ import { PermissionService } from '../../core/services/permission.service';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { NoticeService } from '../../core/services/notice.service';
 import { parseApiError } from '../../core/utils/api-error.util';
+import { PageBeforeSearch } from '../../core/utils/page-before-search';
 
 interface BundleForm {
   name: string;
@@ -442,6 +443,10 @@ export class BundlesComponent implements OnInit, OnDestroy {
   protected readonly searching = computed(() => this.search().trim().length > 0);
 
   private readonly searchSubject = new Subject<string>();
+
+  /** Emptying the search box goes back to the page shown before it. */
+
+  private readonly pageBeforeSearch = new PageBeforeSearch();
   /** Numbers each request, so an answer that arrives after a newer one is ignored. */
   private latestRequest = 0;
 
@@ -449,7 +454,7 @@ export class BundlesComponent implements OnInit, OnDestroy {
     this.loadPage(0);
     // Typing searches all bundles after a short pause, from the first page.
     this.searchSubject.pipe(map((q) => q.trim()), debounceTime(300), distinctUntilChanged())
-      .subscribe(() => this.loadPage(0));
+      .subscribe((q) => this.loadPage(this.pageBeforeSearch.pageFor(q)));
   }
 
   ngOnDestroy(): void {
@@ -458,6 +463,7 @@ export class BundlesComponent implements OnInit, OnDestroy {
 
   protected onSearch(q: string): void {
     this.search.set(q);
+    this.pageBeforeSearch.typing(q, this.page());
     this.searchSubject.next(q);
   }
 

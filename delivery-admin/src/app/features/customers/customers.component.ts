@@ -6,6 +6,7 @@ import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import { HiddenMoneyComponent } from '../../shared/hidden-money/hidden-money.component';
 import { PagerComponent } from '../../shared/pager/pager.component';
 import { CustomerLifetimeValue, ReportService } from '../../core/services/report.service';
+import { PageBeforeSearch } from '../../core/utils/page-before-search';
 
 /**
  * Every customer: each account (with or without orders) and each guest shopper,
@@ -114,12 +115,14 @@ export class CustomersComponent implements OnInit, OnDestroy {
   readonly total = signal<number | null>(null);
   readonly searchQuery = signal('');
   private readonly searchSubject = new Subject<string>();
+  /** Emptying the search box goes back to the page shown before it. */
+  private readonly pageBeforeSearch = new PageBeforeSearch();
   /** Numbers each request, so an answer that arrives after a newer one is ignored. */
   private latestRequest = 0;
 
   ngOnInit(): void {
     this.loadPage(0);
-    this.searchSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe(() => this.loadPage(0));
+    this.searchSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe((q) => this.loadPage(this.pageBeforeSearch.pageFor(q)));
   }
 
   ngOnDestroy(): void {
@@ -128,6 +131,7 @@ export class CustomersComponent implements OnInit, OnDestroy {
 
   protected onSearchChange(query: string): void {
     this.searchQuery.set(query);
+    this.pageBeforeSearch.typing(query, this.page());
     this.searchSubject.next(query);
   }
 

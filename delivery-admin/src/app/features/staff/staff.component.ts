@@ -14,6 +14,7 @@ import { PermissionTemplatesComponent } from './permission-templates.component';
 import { LoginNoticeComponent } from './login-notice.component';
 import { generatePassword } from './generate-password';
 import { EMAIL_PATTERN, passwordProblem } from './staff-rules';
+import { PageBeforeSearch } from '../../core/utils/page-before-search';
 
 type PanelMode = 'edit' | 'reset' | 'permissions' | 'delete';
 
@@ -349,6 +350,8 @@ export class StaffComponent implements OnInit, OnDestroy {
   readonly search = signal('');
   protected readonly searching = computed(() => this.search().trim().length > 0);
   private readonly searchSubject = new Subject<string>();
+  /** Emptying the search box goes back to the page shown before it. */
+  private readonly pageBeforeSearch = new PageBeforeSearch();
   /** Only the newest request may fill the table. */
   private latestRequest = 0;
 
@@ -370,7 +373,7 @@ export class StaffComponent implements OnInit, OnDestroy {
     this.loadPage(0);
     // Typing searches everyone after a short pause, from the first page.
     this.searchSubject.pipe(map((q) => q.trim()), debounceTime(300), distinctUntilChanged())
-      .subscribe(() => this.loadPage(0));
+      .subscribe((q) => this.loadPage(this.pageBeforeSearch.pageFor(q)));
     this.loadTemplates();
     // The checklist needs the permission names; they normally arrive with the first permission check.
     if (this.perms.catalogList().length === 0) this.perms.refresh();
@@ -382,6 +385,7 @@ export class StaffComponent implements OnInit, OnDestroy {
 
   protected onSearch(q: string): void {
     this.search.set(q);
+    this.pageBeforeSearch.typing(q, this.page());
     this.searchSubject.next(q);
   }
 

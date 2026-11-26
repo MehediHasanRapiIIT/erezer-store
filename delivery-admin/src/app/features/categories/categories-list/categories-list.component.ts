@@ -8,6 +8,7 @@ import { CategoryResponse } from '../../../core/models/api.models';
 import { parseApiError } from '../../../core/utils/api-error.util';
 import { PermissionService } from '../../../core/services/permission.service';
 import { NoticeService } from '../../../core/services/notice.service';
+import { PageBeforeSearch } from '../../../core/utils/page-before-search';
 
 /** The Categories page. Search and paging are done by the server. */
 @Component({
@@ -24,6 +25,8 @@ export class CategoriesListComponent implements OnInit, OnDestroy {
 
   searchQuery = signal('');
   private searchSubject = new Subject<string>();
+  /** Emptying the search box goes back to the page shown before it. */
+  private readonly pageBeforeSearch = new PageBeforeSearch();
   /** 1-based, for the page buttons; the server's pages start at 0. */
   currentPage = signal(1);
 
@@ -99,7 +102,7 @@ export class CategoriesListComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadPage(1);
-    this.searchSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe(() => this.loadPage(1));
+    this.searchSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe((q) => this.loadPage(this.pageBeforeSearch.pageFor(q, 1)));
   }
 
   ngOnDestroy(): void {
@@ -108,6 +111,7 @@ export class CategoriesListComponent implements OnInit, OnDestroy {
 
   onSearchChange(query: string): void {
     this.searchQuery.set(query);
+    this.pageBeforeSearch.typing(query, this.currentPage());
     this.searchSubject.next(query);
   }
 

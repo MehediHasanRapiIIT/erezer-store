@@ -16,6 +16,7 @@ import { PermissionService } from '../../core/services/permission.service';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { NoticeService } from '../../core/services/notice.service';
 import { parseApiError } from '../../core/utils/api-error.util';
+import { PageBeforeSearch } from '../../core/utils/page-before-search';
 
 type Tab = 'subscribers' | 'campaigns' | 'compose';
 
@@ -277,6 +278,8 @@ export class NewsletterComponent implements OnInit, OnDestroy {
   readonly subSearch     = signal('');
   protected readonly subSearching = computed(() => this.subSearch().trim().length > 0);
   private readonly subSearch$ = new Subject<string>();
+  /** Emptying a search box goes back to the page shown before it. */
+  private readonly subPageBeforeSearch = new PageBeforeSearch();
   /** Numbers each subscribers request, so an answer that arrives after a newer one is ignored. */
   private subRequest = 0;
 
@@ -288,6 +291,7 @@ export class NewsletterComponent implements OnInit, OnDestroy {
   readonly campSearch    = signal('');
   protected readonly campSearching = computed(() => this.campSearch().trim().length > 0);
   private readonly campSearch$ = new Subject<string>();
+  private readonly campPageBeforeSearch = new PageBeforeSearch();
   /** Numbers each campaigns request, so an answer that arrives after a newer one is ignored. */
   private campRequest = 0;
 
@@ -305,9 +309,9 @@ export class NewsletterComponent implements OnInit, OnDestroy {
 
     // Typing searches the whole list after a short pause, from the first page.
     this.subSearch$.pipe(map((q) => q.trim()), debounceTime(300), distinctUntilChanged())
-      .subscribe(() => this.loadSubscribers(0));
+      .subscribe((q) => this.loadSubscribers(this.subPageBeforeSearch.pageFor(q)));
     this.campSearch$.pipe(map((q) => q.trim()), debounceTime(300), distinctUntilChanged())
-      .subscribe(() => this.loadCampaigns(0));
+      .subscribe((q) => this.loadCampaigns(this.campPageBeforeSearch.pageFor(q)));
   }
 
   ngOnDestroy(): void {
@@ -333,11 +337,13 @@ export class NewsletterComponent implements OnInit, OnDestroy {
 
   protected onSubSearch(q: string): void {
     this.subSearch.set(q);
+    this.subPageBeforeSearch.typing(q, this.subPage());
     this.subSearch$.next(q);
   }
 
   protected onCampSearch(q: string): void {
     this.campSearch.set(q);
+    this.campPageBeforeSearch.typing(q, this.campPage());
     this.campSearch$.next(q);
   }
 

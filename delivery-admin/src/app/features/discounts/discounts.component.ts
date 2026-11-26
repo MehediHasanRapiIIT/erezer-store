@@ -19,6 +19,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
 import { NoticeService } from '../../core/services/notice.service';
 import { CategoryResponse, ProductResponse } from '../../core/models/api.models';
 import { parseApiError } from '../../core/utils/api-error.util';
+import { PageBeforeSearch } from '../../core/utils/page-before-search';
 
 /** The three per-scope switches, keyed by their field on DiscountSwitches. */
 type ScopeSwitch = 'discountsGlobalEnabled' | 'discountsCategoryEnabled' | 'discountsProductEnabled';
@@ -370,6 +371,8 @@ export class DiscountsComponent implements OnInit {
   readonly search     = signal('');
   protected readonly searching = computed(() => this.search().trim().length > 0);
   private readonly searchSubject = new Subject<string>();
+  /** Emptying the search box goes back to the page shown before it. */
+  private readonly pageBeforeSearch = new PageBeforeSearch();
   /** Numbers each request, so an answer that arrives after a newer one is ignored. */
   private latestRequest = 0;
   readonly categories = signal<CategoryResponse[]>([]);
@@ -454,7 +457,7 @@ export class DiscountsComponent implements OnInit {
       debounceTime(300),
       distinctUntilChanged(),
       takeUntilDestroyed(this.destroyRef),
-    ).subscribe(() => this.loadPage(0));
+    ).subscribe((q) => this.loadPage(this.pageBeforeSearch.pageFor(q)));
     this.api.getSwitches()
       .pipe(catchError(() => of(null)))
       .subscribe((s) => this.settings.set(s));
@@ -478,6 +481,7 @@ export class DiscountsComponent implements OnInit {
 
   protected onSearch(q: string): void {
     this.search.set(q);
+    this.pageBeforeSearch.typing(q, this.page());
     this.searchSubject.next(q);
   }
 

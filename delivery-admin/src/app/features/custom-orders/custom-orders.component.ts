@@ -14,6 +14,7 @@ import { PermissionService } from '../../core/services/permission.service';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { NoticeService } from '../../core/services/notice.service';
 import { parseApiError } from '../../core/utils/api-error.util';
+import { PageBeforeSearch } from '../../core/utils/page-before-search';
 
 const STATUSES: CustomOrderStatus[] = ['NEW', 'IN_REVIEW', 'QUOTED', 'CONFIRMED', 'DELIVERED', 'CLOSED'];
 // Delivered orders live in the History tab, so they're not offered as an Active-list filter.
@@ -319,6 +320,8 @@ export class CustomOrdersComponent implements OnInit, OnDestroy {
   // Server search: reference, customer name, phone, email, item
   readonly searchQuery = signal('');
   private readonly searchSubject = new Subject<string>();
+  /** Emptying the search box goes back to the page shown before it. */
+  private readonly pageBeforeSearch = new PageBeforeSearch();
   /** Numbers each list request, so an answer that arrives after a newer one is ignored. */
   private latestRequest = 0;
 
@@ -347,8 +350,8 @@ export class CustomOrdersComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.reload();
-    this.searchSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe(() => {
-      this.page.set(0);
+    this.searchSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe((q) => {
+      this.page.set(this.pageBeforeSearch.pageFor(q));
       this.reload();
     });
   }
@@ -359,6 +362,7 @@ export class CustomOrdersComponent implements OnInit, OnDestroy {
 
   protected onSearchChange(query: string): void {
     this.searchQuery.set(query);
+    this.pageBeforeSearch.typing(query, this.page());
     this.searchSubject.next(query);
   }
 

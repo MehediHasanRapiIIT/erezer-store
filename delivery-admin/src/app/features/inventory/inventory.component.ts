@@ -14,6 +14,7 @@ import { ConfirmService } from '../../core/services/confirm.service';
 import { CategoryService } from '../../core/services/category.service';
 import { SIZE_OPTIONS } from '../products/shared/size-grid.component';
 import { FITS, groupByFit } from '../products/shared/fit-sizes.component';
+import { PageBeforeSearch } from '../../core/utils/page-before-search';
 
 /**
  * The Inventory page. The list is searched and paged by the server; the
@@ -52,6 +53,8 @@ export class InventoryComponent implements OnInit, OnDestroy {
   errorMessage = signal('');
   searchQuery = signal('');
   private searchSubject = new Subject<string>();
+  /** Emptying the search box goes back to the page shown before it. */
+  private readonly pageBeforeSearch = new PageBeforeSearch();
   /** Numbers each request, so an answer that arrives after a newer one is ignored. */
   private latestRequest = 0;
 
@@ -129,7 +132,7 @@ export class InventoryComponent implements OnInit, OnDestroy {
     this.stockService.getStockPage('', 0, 1).subscribe({
       next: (p) => this.shopProductCount.set(p.totalElements), error: () => {},
     });
-    this.searchSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe(() => this.loadPage(0));
+    this.searchSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe((q) => this.loadPage(this.pageBeforeSearch.pageFor(q)));
   }
 
   ngOnDestroy(): void {
@@ -138,6 +141,7 @@ export class InventoryComponent implements OnInit, OnDestroy {
 
   onSearchChange(query: string): void {
     this.searchQuery.set(query);
+    this.pageBeforeSearch.typing(query, this.page());
     this.searchSubject.next(query);
   }
 

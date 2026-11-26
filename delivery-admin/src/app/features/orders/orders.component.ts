@@ -5,6 +5,7 @@ import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import { OrderService, OrderStatus } from '../../core/services/order.service';
 import { CustomerHistory, OrderDaySummary, OrderResponse, OrderSummary } from '../../core/models/api.models';
+import { PageBeforeSearch } from '../../core/utils/page-before-search';
 import { CustomerHistoryBadgeComponent } from './customer-history/customer-history.component';
 import { parseApiError } from '../../core/utils/api-error.util';
 import { addDays, businessToday, formatDate, formatDateWithWeekday, formatTaka } from '../../core/utils/business-date.util';
@@ -52,6 +53,8 @@ export class OrdersComponent implements OnInit, OnDestroy {
   searchQuery = signal('');
   /** Typed search text, sent to the server after a short pause. */
   private searchSubject = new Subject<string>();
+  /** Emptying the search box goes back to the page shown before it. */
+  private readonly pageBeforeSearch = new PageBeforeSearch();
 
   // Pagination
   currentPage = signal(0);
@@ -88,7 +91,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
     this.loadPage(0);
     this.loadSummary();
     this.startPolling();
-    this.searchSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe(() => this.loadPage(0));
+    this.searchSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe((q) => this.loadPage(this.pageBeforeSearch.pageFor(q)));
   }
 
   ngOnDestroy(): void {
@@ -127,6 +130,11 @@ export class OrdersComponent implements OnInit, OnDestroy {
       this.searchQuery().trim(), this.filterPayment()).subscribe({
       next: (data) => {
         if (request !== this.latestRequest) return;
+        // A remembered page that no longer exists (fewer orders now): show the last one.
+        if (!data.content.length && data.number > 0 && data.totalPages > 0 && data.number >= data.totalPages) {
+          this.loadPage(data.totalPages - 1, silent);
+          return;
+        }
         this.orders.set(data.content);
         this.loadHistory(data.content, request);
         this.currentPage.set(data.number);
@@ -180,6 +188,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
   }
 
   onSearchChange(query: string): void {
+    this.pageBeforeSearch.typing(query, this.currentPage());
     this.searchQuery.set(query);
     this.searchSubject.next(query);
   }

@@ -9,6 +9,7 @@ import { PermissionService } from '../../core/services/permission.service';
 import { NoticeService } from '../../core/services/notice.service';
 import { parseApiError } from '../../core/utils/api-error.util';
 import { Subject, catchError, debounceTime, distinctUntilChanged, map, of } from 'rxjs';
+import { PageBeforeSearch } from '../../core/utils/page-before-search';
 
 /**
  * Where a banner's button sends the shopper, chosen in plain language rather
@@ -66,6 +67,8 @@ export class BannersComponent implements OnInit, OnDestroy {
   slotFilter = signal<BannerSlot | ''>('');
   filtering = computed(() => this.search().trim().length > 0 || this.slotFilter() !== '');
   private readonly searchSubject = new Subject<string>();
+  /** Emptying the search box goes back to the page shown before it. */
+  private readonly pageBeforeSearch = new PageBeforeSearch();
   /** Numbers each request, so an answer that arrives after a newer one is ignored. */
   private latestRequest = 0;
 
@@ -344,7 +347,7 @@ export class BannersComponent implements OnInit, OnDestroy {
     this.loadSlotSummary();
     // Typing searches every banner after a short pause, from the first page.
     this.searchSubject.pipe(map((q) => q.trim()), debounceTime(300), distinctUntilChanged())
-      .subscribe(() => this.loadPage(0));
+      .subscribe((q) => this.loadPage(this.pageBeforeSearch.pageFor(q)));
     // Needed to offer collections by name, and to recognise a saved collection
     // link when an existing banner is opened for editing.
     this.categoryService.getCategories()
@@ -365,6 +368,7 @@ export class BannersComponent implements OnInit, OnDestroy {
 
   onSearch(q: string): void {
     this.search.set(q);
+    this.pageBeforeSearch.typing(q, this.page());
     this.searchSubject.next(q);
   }
 

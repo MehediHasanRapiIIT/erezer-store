@@ -17,6 +17,7 @@ import { ShippingService } from '../../../core/services/shipping.service';
 import { ACCESS } from '../../../core/access/admin-pages';
 import { VariantService } from '../../../core/services/variant.service';
 import { FITS, groupByFit } from '../shared/fit-sizes.component';
+import { PageBeforeSearch } from '../../../core/utils/page-before-search';
 
 /**
  * The Products page. Search, the category filter and paging are all done by
@@ -41,6 +42,8 @@ export class ProductsListComponent implements OnInit, OnDestroy {
   protected readonly ACCESS = ACCESS;
   private destroy$ = new Subject<void>();
   private searchSubject = new Subject<string>();
+  /** Emptying the search box goes back to the page shown before it. */
+  private readonly pageBeforeSearch = new PageBeforeSearch();
 
   readonly pageSize = 10;
 
@@ -145,7 +148,7 @@ export class ProductsListComponent implements OnInit, OnDestroy {
       debounceTime(300),
       distinctUntilChanged(),
       takeUntil(this.destroy$)
-    ).subscribe(() => this.loadPage(0));
+    ).subscribe((q) => this.loadPage(this.pageBeforeSearch.pageFor(q)));
   }
 
   ngOnDestroy(): void {
@@ -155,6 +158,7 @@ export class ProductsListComponent implements OnInit, OnDestroy {
 
   onSearchChange(query: string): void {
     this.searchQuery.set(query);
+    this.pageBeforeSearch.typing(query, this.currentPage());
     this.searchSubject.next(query);
   }
 
