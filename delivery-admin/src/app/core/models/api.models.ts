@@ -425,6 +425,8 @@ export interface OrderResponse {
 export type OrderStatus =
   | 'PLACED'
   | 'ACCEPTED'
+  /** The shop rang the customer: an optional step, never shown to customers or sent to them. */
+  | 'CALL_CONFIRMED'
   | 'IN_PRODUCTION'
   | 'PROCESSING'
   | 'SHIPPED'

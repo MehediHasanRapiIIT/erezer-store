@@ -298,49 +298,11 @@
         }
 
         <!-- Pagination -->
-        @if (!isLoading() && totalElements() > 0) {
-          <div class="px-5 py-4 flex items-center justify-between border-t border-gray-100">
-            <p class="text-sm text-gray-500">
-              Showing
-              <span class="font-semibold text-gray-700">{{ (currentPage() - 1) * pageSize + 1 }}</span>
-              to
-              <span class="font-semibold text-gray-700">{{ minVal(currentPage() * pageSize, totalElements()) }}</span>
-              of
-              <span class="font-semibold text-gray-700">{{ totalElements() }}</span>
-              categories
-            </p>
-            <div class="flex items-center gap-1">
-              <button
-                (click)="setPage(currentPage() - 1)"
-                [disabled]="currentPage() === 1"
-                class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >Previous</button>
-
-              @for (p of pageNumbers(); track p) {
-                @if (p === -1) {
-                  <span class="px-2 text-gray-400">...</span>
-                } @else {
-                  <button
-                    (click)="setPage(p)"
-                    class="w-8 h-8 text-sm rounded-lg font-medium transition-colors"
-                    [class.bg-blue-600]="currentPage() === p"
-                    [class.text-white]="currentPage() === p"
-                    [class.border]="currentPage() !== p"
-                    [class.border-gray-200]="currentPage() !== p"
-                    [class.text-gray-600]="currentPage() !== p"
-                    [class.hover:bg-gray-50]="currentPage() !== p"
-                  >{{ p }}</button>
-                }
-              }
-
-              <button
-                (click)="setPage(currentPage() + 1)"
-                [disabled]="currentPage() === totalPages()"
-                class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >Next</button>
-            </div>
-          </div>
-        }
+        <div class="border-t border-gray-100">
+          @if (!isLoading()) {
+          <app-pager [page]="currentPage() - 1" [size]="pageSize" [total]="totalElements()" (pageChange)="setPage($event + 1)" />
+          }
+        </div>
 
       </div>
     </main>

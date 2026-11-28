@@ -522,7 +522,21 @@ public class OrderServiceImpl implements OrderService {
         if (order.getClientId() == null || !order.getClientId().equals(userId)) {
             throw new ResourceNotFoundException("Order not found: " + orderId);
         }
-        return getOrderTracking(orderId);
+        return getOrderTrackingForCustomer(orderId);
+    }
+
+    @Override
+    public OrderTrackingDTO getOrderTrackingForCustomer(UUID orderId) {
+        OrderTrackingDTO all = getOrderTracking(orderId);
+        // The shop's call check stays in the shop: its step is left out, and while
+        // the order stands there the customer sees Accepted.
+        List<OrderStatusHistoryDTO> steps = all.getHistory() == null ? List.of() : all.getHistory().stream()
+                .filter(h -> !OrderStatus.CALL_CONFIRMED.name().equalsIgnoreCase(h.getToStatus()))
+                .peek(h -> h.setFromStatus(OrderStatus.forCustomer(h.getFromStatus())))
+                .toList();
+        all.setHistory(steps);
+        all.setCurrentStatus(OrderStatus.forCustomer(all.getCurrentStatus()));
+        return all;
     }
 
     @Override

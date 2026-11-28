@@ -9,16 +9,19 @@ import { parseApiError } from '../../../core/utils/api-error.util';
 import { PermissionService } from '../../../core/services/permission.service';
 import { NoticeService } from '../../../core/services/notice.service';
 import { PageBeforeSearch } from '../../../core/utils/page-before-search';
+import { PagerComponent } from '../../../shared/pager/pager.component';
+import { ListMemory } from '../../../core/services/list-memory.service';
 
 /** The Categories page. Search and paging are done by the server. */
 @Component({
   selector: 'app-categories-list',
   standalone: true,
-  imports: [RouterLink, FormsModule, SidebarComponent],
+  imports: [RouterLink, FormsModule, SidebarComponent, PagerComponent],
   templateUrl: './categories-list.component.html',
 })
 export class CategoriesListComponent implements OnInit, OnDestroy {
   private categoryService = inject(CategoryService);
+  private memory = inject(ListMemory);
   private readonly notices = inject(NoticeService);
   private router = inject(Router);
   protected readonly perms = inject(PermissionService);
@@ -87,21 +90,18 @@ export class CategoriesListComponent implements OnInit, OnDestroy {
   /** Numbers each request, so an answer that arrives after a newer one is ignored. */
   private latestRequest = 0;
 
-  pageNumbers = computed(() => {
-    const total = this.totalPages();
-    const current = this.currentPage();
-    if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
-    const pages: number[] = [];
-    if (current > 2) pages.push(1);
-    if (current > 3) pages.push(-1);
-    for (let i = Math.max(1, current - 1); i <= Math.min(total, current + 1); i++) pages.push(i);
-    if (current < total - 2) pages.push(-1);
-    if (current < total - 1) pages.push(total);
-    return [...new Set(pages)];
-  });
 
   ngOnInit(): void {
-    this.loadPage(1);
+    // Back from a category: the list as it was left.
+    const was = this.memory.recall<CategoriesListState>('categories');
+    if (was) {
+      this.searchQuery.set(was.search);
+      this.statusFilter.set(was.status);
+      this.kindFilter.set(was.kind);
+      this.imageFilter.set(was.image);
+      this.sortBy.set(was.sort);
+    }
+    this.loadPage(was?.page ?? 1);
     this.searchSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe((q) => this.loadPage(this.pageBeforeSearch.pageFor(q, 1)));
   }
 
@@ -138,6 +138,10 @@ export class CategoriesListComponent implements OnInit, OnDestroy {
         this.totalElements.set(data.totalElements);
         this.totalPages.set(data.totalPages);
         this.currentPage.set(data.number + 1);
+        this.memory.remember<CategoriesListState>('categories', {
+          search: this.searchQuery(), status: this.statusFilter(), kind: this.kindFilter(),
+          image: this.imageFilter(), sort: this.sortBy(), page: data.number + 1,
+        });
         this.isLoading.set(false);
       },
       error: (err) => {
@@ -150,10 +154,6 @@ export class CategoriesListComponent implements OnInit, OnDestroy {
 
   setPage(p: number) {
     if (p >= 1 && p <= this.totalPages()) this.loadPage(p);
-  }
-
-  minVal(a: number, b: number): number {
-    return Math.min(a, b);
   }
 
   iconBgClass(name: string): string {
@@ -227,4 +227,14 @@ export class CategoriesListComponent implements OnInit, OnDestroy {
       },
     });
   }
+}
+
+/** What the Categories list remembers while the admin is open (page counted from 1). */
+interface CategoriesListState {
+  search: string;
+  status: '' | 'active' | 'hidden';
+  kind: '' | 'main' | 'sub';
+  image: '' | 'missing' | 'with';
+  sort: string;
+  page: number;
 }

@@ -68,7 +68,7 @@ class OrderEmailsTest {
 
     @Test
     void theStepsInBetweenSendNothing() {
-        for (OrderStatus s : List.of(OrderStatus.PLACED, OrderStatus.IN_PRODUCTION, OrderStatus.PROCESSING,
+        for (OrderStatus s : List.of(OrderStatus.PLACED, OrderStatus.CALL_CONFIRMED, OrderStatus.IN_PRODUCTION, OrderStatus.PROCESSING,
                 OrderStatus.OUT_FOR_DELIVERY, OrderStatus.RETURNED)) {
             changeTo(s);
         }

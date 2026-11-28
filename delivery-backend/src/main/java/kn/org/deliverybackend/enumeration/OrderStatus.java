@@ -18,6 +18,12 @@ import java.util.Set;
 public enum OrderStatus {
     PLACED,
     ACCEPTED,
+    /**
+     * Staff rang the customer and the order is real. An optional step, for the
+     * shop only: no email, SMS or app message, and customers see it as
+     * {@link #ACCEPTED} (see {@link #forCustomer()}).
+     */
+    CALL_CONFIRMED,
     IN_PRODUCTION,
     PROCESSING,
     SHIPPED,
@@ -35,7 +41,8 @@ public enum OrderStatus {
             PENDING,          EnumSet.of(ACCEPTED, CANCELLED),
             // "In production" is no longer a step (2026-10-15); an order still
             // standing there from before can only move on to Processing.
-            ACCEPTED,         EnumSet.of(PROCESSING, CANCELLED),
+            ACCEPTED,         EnumSet.of(CALL_CONFIRMED, PROCESSING, CANCELLED),
+            CALL_CONFIRMED,   EnumSet.of(PROCESSING, CANCELLED),
             IN_PRODUCTION,    EnumSet.of(PROCESSING, CANCELLED),
             PROCESSING,       EnumSet.of(SHIPPED, CANCELLED),
             SHIPPED,          EnumSet.of(OUT_FOR_DELIVERY, DELIVERED, RETURNED),
@@ -45,7 +52,7 @@ public enum OrderStatus {
     );
 
     private static final Set<OrderStatus> CANCELLABLE_BY_CUSTOMER =
-            EnumSet.of(PLACED, PENDING, ACCEPTED);
+            EnumSet.of(PLACED, PENDING, ACCEPTED, CALL_CONFIRMED);
 
     public Set<OrderStatus> nextStates() {
         return ALLOWED_TRANSITIONS.getOrDefault(this, Set.of());
@@ -74,6 +81,16 @@ public enum OrderStatus {
         } catch (IllegalArgumentException ex) {
             return Optional.empty();
         }
+    }
+
+    /** The status as a customer sees it: the shop's own call check shows as Accepted. */
+    public OrderStatus forCustomer() {
+        return this == CALL_CONFIRMED ? ACCEPTED : normalize();
+    }
+
+    /** {@link #forCustomer()} for a stored status string; unknown values are left as they are. */
+    public static String forCustomer(String raw) {
+        return parse(raw).map(s -> s.forCustomer().name()).orElse(raw);
     }
 
     /** Normalize legacy PENDING → PLACED for display & comparison purposes. */

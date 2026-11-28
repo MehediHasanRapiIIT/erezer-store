@@ -9,6 +9,7 @@ import { PageResponse, ProductResponse, ReviewResponse } from '../../core/models
 import { parseApiError } from '../../core/utils/api-error.util';
 import { PermissionService } from '../../core/services/permission.service';
 import { NoticeService } from '../../core/services/notice.service';
+import { PagerComponent } from '../../shared/pager/pager.component';
 
 /**
  * Reviews, one product at a time. The product picker searches on the server,
@@ -18,7 +19,7 @@ import { NoticeService } from '../../core/services/notice.service';
 @Component({
   selector: 'app-reviews',
   standalone: true,
-  imports: [FormsModule, SidebarComponent, DecimalPipe],
+  imports: [FormsModule, SidebarComponent, DecimalPipe, PagerComponent],
   templateUrl: './reviews.component.html',
 })
 export class ReviewsComponent implements OnInit, OnDestroy {
@@ -186,16 +187,4 @@ export class ReviewsComponent implements OnInit, OnDestroy {
     return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   }
 
-  pageNumbers(): number[] {
-    const total = this.totalPages();
-    const current = this.currentPage();
-    if (total <= 7) return Array.from({ length: total }, (_, i) => i);
-    const pages: number[] = [];
-    if (current > 1) pages.push(0);
-    if (current > 2) pages.push(-1);
-    for (let i = Math.max(0, current - 1); i <= Math.min(total - 1, current + 1); i++) pages.push(i);
-    if (current < total - 3) pages.push(-1);
-    if (current < total - 2) pages.push(total - 1);
-    return [...new Set(pages)];
-  }
 }

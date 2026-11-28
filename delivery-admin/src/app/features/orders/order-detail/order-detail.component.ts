@@ -20,10 +20,11 @@ import { BkashRefundComponent } from '../bkash-refund/bkash-refund.component';
 import { CustomerHistoryComponent } from '../customer-history/customer-history.component';
 
 // Display order for the lifecycle timeline (PENDING omitted — it's a legacy alias;
-// "In production" is no longer a step).
+// "In production" is no longer a step). "Call confirmed" is optional.
 const TIMELINE: OrderStatus[] = [
   'PLACED',
   'ACCEPTED',
+  'CALL_CONFIRMED',
   'PROCESSING',
   'SHIPPED',
   'OUT_FOR_DELIVERY',
@@ -271,6 +272,10 @@ export class OrderDetailComponent implements OnInit {
   // ── timeline ──────────────────────────────────────────────────────────────
 
   timeline(): { label: string; status: OrderStatus; done: boolean; time?: string }[] {
+    // "Call confirmed" is optional: done only if the order went through it, and
+    // marked as skipped once the order moved past without it.
+    const called = this.currentStatus() === 'CALL_CONFIRMED'
+      || !!this.tracking()?.history.some((h) => h.toStatus === 'CALL_CONFIRMED');
     const o = this.order();
     if (!o) return [];
     const current = this.currentStatus();
@@ -278,12 +283,16 @@ export class OrderDetailComponent implements OnInit {
       return [];
     }
     const currIdx = TIMELINE.indexOf(current);
-    return TIMELINE.map((s, i) => ({
-      label: this.statusLabel(s),
-      status: s,
-      done: currIdx >= 0 && i <= currIdx,
-      time: i === 0 ? this.formatDate(o.createdAt) : undefined,
-    }));
+    return TIMELINE.map((s, i) => {
+      const reached = currIdx >= 0 && i <= currIdx;
+      const skipped = s === 'CALL_CONFIRMED' && reached && !called;
+      return {
+        label: this.statusLabel(s) + (skipped ? ' (skipped)' : ''),
+        status: s,
+        done: reached && !skipped,
+        time: i === 0 ? this.formatDate(o.createdAt) : undefined,
+      };
+    });
   }
 
   // ── status update ──────────────────────────────────────────────────────────
@@ -360,6 +369,7 @@ export class OrderDetailComponent implements OnInit {
       case 'PLACED':           return 'Placed';
       case 'PENDING':          return 'Placed';
       case 'ACCEPTED':         return 'Accepted';
+      case 'CALL_CONFIRMED':   return 'Call confirmed';
       case 'IN_PRODUCTION':    return 'In production';
       case 'PROCESSING':       return 'Processing';
       case 'SHIPPED':          return 'Shipped';
@@ -376,6 +386,7 @@ export class OrderDetailComponent implements OnInit {
       case 'PLACED':
       case 'PENDING':           return 'bg-yellow-100 text-yellow-700';
       case 'ACCEPTED':          return 'bg-blue-100 text-blue-700';
+      case 'CALL_CONFIRMED':    return 'bg-teal-100 text-teal-700';
       case 'IN_PRODUCTION':     return 'bg-sky-100 text-sky-700';
       case 'PROCESSING':        return 'bg-orange-100 text-orange-700';
       case 'SHIPPED':           return 'bg-purple-100 text-purple-700';

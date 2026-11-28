@@ -72,6 +72,7 @@ class OrderPushListenerTest {
     void stepsTheCustomerIsNotToldAboutSendNothing() {
         Order o = order(null, "guest-phone");
         listener.onOrderStatusChanged(changed(o, OrderStatus.PROCESSING, null));
+        listener.onOrderStatusChanged(changed(o, OrderStatus.CALL_CONFIRMED, null));
         verifyNoInteractions(push);
     }
 

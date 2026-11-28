@@ -35,7 +35,7 @@ const PAYMENT_LABELS: Record<string, string> = {
   ROCKET: 'Rocket', CARD: 'Card', SSLCOMMERZ: 'SSLCommerz', UNKNOWN: 'Not recorded',
 };
 
-const STATUS_ORDER = ['PLACED', 'ACCEPTED', 'IN_PRODUCTION', 'PROCESSING', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'RETURNED', 'CANCELLED'];
+const STATUS_ORDER = ['PLACED', 'ACCEPTED', 'CALL_CONFIRMED', 'IN_PRODUCTION', 'PROCESSING', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'RETURNED', 'CANCELLED'];
 
 /**
  * Business reports: one day, one week (Sunday–Saturday), one month, one

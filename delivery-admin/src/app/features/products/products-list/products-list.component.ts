@@ -18,6 +18,8 @@ import { ACCESS } from '../../../core/access/admin-pages';
 import { VariantService } from '../../../core/services/variant.service';
 import { FITS, groupByFit } from '../shared/fit-sizes.component';
 import { PageBeforeSearch } from '../../../core/utils/page-before-search';
+import { PagerComponent } from '../../../shared/pager/pager.component';
+import { ListMemory } from '../../../core/services/list-memory.service';
 
 /**
  * The Products page. Search, the category filter and paging are all done by
@@ -26,11 +28,12 @@ import { PageBeforeSearch } from '../../../core/utils/page-before-search';
 @Component({
   selector: 'app-products-list',
   standalone: true,
-  imports: [RouterLink, FormsModule, SidebarComponent, SizeChartPickerComponent, BulkChartsComponent],
+  imports: [RouterLink, FormsModule, SidebarComponent, SizeChartPickerComponent, BulkChartsComponent, PagerComponent],
   templateUrl: './products-list.component.html',
 })
 export class ProductsListComponent implements OnInit, OnDestroy {
   private productService = inject(ProductService);
+  private memory = inject(ListMemory);
   private readonly notices = inject(NoticeService);
   private categoryService = inject(CategoryService);
   private readonly shippingService = inject(ShippingService);
@@ -116,28 +119,17 @@ export class ProductsListComponent implements OnInit, OnDestroy {
     { value: 'FOLLOW', label: 'Same as category' },
   ];
 
-  showingFrom = computed(() => this.currentPage() * this.pageSize + 1);
-  showingTo = computed(() => Math.min((this.currentPage() + 1) * this.pageSize, this.totalElements()));
-
-  // Page numbers to show in pagination
-  pageNumbers = computed(() => {
-    const total = this.totalPages();
-    const current = this.currentPage();
-    if (total <= 5) return Array.from({ length: total }, (_, i) => i);
-    const pages: number[] = [];
-    if (current > 1) pages.push(0);
-    if (current > 2) pages.push(-1); // ellipsis
-    for (let i = Math.max(0, current - 1); i <= Math.min(total - 1, current + 1); i++) pages.push(i);
-    if (current < total - 3) pages.push(-1); // ellipsis
-    if (current < total - 2) pages.push(total - 1);
-    return [...new Set(pages)];
-  });
-
   ngOnInit(): void {
     // Arrived from "Add several products": show the category just added to.
     const fromAddress = Number(this.route.snapshot.queryParamMap.get('categoryId'));
+    // Otherwise, back from a product: the list as it was left.
+    const was = fromAddress > 0 ? undefined : this.memory.recall<{ search: string; categoryId: number | null; page: number }>('products');
     if (fromAddress > 0) this.categoryId.set(fromAddress);
-    this.loadPage(0);
+    if (was) {
+      this.searchQuery.set(was.search);
+      this.categoryId.set(was.categoryId);
+    }
+    this.loadPage(was?.page ?? 0);
     this.categoryService.getCategories().subscribe({
       next: (cats) => this.categories.set(cats),
       error: () => this.categories.set([]),
@@ -187,6 +179,7 @@ export class ProductsListComponent implements OnInit, OnDestroy {
         }
         this.products.set(data.content);
         this.currentPage.set(data.number);
+        this.memory.remember('products', { search: this.searchQuery(), categoryId: this.categoryId(), page: data.number });
         this.totalElements.set(data.totalElements);
         this.totalPages.set(data.totalPages);
         this.isLoading.set(false);

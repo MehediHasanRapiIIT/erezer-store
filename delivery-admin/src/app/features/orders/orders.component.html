@@ -304,47 +304,9 @@
           </table>
 
           <!-- Pagination -->
-          @if (totalPages() > 0) {
-            <div class="px-5 py-4 flex items-center justify-between border-t border-gray-100">
-              <p class="text-sm text-gray-500">
-                Showing
-                <span class="font-semibold text-gray-700">{{ showingFrom() }}-{{ showingTo() }}</span>
-                of
-                <span class="font-semibold text-gray-700">{{ totalElements() }}</span>
-                results
-              </p>
-              <div class="flex items-center gap-1">
-                <button
-                  (click)="setPage(currentPage() - 1)"
-                  [disabled]="currentPage() === 0"
-                  class="w-8 h-8 flex items-center justify-center text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >‹</button>
-
-                @for (p of pageNumbers(); track p) {
-                  @if (p === -1) {
-                    <span class="px-1 text-gray-400 text-sm">...</span>
-                  } @else {
-                    <button
-                      (click)="setPage(p)"
-                      class="w-8 h-8 text-sm rounded-lg font-medium transition-colors"
-                      [class.bg-blue-600]="currentPage() === p"
-                      [class.text-white]="currentPage() === p"
-                      [class.border]="currentPage() !== p"
-                      [class.border-gray-200]="currentPage() !== p"
-                      [class.text-gray-600]="currentPage() !== p"
-                      [class.hover:bg-gray-50]="currentPage() !== p"
-                    >{{ p + 1 }}</button>
-                  }
-                }
-
-                <button
-                  (click)="setPage(currentPage() + 1)"
-                  [disabled]="currentPage() === totalPages() - 1"
-                  class="w-8 h-8 flex items-center justify-center text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >›</button>
-              </div>
-            </div>
-          }
+          <div class="border-t border-gray-100">
+            <app-pager [page]="currentPage()" [size]="pageSize" [total]="totalElements()" [disabled]="isLoading()" (pageChange)="setPage($event)" />
+          </div>
         }
       </div>
     </main>

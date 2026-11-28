@@ -96,6 +96,7 @@ public class OrderHistoryServiceImpl implements OrderHistoryService {
         );
         dto.setCustomerName(buildName(user));
         dto.setCustomerPhone(user.getPhoneNumber());
+        dto.setOrderStatus(OrderStatus.forCustomer(dto.getOrderStatus()));
         return dto;
     }
 
@@ -108,6 +109,8 @@ public class OrderHistoryServiceImpl implements OrderHistoryService {
         OrderDTO dto = orderRepository.findByIdAndClientId(orderId, userId)
                 .map(orderMapper::toDTO)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
+        // The shop's call check is not shown to the customer.
+        dto.setOrderStatus(OrderStatus.forCustomer(dto.getOrderStatus()));
         if ("BKASH".equalsIgnoreCase(dto.getPaymentMethod())) {
             addBkash(dto, paymentRepository.findByOrderId(orderId), false);
             addRefunded(dto, orderId);
@@ -329,6 +332,7 @@ public class OrderHistoryServiceImpl implements OrderHistoryService {
             OrderStatus s = OrderStatus.parse(o.getOrderStatus()).orElse(null);
             return s != null && (s.normalize() == OrderStatus.PLACED
                     || s == OrderStatus.ACCEPTED
+                    || s == OrderStatus.CALL_CONFIRMED
                     || s == OrderStatus.IN_PRODUCTION // older orders, before the step was dropped
                     || s == OrderStatus.PROCESSING);
         }).count();

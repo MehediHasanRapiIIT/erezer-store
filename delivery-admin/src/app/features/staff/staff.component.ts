@@ -15,6 +15,7 @@ import { LoginNoticeComponent } from './login-notice.component';
 import { generatePassword } from './generate-password';
 import { EMAIL_PATTERN, passwordProblem } from './staff-rules';
 import { PageBeforeSearch } from '../../core/utils/page-before-search';
+import { ListMemory } from '../../core/services/list-memory.service';
 
 type PanelMode = 'edit' | 'reset' | 'permissions' | 'delete';
 
@@ -330,6 +331,7 @@ interface LoginNotice {
 })
 export class StaffComponent implements OnInit, OnDestroy {
   private readonly api = inject(StaffService);
+  private readonly memory = inject(ListMemory);
   protected readonly perms = inject(PermissionService);
   private readonly confirmer = inject(ConfirmService);
 
@@ -370,7 +372,10 @@ export class StaffComponent implements OnInit, OnDestroy {
   protected deleteText = '';
 
   ngOnInit(): void {
-    this.loadPage(0);
+    // Back from adding someone: the list as it was left.
+    const was = this.memory.recall<{ search: string; page: number }>('staff');
+    if (was) this.search.set(was.search);
+    this.loadPage(was?.page ?? 0);
     // Typing searches everyone after a short pause, from the first page.
     this.searchSubject.pipe(map((q) => q.trim()), debounceTime(300), distinctUntilChanged())
       .subscribe((q) => this.loadPage(this.pageBeforeSearch.pageFor(q)));
@@ -412,6 +417,7 @@ export class StaffComponent implements OnInit, OnDestroy {
         }
         this.staff.set(res.content);
         this.page.set(res.number);
+        this.memory.remember('staff', { search: this.search(), page: res.number });
         this.total.set(res.totalElements);
         this.loading.set(false);
       },

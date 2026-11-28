@@ -9,9 +9,11 @@ import { PageBeforeSearch } from '../../core/utils/page-before-search';
 import { CustomerHistoryBadgeComponent } from './customer-history/customer-history.component';
 import { parseApiError } from '../../core/utils/api-error.util';
 import { addDays, businessToday, formatDate, formatDateWithWeekday, formatTaka } from '../../core/utils/business-date.util';
+import { PagerComponent } from '../../shared/pager/pager.component';
+import { ListMemory } from '../../core/services/list-memory.service';
 
 const ALL_STATUSES: OrderStatus[] = [
-  'PLACED', 'ACCEPTED', 'PROCESSING', 'SHIPPED',
+  'PLACED', 'ACCEPTED', 'CALL_CONFIRMED', 'PROCESSING', 'SHIPPED',
   'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED', 'RETURNED',
 ];
 
@@ -23,12 +25,13 @@ const ALL_STATUSES: OrderStatus[] = [
 @Component({
   selector: 'app-orders',
   standalone: true,
-  imports: [FormsModule, SidebarComponent, CustomerHistoryBadgeComponent],
+  imports: [FormsModule, SidebarComponent, CustomerHistoryBadgeComponent, PagerComponent],
   templateUrl: './orders.component.html',
 })
 export class OrdersComponent implements OnInit, OnDestroy {
   private orderService = inject(OrderService);
   private router = inject(Router);
+  private memory = inject(ListMemory);
 
   readonly statuses = ALL_STATUSES;
   readonly pageSize = 10;
@@ -71,24 +74,20 @@ export class OrdersComponent implements OnInit, OnDestroy {
   /** Numbers each request, so an answer that arrives after a newer one is ignored. */
   private latestRequest = 0;
 
-  showingFrom = computed(() => this.currentPage() * this.pageSize + 1);
-  showingTo = computed(() => Math.min((this.currentPage() + 1) * this.pageSize, this.totalElements()));
 
-  pageNumbers = computed(() => {
-    const total = this.totalPages();
-    const current = this.currentPage();
-    if (total <= 5) return Array.from({ length: total }, (_, i) => i);
-    const pages: number[] = [];
-    if (current > 1) pages.push(0);
-    if (current > 2) pages.push(-1);
-    for (let i = Math.max(0, current - 1); i <= Math.min(total - 1, current + 1); i++) pages.push(i);
-    if (current < total - 3) pages.push(-1);
-    if (current < total - 2) pages.push(total - 1);
-    return [...new Set(pages)];
-  });
 
   ngOnInit(): void {
-    this.loadPage(0);
+    // Back from an order: the list as it was left.
+    const was = this.memory.recall<OrdersListState>('orders');
+    if (was) {
+      this.tab.set(was.tab);
+      this.filterStatus.set(was.status);
+      this.filterPayment.set(was.payment);
+      this.filterDate.set(was.date);
+      this.pickedDate.set(was.pickedDate);
+      this.searchQuery.set(was.search);
+    }
+    this.loadPage(was?.page ?? 0);
     this.loadSummary();
     this.startPolling();
     this.searchSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe((q) => this.loadPage(this.pageBeforeSearch.pageFor(q)));
@@ -138,6 +137,10 @@ export class OrdersComponent implements OnInit, OnDestroy {
         this.orders.set(data.content);
         this.loadHistory(data.content, request);
         this.currentPage.set(data.number);
+        this.memory.remember<OrdersListState>('orders', {
+          tab: this.tab(), status: this.filterStatus(), payment: this.filterPayment(), date: this.filterDate(),
+          pickedDate: this.pickedDate(), search: this.searchQuery(), page: data.number,
+        });
         this.totalElements.set(data.totalElements);
         this.totalPages.set(data.totalPages);
         this.isLoading.set(false);
@@ -268,6 +271,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
       case 'PLACED':
       case 'PENDING':           return 'bg-yellow-50 text-yellow-600 border border-yellow-200';
       case 'ACCEPTED':          return 'bg-blue-50 text-blue-600 border border-blue-200';
+      case 'CALL_CONFIRMED':    return 'bg-teal-50 text-teal-700 border border-teal-200';
       case 'IN_PRODUCTION':     return 'bg-orange-50 text-orange-600 border border-orange-200';
       case 'PROCESSING':        return 'bg-amber-50 text-amber-600 border border-amber-200';
       case 'SHIPPED':           return 'bg-sky-50 text-sky-600 border border-sky-200';
@@ -284,6 +288,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
       case 'PLACED':
       case 'PENDING':           return 'bg-yellow-500';
       case 'ACCEPTED':          return 'bg-blue-500';
+      case 'CALL_CONFIRMED':    return 'bg-teal-500';
       case 'IN_PRODUCTION':     return 'bg-orange-500';
       case 'PROCESSING':        return 'bg-amber-500';
       case 'SHIPPED':           return 'bg-sky-500';
@@ -313,4 +318,15 @@ export class OrdersComponent implements OnInit, OnDestroy {
   shortId(id: string): string {
     return id ? '#' + id.slice(0, 8).toUpperCase() : '—';
   }
+}
+
+/** What the Orders list remembers while the admin is open. */
+interface OrdersListState {
+  tab: 'active' | 'history';
+  status: string;
+  payment: string;
+  date: string;
+  pickedDate: string;
+  search: string;
+  page: number;
 }

@@ -36,7 +36,7 @@ public class PublicOrderTrackingService {
         Order order = orderRepository.findByOrderNumberAndDeletedFalse(number)
                 .orElseThrow(() -> new ResourceNotFoundException(NOT_FOUND));
 
-        OrderTrackingDTO tracking = orderService.getOrderTracking(order.getId());
+        OrderTrackingDTO tracking = orderService.getOrderTrackingForCustomer(order.getId());
         OrderDTO withItems = orderHistoryService.getOrderByIdForAdmin(order.getId());
 
         List<PublicOrderTrackingDTO.Step> steps = tracking.getHistory() == null ? List.of()

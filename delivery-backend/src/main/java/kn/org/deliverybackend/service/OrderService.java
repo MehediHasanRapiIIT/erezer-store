@@ -22,6 +22,9 @@ public interface OrderService {
 
     OrderTrackingDTO getOrderTracking(UUID orderId);
 
+    /** {@link #getOrderTracking(UUID)} as a customer may see it: without the shop's own call check. */
+    OrderTrackingDTO getOrderTrackingForCustomer(UUID orderId);
+
     /** Ownership-checked variant for customer-facing tracking (404s if not the owner). */
     OrderTrackingDTO getOrderTracking(UUID userId, UUID orderId);
 }
