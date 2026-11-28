@@ -11,6 +11,11 @@ import { parseApiError } from '../../core/utils/api-error.util';
 import { addDays, businessToday, formatDate, formatDateWithWeekday, formatTaka } from '../../core/utils/business-date.util';
 import { PagerComponent } from '../../shared/pager/pager.component';
 import { ListMemory } from '../../core/services/list-memory.service';
+import { PermissionService } from '../../core/services/permission.service';
+import { NoticeService } from '../../core/services/notice.service';
+import { InvoiceAppService, InvoiceSendResult, InvoiceSentMark, MAX_INVOICE_SEND } from '../../core/services/invoice-app.service';
+import { InvoiceSendDialogComponent } from './invoice-app/invoice-send-dialog.component';
+import { InvoiceMarkComponent } from './invoice-app/invoice-mark.component';
 
 const ALL_STATUSES: OrderStatus[] = [
   'PLACED', 'ACCEPTED', 'CALL_CONFIRMED', 'PROCESSING', 'SHIPPED',
@@ -25,13 +30,16 @@ const ALL_STATUSES: OrderStatus[] = [
 @Component({
   selector: 'app-orders',
   standalone: true,
-  imports: [FormsModule, SidebarComponent, CustomerHistoryBadgeComponent, PagerComponent],
+  imports: [FormsModule, SidebarComponent, CustomerHistoryBadgeComponent, PagerComponent, InvoiceSendDialogComponent, InvoiceMarkComponent],
   templateUrl: './orders.component.html',
 })
 export class OrdersComponent implements OnInit, OnDestroy {
   private orderService = inject(OrderService);
   private router = inject(Router);
   private memory = inject(ListMemory);
+  private invoiceApp = inject(InvoiceAppService);
+  private notices = inject(NoticeService);
+  protected readonly perms = inject(PermissionService);
 
   readonly statuses = ALL_STATUSES;
   readonly pageSize = 10;
@@ -71,6 +79,19 @@ export class OrdersComponent implements OnInit, OnDestroy {
   isLoading = signal(true);
   errorMessage = signal('');
 
+  // ── Erezer Invoice: tick orders, send them ──────────────────────────────
+  /** Order id → "In Invoice ✓", for the orders on this page that reached Erezer Invoice. */
+  invoiceMarks = signal<Record<string, InvoiceSentMark>>({});
+  /** Ticked orders (id → number), kept while moving between pages and filters. */
+  selected = signal<ReadonlyMap<string, string>>(new Map());
+  selectedCount = computed(() => this.selected().size);
+  /** Whether Erezer Invoice is connected; null until known. */
+  invoiceConnected = signal<boolean | null>(null);
+  /** Orders on their way (the dialog shows "Sending…"); 0 when none. */
+  sendingCount = signal(0);
+  sendResults = signal<InvoiceSendResult[] | null>(null);
+  readonly maxSend = MAX_INVOICE_SEND;
+
   /** Numbers each request, so an answer that arrives after a newer one is ignored. */
   private latestRequest = 0;
 
@@ -89,6 +110,12 @@ export class OrdersComponent implements OnInit, OnDestroy {
     }
     this.loadPage(was?.page ?? 0);
     this.loadSummary();
+    if (this.canSendToInvoice()) {
+      this.invoiceApp.status().subscribe({
+        next: (s) => this.invoiceConnected.set(s.connected),
+        error: () => this.invoiceConnected.set(null),
+      });
+    }
     this.startPolling();
     this.searchSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe((q) => this.loadPage(this.pageBeforeSearch.pageFor(q)));
   }
@@ -136,6 +163,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
         }
         this.orders.set(data.content);
         this.loadHistory(data.content, request);
+        this.loadInvoiceMarks(data.content, request);
         this.currentPage.set(data.number);
         this.memory.remember<OrdersListState>('orders', {
           tab: this.tab(), status: this.filterStatus(), payment: this.filterPayment(), date: this.filterDate(),
@@ -164,6 +192,104 @@ export class OrdersComponent implements OnInit, OnDestroy {
       },
       error: () => {},
     });
+  }
+
+  /** The "In Invoice ✓" marks for this page; the list shows without them if this fails. */
+  private loadInvoiceMarks(orders: OrderResponse[], request?: number): void {
+    const ids = orders.map((o) => o.id);
+    if (ids.length === 0) return;
+    this.invoiceApp.sent(ids).subscribe({
+      next: (marks) => {
+        if (request === undefined || request === this.latestRequest) this.invoiceMarks.set(marks);
+      },
+      error: () => {},
+    });
+  }
+
+  canSendToInvoice(): boolean {
+    return this.perms.can('orders.invoice_app.send');
+  }
+
+  /** Cancelled orders can't be sent, so they can't be ticked. */
+  canTick(order: OrderResponse): boolean {
+    return order.orderStatus?.toUpperCase() !== 'CANCELLED';
+  }
+
+  isTicked(order: OrderResponse): boolean {
+    return this.selected().has(order.id);
+  }
+
+  toggleTick(order: OrderResponse): void {
+    if (!this.canTick(order)) return;
+    const next = new Map(this.selected());
+    if (next.has(order.id)) {
+      next.delete(order.id);
+    } else {
+      if (next.size >= MAX_INVOICE_SEND) {
+        this.notices.error('That’s the most for one send', `Send these ${MAX_INVOICE_SEND} first, then tick the rest.`);
+        return;
+      }
+      next.set(order.id, order.orderNumber || this.shortId(order.id));
+    }
+    this.selected.set(next);
+  }
+
+  /** The orders on this page that can be ticked. */
+  private tickable(): OrderResponse[] {
+    return this.orders().filter((o) => this.canTick(o));
+  }
+
+  allOnPageTicked(): boolean {
+    const page = this.tickable();
+    return page.length > 0 && page.every((o) => this.selected().has(o.id));
+  }
+
+  /** The header box: tick every order on this page, or untick them all. */
+  togglePage(): void {
+    const next = new Map(this.selected());
+    if (this.allOnPageTicked()) {
+      this.tickable().forEach((o) => next.delete(o.id));
+    } else {
+      for (const o of this.tickable()) {
+        if (next.size >= MAX_INVOICE_SEND && !next.has(o.id)) {
+          this.notices.error('That’s the most for one send', `${MAX_INVOICE_SEND} orders can go at a time.`);
+          break;
+        }
+        next.set(o.id, o.orderNumber || this.shortId(o.id));
+      }
+    }
+    this.selected.set(next);
+  }
+
+  clearTicks(): void {
+    this.selected.set(new Map());
+  }
+
+  /** Sends the ticked orders; the dialog shows how each one went. */
+  sendTicked(): void {
+    const ids = [...this.selected().keys()];
+    if (ids.length === 0 || this.sendingCount() > 0) return;
+    this.sendResults.set(null);
+    this.sendingCount.set(ids.length);
+    this.invoiceApp.send(ids).subscribe({
+      next: (results) => {
+        this.sendResults.set(results);
+        // Those that arrived are done; the ones that didn't stay ticked, ready to try again.
+        const next = new Map(this.selected());
+        results.filter((r) => r.outcome !== 'FAILED').forEach((r) => next.delete(r.orderId));
+        this.selected.set(next);
+        this.loadInvoiceMarks(this.orders());
+      },
+      error: (err) => {
+        this.sendingCount.set(0);
+        this.notices.error('Not sent', parseApiError(err));
+      },
+    });
+  }
+
+  closeSendDialog(): void {
+    this.sendingCount.set(0);
+    this.sendResults.set(null);
   }
 
   /** Shop days in Dhaka, both inclusive; the server turns them into UTC windows. */

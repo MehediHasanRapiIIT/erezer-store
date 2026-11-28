@@ -36,6 +36,7 @@
                 class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold"
                 [class]="statusBadgeClass(currentStatus())"
               >{{ statusLabel(currentStatus()) }}</span>
+              <app-invoice-mark [mark]="invoiceMark()" />
             </div>
             <p class="text-sm text-gray-400 mt-1">Created {{ formatDate(order()!.createdAt) }}</p>
           </div>
@@ -49,6 +50,16 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
               </svg>
               {{ perms.can('orders.invoice.print') ? 'Print Invoice' : 'Send Invoice' }}
+            </button>
+            }
+            @if (perms.can('orders.invoice_app.send') && currentStatus() !== 'CANCELLED') {
+            <button type="button" (click)="sendToInvoice()" [disabled]="invoiceSending() > 0" data-testid="order-send-invoice-app"
+              [title]="invoiceMark() ? 'Already in Erezer Invoice: sending again changes nothing there' : 'Send this order, with its photos, to Erezer Invoice'"
+              class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+              </svg>
+              {{ invoiceMark() ? 'Send to Invoice again' : 'Send to Erezer Invoice' }}
             </button>
             }
             @if (perms.can('orders.edit')) {
@@ -585,3 +596,5 @@
     body { background: white; }
   }
 </style>
+
+<app-invoice-send-dialog [sending]="invoiceSending()" [results]="invoiceResults()" (closed)="closeInvoiceSend()" />

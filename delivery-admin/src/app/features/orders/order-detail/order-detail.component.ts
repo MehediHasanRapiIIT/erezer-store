@@ -18,6 +18,9 @@ import { NoticeService } from '../../../core/services/notice.service';
 import { OrderNotesComponent } from '../order-notes/order-notes.component';
 import { BkashRefundComponent } from '../bkash-refund/bkash-refund.component';
 import { CustomerHistoryComponent } from '../customer-history/customer-history.component';
+import { InvoiceAppService, InvoiceSendResult, InvoiceSentMark } from '../../../core/services/invoice-app.service';
+import { InvoiceSendDialogComponent } from '../invoice-app/invoice-send-dialog.component';
+import { InvoiceMarkComponent } from '../invoice-app/invoice-mark.component';
 
 // Display order for the lifecycle timeline (PENDING omitted — it's a legacy alias;
 // "In production" is no longer a step). "Call confirmed" is optional.
@@ -34,7 +37,8 @@ const TIMELINE: OrderStatus[] = [
 @Component({
   selector: 'app-order-detail',
   standalone: true,
-  imports: [FormsModule, SidebarComponent, OrderNotesComponent, BkashRefundComponent, CustomerHistoryComponent],
+  imports: [FormsModule, SidebarComponent, OrderNotesComponent, BkashRefundComponent, CustomerHistoryComponent,
+    InvoiceSendDialogComponent, InvoiceMarkComponent],
   templateUrl: './order-detail.component.html',
 })
 export class OrderDetailComponent implements OnInit {
@@ -44,6 +48,13 @@ export class OrderDetailComponent implements OnInit {
   private readonly notices = inject(NoticeService);
   private sanitizer = inject(DomSanitizer);
   protected readonly perms = inject(PermissionService);
+  private readonly invoiceApp = inject(InvoiceAppService);
+
+  // ── Erezer Invoice ─────────────────────────────────────────────────────────
+  /** "In Invoice ✓" once this order reached Erezer Invoice. */
+  readonly invoiceMark = signal<InvoiceSentMark | null>(null);
+  readonly invoiceSending = signal(0);
+  readonly invoiceResults = signal<InvoiceSendResult[] | null>(null);
 
   readonly order = signal<OrderResponse | null>(null);
   /** A product picture opened full size from the items list. */
@@ -125,6 +136,37 @@ export class OrderDetailComponent implements OnInit {
 
     this.loadTracking(orderId);
     this.loadStatusOptions();
+    this.loadInvoiceMark(orderId);
+  }
+
+  private loadInvoiceMark(orderId: string): void {
+    this.invoiceApp.sent([orderId]).subscribe({
+      next: (marks) => this.invoiceMark.set(marks[orderId] ?? null),
+      error: () => {},
+    });
+  }
+
+  /** Sends this order, with its photos, to Erezer Invoice; the dialog says how it went. */
+  sendToInvoice(): void {
+    const order = this.order();
+    if (!order || this.invoiceSending() > 0) return;
+    this.invoiceResults.set(null);
+    this.invoiceSending.set(1);
+    this.invoiceApp.send([order.id]).subscribe({
+      next: (results) => {
+        this.invoiceResults.set(results);
+        this.loadInvoiceMark(order.id);
+      },
+      error: (err) => {
+        this.invoiceSending.set(0);
+        this.notices.error('Not sent', parseApiError(err));
+      },
+    });
+  }
+
+  closeInvoiceSend(): void {
+    this.invoiceSending.set(0);
+    this.invoiceResults.set(null);
   }
 
   /** After a bKash refund: the Paid badge shows what went back. */

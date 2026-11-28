@@ -114,6 +114,33 @@ public class MinioStorageServiceImpl implements FileStorageService {
         deleteFile(parts[parts.length - 1], parts[parts.length - 2]);
     }
 
+    @Override
+    public java.util.Optional<StoredFile> read(String url, long maxBytes) {
+        if (url == null || url.isBlank()) return java.util.Optional.empty();
+        String base = null;
+        for (String candidate : new String[] {minioPublicUrl, minioUrl}) {
+            String b = trimTrailingSlash(candidate) + "/";
+            if (url.startsWith(b)) { base = b; break; }
+        }
+        if (base == null) return java.util.Optional.empty();   // not one of ours: never fetched
+        String[] parts = url.substring(base.length()).split("[?]")[0].split("/");
+        if (parts.length != 2 || parts[0].isBlank() || parts[1].isBlank() || parts[1].contains("..")) {
+            return java.util.Optional.empty();
+        }
+        String bucket = parts[0];
+        String name = parts[1];
+        try {
+            StatObjectResponse stat = minioClient.statObject(StatObjectArgs.builder().bucket(bucket).object(name).build());
+            if (stat.size() > maxBytes) return java.util.Optional.empty();
+            try (InputStream in = minioClient.getObject(GetObjectArgs.builder().bucket(bucket).object(name).build())) {
+                return java.util.Optional.of(new StoredFile(name, stat.contentType(), in.readAllBytes()));
+            }
+        } catch (Exception e) {
+            log.warn("Stored file {} couldn't be read: {}", url, e.getMessage());
+            return java.util.Optional.empty();
+        }
+    }
+
     /** Guards against a configured URL with a trailing slash producing "//bucket". */
     private static String trimTrailingSlash(String url) {
         return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;

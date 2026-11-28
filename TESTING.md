@@ -585,6 +585,58 @@ Unit test: `CustomerHistoryServiceTest`.
 
 ---
 
+## 16. Sending orders to Erezer Invoice
+
+Erezer Invoice (`D:\ErezerInvoice`) is the owner's separate order system. Staff
+tick orders here and send them there, with one product photo per line. Nothing
+is ever sent on its own.
+
+### Connect (once)
+
+1. Start Erezer Invoice from its own folder: `docker compose up -d`. It runs at
+   http://localhost:8088.
+2. In Erezer Invoice, open **Shop connection → Make a key** and copy the key.
+3. In the shop admin, open **Settings → Erezer Invoice**:
+   - Address: `http://host.docker.internal:8088`. Locally, the shop's backend
+     runs inside Docker, so it reaches your PC by that name.
+   - Key: paste it, then **Save** and **Test the connection**.
+
+On the live server, the address is the one Erezer Invoice opens at in the
+browser. Its `/api/integrations/shop/*` must be reachable from the shop's server.
+
+### Try it
+
+- **Orders:** tick orders (Cancelled ones can't be ticked), then **Send to
+  Erezer Invoice**. The window shows each order:
+  - ✅ sent
+  - ↩️ already there (nothing is made twice)
+  - ❌ not sent, with the reason
+  - ⚠️ photo missing
+- Sent orders get **In Invoice ✓**. The order page has the same button.
+- In Erezer Invoice the order has:
+  - the shop's number (EZ-…), platform Website, taken by "Erezer website"
+  - the same total
+  - bKash money actually kept (paid minus refunded) as advance
+  - photos on the invoice's second page
+- Photos are read only from the shop's own storage. A product whose picture
+  is a web link (the Unsplash demo products) goes without one, with ⚠️.
+- If the key is wrong or Erezer Invoice is off, the send stops at once and
+  says so. Nothing is half-sent.
+
+Permissions:
+- **Send orders to Erezer Invoice** (`orders.invoice_app.send`) for the button
+- **Connect Erezer Invoice** (`settings.invoice_app`) for Settings
+- the badge needs only **See orders**
+
+Every send and settings change is in the **Activity log**; the key never is.
+
+Tests:
+- Shop: `InvoiceOrderBuilderTest`, `InvoiceAppSenderTest`, `InvoiceAppClientTest`
+  (a small local server plays Erezer Invoice), and `AdminPermissionSecurityTest`
+- Erezer Invoice: `ShopOrderIntegrationTest`
+
+---
+
 ## What is not wired up locally
 
 These are stubbed on purpose, and are **not** signs of a broken setup:

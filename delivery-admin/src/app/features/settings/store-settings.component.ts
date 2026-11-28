@@ -58,10 +58,11 @@ const EMPTY_MARQUEE: Marquee = { enabled: true, items: [] };
 
 import { CustomerEmailsSectionComponent } from './customer-emails-section.component';
 import { ShowcaseSectionComponent } from './showcase-section.component';
+import { InvoiceAppSectionComponent } from './invoice-app-section.component';
 @Component({
   selector: 'app-store-settings',
   standalone: true,
-  imports: [FormsModule, RouterLink, SidebarComponent, CustomerEmailsSectionComponent, ShowcaseSectionComponent],
+  imports: [FormsModule, RouterLink, SidebarComponent, CustomerEmailsSectionComponent, ShowcaseSectionComponent, InvoiceAppSectionComponent],
   template: `
     <div class="flex h-screen bg-gray-50 overflow-hidden">
       <app-sidebar />
@@ -168,6 +169,11 @@ import { ShowcaseSectionComponent } from './showcase-section.component';
               </div>
               </fieldset>
             </section>
+
+            <!-- Erezer Invoice (the owner's order system) -->
+            @if (perms.can('settings.invoice_app')) {
+              <app-invoice-app-section />
+            }
 
             <!-- Meta Pixel (Facebook / Instagram reporting) -->
             @if (perms.can('settings.meta')) {

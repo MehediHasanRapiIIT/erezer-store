@@ -231,6 +231,13 @@
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b border-gray-100 bg-gray-50">
+                @if (canSendToInvoice()) {
+                  <th class="w-10 pl-5 pr-0 py-3">
+                    <input type="checkbox" class="h-4 w-4 cursor-pointer accent-gray-900" data-testid="tick-page"
+                      [checked]="allOnPageTicked()" (change)="togglePage()"
+                      title="Tick every order on this page" aria-label="Tick every order on this page" />
+                  </th>
+                }
                 <th class="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Order ID</th>
                 <th class="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Customer</th>
                 <th class="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Date</th>
@@ -242,9 +249,21 @@
             </thead>
             <tbody class="divide-y divide-gray-50">
               @for (order of orders(); track order.id) {
-                <tr class="hover:bg-gray-50 transition-colors cursor-pointer" (click)="viewOrder(order)">
+                <tr class="hover:bg-gray-50 transition-colors cursor-pointer" [class.bg-indigo-50/40]="isTicked(order)" (click)="viewOrder(order)">
+                  @if (canSendToInvoice()) {
+                    <td class="w-10 pl-5 pr-0 py-3.5" (click)="$event.stopPropagation()">
+                      <input type="checkbox" class="h-4 w-4 cursor-pointer accent-gray-900 disabled:cursor-not-allowed disabled:opacity-30"
+                        [attr.data-testid]="'tick-' + (order.orderNumber || order.id)"
+                        [checked]="isTicked(order)" [disabled]="!canTick(order)" (change)="toggleTick(order)"
+                        [title]="canTick(order) ? 'Tick to send to Erezer Invoice' : 'Cancelled orders can’t be sent'"
+                        [attr.aria-label]="'Tick ' + (order.orderNumber || shortId(order.id))" />
+                    </td>
+                  }
                   <td class="px-5 py-3.5">
                     <span class="font-mono text-xs font-semibold text-gray-700">{{ order.orderNumber || shortId(order.id) }}</span>
+                    @if (invoiceMarks()[order.id]; as mark) {
+                      <div class="mt-1"><app-invoice-mark [mark]="mark" /></div>
+                    }
                   </td>
                   <td class="px-5 py-3.5">
                     <p class="font-semibold text-gray-800 text-sm leading-tight">{{ order.customerName || '—' }}</p>
@@ -295,7 +314,7 @@
               }
               @empty {
                 <tr>
-                  <td colspan="7" class="px-5 py-14 text-center text-gray-400 text-sm">
+                  <td [attr.colspan]="canSendToInvoice() ? 8 : 7" class="px-5 py-14 text-center text-gray-400 text-sm">
                     No orders found.
                   </td>
                 </tr>
@@ -309,6 +328,27 @@
           </div>
         }
       </div>
+
+      <!-- Ticked orders: send them to Erezer Invoice -->
+      @if (canSendToInvoice() && selectedCount() > 0) {
+        <div class="sticky bottom-0 z-20 mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white px-5 py-3 shadow-lg" data-testid="invoice-send-bar">
+          <span class="text-sm font-semibold text-gray-800">{{ selectedCount() }} selected</span>
+          <button type="button" (click)="clearTicks()" class="text-sm text-gray-500 underline-offset-2 hover:text-gray-800 hover:underline">Clear</button>
+          @if (invoiceConnected() === false) {
+            <span class="text-xs text-amber-700">Erezer Invoice isn't connected yet: add its address and key in Settings → Erezer Invoice.</span>
+          }
+          <button type="button" (click)="sendTicked()" [disabled]="sendingCount() > 0 || invoiceConnected() === false"
+            data-testid="invoice-send"
+            class="ml-auto flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+            </svg>
+            Send to Erezer Invoice
+          </button>
+        </div>
+      }
     </main>
   </div>
 </div>
+
+<app-invoice-send-dialog [sending]="sendingCount()" [results]="sendResults()" (closed)="closeSendDialog()" />

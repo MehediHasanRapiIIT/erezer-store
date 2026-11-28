@@ -36,6 +36,8 @@ public enum Perm {
             "An item's price, the delivery fee and the discount. Needs “Edit orders”."),
     ORDERS_INVOICE_PRINT("orders.invoice.print", "Orders", "Download invoices", null),
     ORDERS_INVOICE_SEND("orders.invoice.send", "Orders", "Email invoices to customers", null),
+    ORDERS_SEND_INVOICE_APP("orders.invoice_app.send", "Orders", "Send orders to Erezer Invoice",
+            "Tick orders and send them, with their product photos, to the Erezer Invoice order list."),
     ORDERS_NOTES_VIEW("orders.notes.view", "Orders", "Read order notes", null),
     ORDERS_NOTES_ADD("orders.notes.add", "Orders", "Add order notes", null),
     ORDERS_NOTES_DELETE("orders.notes.delete", "Orders", "Delete order notes", null),
@@ -131,6 +133,8 @@ public enum Perm {
     SETTINGS_ABOUT("settings.about", "Settings", "Edit the About page", null),
     SETTINGS_META("settings.meta", "Settings", "Set up Meta Pixel",
             "Facebook/Instagram reporting: Pixel ID and access token."),
+    SETTINGS_INVOICE_APP("settings.invoice_app", "Settings", "Connect Erezer Invoice",
+            "Its address and the key orders are sent with."),
 
     STAFF_VIEW("staff.view", "Staff", "See staff", null),
     STAFF_MANAGE("staff.manage", "Staff", "Add staff, deactivate, reset passwords", null),

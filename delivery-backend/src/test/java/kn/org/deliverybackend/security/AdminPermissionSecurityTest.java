@@ -56,6 +56,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -68,7 +69,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(controllers = {AdminCouponController.class, AdminOrderController.class, AdminMeController.class,
         AdminCustomerController.class, AdminStoreSettingsController.class,
         kn.org.deliverybackend.controller.CategoryController.class,
-        kn.org.deliverybackend.controller.AdminPriceChangeController.class})
+        kn.org.deliverybackend.controller.AdminPriceChangeController.class,
+        kn.org.deliverybackend.controller.AdminInvoiceAppController.class})
 @Import({SecurityConfig.class, JwtTokenProvider.class, CorsConfig.class, StaffDirectory.class, ActivityService.class})
 @TestPropertySource(properties = {
         "app.jwt.secret=" + CustomerAccessSecurityTest.SECRET,
@@ -94,6 +96,8 @@ class AdminPermissionSecurityTest {
     @MockBean private kn.org.deliverybackend.service.impl.OrderEditService orderEditService;
     @MockBean private kn.org.deliverybackend.service.impl.CustomerHistoryService customerHistoryService;
     @MockBean private ReportService reportService;
+    @MockBean private kn.org.deliverybackend.integration.invoiceapp.InvoiceAppSettingsService invoiceAppSettings;
+    @MockBean private kn.org.deliverybackend.integration.invoiceapp.InvoiceAppSender invoiceAppSender;
     @MockBean private StoreSettingsService storeSettingsService;
     @MockBean private kn.org.deliverybackend.integration.keycloak.KeycloakAdminClient keycloak;
 
@@ -253,6 +257,28 @@ class AdminPermissionSecurityTest {
         directory.evict("kc-mod");
         as("mod", get("/admin/orders/period-summary").param("fromDate", "2026-11-21").param("toDate", "2026-11-21"))
                 .andExpect(jsonPath("$.amount").value(18450.00));
+    }
+
+    @Test
+    void sendingToErezerInvoiceNeedsItsOwnPermission() throws Exception {
+        when(invoiceAppSender.send(any(), anyString())).thenReturn(java.util.List.of());
+        String body = "{\"orderIds\":[\"" + ORDER + "\"]}";
+
+        moderator("orders.view");
+        as("mod", post("/admin/invoice-app/send").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.missingPermissions[0]").value("orders.invoice_app.send"));
+        // Seeing the "In Invoice" marks only needs the order list.
+        as("mod", get("/admin/invoice-app/sent").param("ids", ORDER.toString())).andExpect(status().isOk());
+        // The address and key are a setting of their own.
+        as("mod", get("/admin/invoice-app")).andExpect(status().isForbidden());
+
+        staff.get("kc-mod").getPermissions().add("orders.invoice_app.send");
+        directory.evict("kc-mod");
+        as("mod", post("/admin/invoice-app/send").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk());
+        verify(invoiceAppSender).send(java.util.List.of(ORDER), "Moderator One");
+        as("mod", get("/admin/invoice-app")).andExpect(status().isForbidden());
     }
 
     // ── settings sections ───────────────────────────────────────────────────

@@ -110,6 +110,14 @@ public class StoreSettings extends AbstractBaseEntity<Long> {
     @Column(name = "meta_test_event_code")
     private String metaTestEventCode;
 
+    // ── Erezer Invoice (the owner's order system), where staff send orders.
+    //    The key is stored locked (see util/SecretBox) and never leaves the server.
+    @Column(name = "invoice_app_url", length = 300)
+    private String invoiceAppUrl;
+
+    @Column(name = "invoice_app_key", columnDefinition = "text")
+    private String invoiceAppKey;
+
     // ── Automatic-discount switches. Null on legacy rows → treated as enabled,
     //    so a database seeded before this feature keeps discounting as it did.
     //    These govern the `discount` table only: a product's own sale price,
